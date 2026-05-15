@@ -1,0 +1,83 @@
+# Generates /local/scrollwheel/rain_radar.jpg for the Scrollwheel rain radar page.
+
+input_text:
+  scrollwheel_rain_radar_updated_at:
+    name: Scrollwheel Rain Radar Updated At
+    max: 64
+
+command_line:
+  - sensor:
+      name: Scrollwheel Rain Radar Ffmpeg Available
+      unique_id: scrollwheel_rain_radar_ffmpeg_available
+      command: "sh -c 'command -v ffmpeg >/dev/null 2>&1 && echo on || echo off'"
+      scan_interval: 3600
+  - sensor:
+      name: Scrollwheel Rain Radar Image Ready
+      unique_id: scrollwheel_rain_radar_image_ready
+      command: "sh -c 'test -s /config/www/scrollwheel/rain_radar.jpg && echo ready || echo missing'"
+      scan_interval: 60
+
+shell_command:
+  scrollwheel_capture_rain_radar: >-
+    mkdir -p /config/www/scrollwheel &&
+    ffmpeg -y -hide_banner -loglevel error
+    -i "https://www.dwd.de/DWD/wetter/radar/radfilm_bay_akt.gif"
+    -frames:v 1
+    -vf "crop=320:320:166:180,scale=360:360:flags=lanczos"
+    /config/www/scrollwheel/rain_radar.jpg
+
+template:
+  - sensor:
+      - name: Scrollwheel Rain Radar Image Path
+        unique_id: scrollwheel_rain_radar_image_path
+        state: >-
+          {% if states('sensor.scrollwheel_rain_radar_image_ready') == 'ready' %}
+            /local/scrollwheel/rain_radar.jpg?v={{ states('input_text.scrollwheel_rain_radar_updated_at') | default('0', true) }}
+          {% else %}
+            {{ '' }}
+          {% endif %}
+
+script:
+  scrollwheel_refresh_rain_radar:
+    alias: Scrollwheel Regenradar aktualisieren
+    mode: restart
+    sequence:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: sensor.scrollwheel_rain_radar_ffmpeg_available
+                state: "on"
+            sequence:
+              - service: shell_command.scrollwheel_capture_rain_radar
+              - delay: 2s
+              - homeassistant.update_entity:
+                  entity_id: sensor.scrollwheel_rain_radar_image_ready
+              - if:
+                  - condition: state
+                    entity_id: sensor.scrollwheel_rain_radar_image_ready
+                    state: "ready"
+                then:
+                  - service: input_text.set_value
+                    target:
+                      entity_id: input_text.scrollwheel_rain_radar_updated_at
+                    data:
+                      value: "{{ now().timestamp() | int }}"
+
+automation:
+  - id: scrollwheel_refresh_rain_radar_on_start
+    alias: Scrollwheel Regenradar bei Start aktualisieren
+    mode: single
+    triggers:
+      - trigger: homeassistant
+        event: start
+    actions:
+      - service: script.scrollwheel_refresh_rain_radar
+
+  - id: scrollwheel_refresh_rain_radar_periodic
+    alias: Scrollwheel Regenradar periodisch aktualisieren
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        minutes: "/5"
+    actions:
+      - service: script.scrollwheel_refresh_rain_radar

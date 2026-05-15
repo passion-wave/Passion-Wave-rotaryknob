@@ -1,0 +1,166 @@
+blueprint:
+  name: Passion Wave Rotaryknob - Dynamic Targets
+  description: >
+    Writes Home Assistant entity-picker selections into the persistent
+    Rotaryknob ESPHome text entities. Use a Music Assistant capable media
+    player for media playback and any Home Assistant light entities for the
+    four light slots.
+  domain: automation
+  source_url: https://github.com/Passion-Wave/Passion-Wave-rotaryknob/blob/main/home_assistant/blueprints/automation/passion_wave/rotaryknob_device_defaults.yaml
+  input:
+    knob_device:
+      name: Rotaryknob device
+      description: Select the ESPHome device created by the Passion Wave Rotaryknob firmware.
+      selector:
+        device:
+          integration: esphome
+    media_target:
+      name: Media target
+      description: Select the Music Assistant capable media player controlled by the rotary media page.
+      selector:
+        entity:
+          domain: media_player
+    light_slot_1:
+      name: Light slot 1
+      selector:
+        entity:
+          domain: light
+    light_slot_2:
+      name: Light slot 2
+      selector:
+        entity:
+          domain: light
+    light_slot_3:
+      name: Light slot 3
+      selector:
+        entity:
+          domain: light
+    light_slot_4:
+      name: Light slot 4
+      selector:
+        entity:
+          domain: light
+
+mode: restart
+
+triggers:
+  - trigger: homeassistant
+    event: start
+  - trigger: event
+    event_type: automation_reloaded
+
+variables:
+  knob_device: !input knob_device
+  media_target: !input media_target
+  light_slot_1: !input light_slot_1
+  light_slot_2: !input light_slot_2
+  light_slot_3: !input light_slot_3
+  light_slot_4: !input light_slot_4
+  knob_entities: "{{ device_entities(knob_device) }}"
+  media_entity_text: "{{ knob_entities | select('search', 'media_entity_id') | list | first | default('', true) }}"
+  media_label_text: "{{ knob_entities | select('search', 'media_label') | list | first | default('', true) }}"
+  light_slot_1_entity_text: "{{ knob_entities | select('search', 'light_slot_1_entity_id') | list | first | default('', true) }}"
+  light_slot_1_label_text: "{{ knob_entities | select('search', 'light_slot_1_label') | list | first | default('', true) }}"
+  light_slot_2_entity_text: "{{ knob_entities | select('search', 'light_slot_2_entity_id') | list | first | default('', true) }}"
+  light_slot_2_label_text: "{{ knob_entities | select('search', 'light_slot_2_label') | list | first | default('', true) }}"
+  light_slot_3_entity_text: "{{ knob_entities | select('search', 'light_slot_3_entity_id') | list | first | default('', true) }}"
+  light_slot_3_label_text: "{{ knob_entities | select('search', 'light_slot_3_label') | list | first | default('', true) }}"
+  light_slot_4_entity_text: "{{ knob_entities | select('search', 'light_slot_4_entity_id') | list | first | default('', true) }}"
+  light_slot_4_label_text: "{{ knob_entities | select('search', 'light_slot_4_label') | list | first | default('', true) }}"
+  media_label: "{{ state_attr(media_target, 'friendly_name') or media_target }}"
+  light_slot_1_label: "{{ state_attr(light_slot_1, 'friendly_name') or light_slot_1 }}"
+  light_slot_2_label: "{{ state_attr(light_slot_2, 'friendly_name') or light_slot_2 }}"
+  light_slot_3_label: "{{ state_attr(light_slot_3, 'friendly_name') or light_slot_3 }}"
+  light_slot_4_label: "{{ state_attr(light_slot_4, 'friendly_name') or light_slot_4 }}"
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ media_entity_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ media_entity_text }}"
+        data:
+          value: "{{ media_target }}"
+  - if:
+      - condition: template
+        value_template: "{{ media_label_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ media_label_text }}"
+        data:
+          value: "{{ media_label }}"
+  - if:
+      - condition: template
+        value_template: "{{ light_slot_1_entity_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ light_slot_1_entity_text }}"
+        data:
+          value: "{{ light_slot_1 }}"
+  - if:
+      - condition: template
+        value_template: "{{ light_slot_1_label_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ light_slot_1_label_text }}"
+        data:
+          value: "{{ light_slot_1_label }}"
+  - if:
+      - condition: template
+        value_template: "{{ light_slot_2_entity_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ light_slot_2_entity_text }}"
+        data:
+          value: "{{ light_slot_2 }}"
+  - if:
+      - condition: template
+        value_template: "{{ light_slot_2_label_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ light_slot_2_label_text }}"
+        data:
+          value: "{{ light_slot_2_label }}"
+  - if:
+      - condition: template
+        value_template: "{{ light_slot_3_entity_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ light_slot_3_entity_text }}"
+        data:
+          value: "{{ light_slot_3 }}"
+  - if:
+      - condition: template
+        value_template: "{{ light_slot_3_label_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ light_slot_3_label_text }}"
+        data:
+          value: "{{ light_slot_3_label }}"
+  - if:
+      - condition: template
+        value_template: "{{ light_slot_4_entity_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ light_slot_4_entity_text }}"
+        data:
+          value: "{{ light_slot_4 }}"
+  - if:
+      - condition: template
+        value_template: "{{ light_slot_4_label_text != '' }}"
+    then:
+      - action: text.set_value
+        target:
+          entity_id: "{{ light_slot_4_label_text }}"
+        data:
+          value: "{{ light_slot_4_label }}"
