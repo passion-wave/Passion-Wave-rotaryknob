@@ -7,12 +7,36 @@ CONFIG_FILE="${1:-scrollwheel_JC3636K518C.yaml}"
 CONFIG_BASENAME="$(basename "${CONFIG_FILE}")"
 CONFIG_NAME="${CONFIG_BASENAME%.yaml}"
 CONFIG_NAME_LOWER="$(printf '%s' "${CONFIG_NAME}" | tr '[:upper:]' '[:lower:]')"
-BUILD_ROOT="${REPO_ROOT}/.esphome"
+CONFIG_DIR_REL="$(dirname "${CONFIG_FILE}")"
+if [[ "${CONFIG_DIR_REL}" == "." ]]; then
+  CONFIG_DIR_REL=""
+fi
+CONFIG_ABS="${REPO_ROOT}/${CONFIG_FILE}"
+CONFIG_ROOT="${REPO_ROOT}${CONFIG_DIR_REL:+/${CONFIG_DIR_REL}}"
+BUILD_ROOT="${CONFIG_ROOT}/.esphome"
 PLATFORMIO_CACHE="${REPO_ROOT}/.esphome_cache/platformio"
 ESPHOME_IMAGE="${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.2.2}"
 SERIAL_PORT="${SERIAL_PORT:-/dev/cu.usbmodem14101}"
 BAUD_RATE="${BAUD_RATE:-460800}"
-BUILD_DIR="${BUILD_ROOT}/build/${CONFIG_NAME_LOWER}"
+CONFIG_BUILD_PATH="$(awk '/^[[:space:]]*build_path:[[:space:]]*/ {
+  sub(/^[[:space:]]*build_path:[[:space:]]*/, "", $0);
+  sub(/[[:space:]]+#.*$/, "", $0);
+  gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0);
+  gsub(/^"|"$/, "", $0);
+  gsub(/^'\''|'\''$/, "", $0);
+  print;
+  exit
+}' "${CONFIG_ABS}" 2>/dev/null || true)"
+if [[ -n "${CONFIG_BUILD_PATH}" ]]; then
+  BUILD_DIR="${BUILD_ROOT}/${CONFIG_BUILD_PATH}"
+else
+  BUILD_DIR="${BUILD_ROOT}/build/${CONFIG_NAME_LOWER}"
+fi
+if [[ -n "${CONFIG_DIR_REL}" ]]; then
+  BUILD_MOUNT="/config/${CONFIG_DIR_REL}/.esphome"
+else
+  BUILD_MOUNT="/config/.esphome"
+fi
 
 mkdir -p "${BUILD_ROOT}" "${PLATFORMIO_CACHE}"
 
@@ -31,7 +55,7 @@ FACTORY_BIN="$(factory_bin)"
 docker_esphome() {
   docker run --rm \
     -v "${REPO_ROOT}":/config \
-    -v "${BUILD_ROOT}":/config/.esphome \
+    -v "${BUILD_ROOT}:${BUILD_MOUNT}" \
     -v "${PLATFORMIO_CACHE}":/root/.platformio \
     "${ESPHOME_IMAGE}" \
     "$@"

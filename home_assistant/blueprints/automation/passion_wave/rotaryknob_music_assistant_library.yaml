@@ -1,0 +1,272 @@
+blueprint:
+  name: Passion Wave Rotaryknob - Music Assistant Library Bridge
+  description: >
+    Publishes Music Assistant playlist, radio and podcast entries to the MQTT
+    topics used by the Passion Wave Rotaryknob media picker. It also answers
+    paged playlist requests and, when the local Music Assistant REST command is
+    available, paged playlist-track requests from the device.
+  domain: automation
+  source_url: https://github.com/Passion-Wave/Passion-Wave-rotaryknob/blob/main/home_assistant/blueprints/automation/passion_wave/rotaryknob_music_assistant_library.yaml
+  input:
+    music_assistant_instance:
+      name: Music Assistant instance
+      description: Select the Music Assistant config entry that owns the media library.
+      selector:
+        config_entry:
+          integration: music_assistant
+    bootstrap_limit:
+      name: Bootstrap item limit
+      description: >
+        Maximum items published to the retained static library topics. Keep this
+        small because ESPHome MQTT messages are memory sensitive on display UIs.
+      default: 40
+      selector:
+        number:
+          min: 10
+          max: 100
+          step: 5
+          mode: slider
+
+mode: queued
+max: 10
+
+triggers:
+  - trigger: homeassistant
+    event: start
+    id: refresh_static
+  - trigger: event
+    event_type: automation_reloaded
+    id: refresh_static
+  - trigger: time_pattern
+    minutes: "/30"
+    id: refresh_static
+  - trigger: mqtt
+    topic: passion_wave/media/playlists/request
+    id: playlist_request
+  - trigger: mqtt
+    topic: passion_wave/media/playlist_tracks/request
+    id: playlist_tracks_request
+
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'playlist_request' }}"
+        sequence:
+          - variables:
+              payload: "{{ trigger.payload_json if trigger.payload_json is defined and trigger.payload_json is mapping else {} }}"
+              request_id: "{{ payload.get('request_id', '') }}"
+              request_offset: >-
+                {% set value = payload.get('offset', 0) | int(0) %}
+                {{ 0 if value < 0 else value }}
+              request_limit: >-
+                {% set value = payload.get('limit', 24) | int(24) %}
+                {% if value < 1 %}1{% elif value > 100 %}100{% else %}{{ value }}{% endif %}
+          - action: music_assistant.get_library
+            data:
+              config_entry_id: !input music_assistant_instance
+              media_type: playlist
+              limit: "{{ request_limit | int(24) }}"
+              offset: "{{ request_offset | int(0) }}"
+            response_variable: playlist_response
+          - action: mqtt.publish
+            data:
+              topic: passion_wave/media/playlists/state
+              retain: false
+              payload: >-
+                {% set items = playlist_response.get('items', []) if playlist_response is mapping else [] %}
+                {% set limit = request_limit | int(24) %}
+                {% set offset = request_offset | int(0) %}
+                {% set ns = namespace(rows=[]) %}
+                {% for item in items %}
+                  {% set ns.rows = ns.rows + [dict(
+                    name=item.get('name') or item.get('title') or '',
+                    uri=item.get('uri') or item.get('id') or '',
+                    item_id=item.get('item_id') or '',
+                    media_type=item.get('media_type') or 'playlist'
+                  )] %}
+                {% endfor %}
+                {{ dict(
+                  request_id=request_id,
+                  offset=offset,
+                  limit=limit,
+                  next_offset=offset + (items | count),
+                  total=playlist_response.get('total', 0) if playlist_response is mapping else 0,
+                  has_more=(items | count) >= limit,
+                  items=ns.rows
+                ) | to_json }}
+
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'playlist_tracks_request' }}"
+        sequence:
+          - variables:
+              payload: "{{ trigger.payload_json if trigger.payload_json is defined and trigger.payload_json is mapping else {} }}"
+              request_id: "{{ payload.get('request_id', '') }}"
+              playlist_value: >-
+                {{ payload.get('playlist_id') or payload.get('playlist_item_id') or payload.get('playlist') or '' }}
+              playlist_numeric_id: >-
+                {% set raw = (payload.get('playlist_id') or payload.get('playlist_item_id') or payload.get('playlist') or '') | string %}
+                {% if raw.startswith('library://playlist/') %}
+                  {{ raw.split('/')[-1] | regex_replace(find='[^0-9]', replace='') }}
+                {% else %}
+                  {{ raw | regex_replace(find='[^0-9]', replace='') }}
+                {% endif %}
+              request_offset: >-
+                {% set value = payload.get('offset', 0) | int(0) %}
+                {{ 0 if value < 0 else value }}
+              request_limit: >-
+                {% set value = payload.get('limit', 16) | int(16) %}
+                {% if value < 1 %}1{% elif value > 80 %}80{% else %}{{ value }}{% endif %}
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ playlist_numeric_id | string | trim != '' }}"
+                sequence:
+                  - action: rest_command.get_ma_playlist_tracks_dynamic
+                    response_variable: track_list_response
+                    data:
+                      playlist_id: "{{ playlist_numeric_id | string | trim }}"
+                  - action: mqtt.publish
+                    data:
+                      topic: passion_wave/media/playlist_tracks/state
+                      retain: false
+                      payload: >-
+                        {% set raw = track_list_response.content if track_list_response is mapping and 'content' in track_list_response else [] %}
+                        {% set parsed = raw | from_json if raw is string else raw %}
+                        {% if parsed is mapping and 'result' in parsed %}
+                          {% set result = parsed['result'] %}
+                        {% else %}
+                          {% set result = parsed %}
+                        {% endif %}
+                        {% if result is mapping and 'items' in result %}
+                          {% set source_tracks = result['items'] %}
+                        {% elif result is iterable and result is not string and result is not mapping %}
+                          {% set source_tracks = result %}
+                        {% else %}
+                          {% set source_tracks = [] %}
+                        {% endif %}
+                        {% set offset = request_offset | int(0) %}
+                        {% set limit = request_limit | int(16) %}
+                        {% set total = source_tracks | count %}
+                        {% set ns = namespace(rows=[]) %}
+                        {% for track in source_tracks[offset:offset + limit] %}
+                          {% set title = track.get('name') or track.get('title') or '' %}
+                          {% set artist = '' %}
+                          {% set artists = track.get('artists') if track is mapping else [] %}
+                          {% if artists and artists[0] is mapping %}
+                            {% set artist = artists[0].get('name', '') %}
+                          {% endif %}
+                          {% set uri = track.get('uri') or '' %}
+                          {% set cover = '' %}
+                          {% set metadata = track.get('metadata') if track is mapping else {} %}
+                          {% if metadata is mapping and metadata.get('images') and metadata.get('images')[0] is mapping %}
+                            {% set cover = metadata.get('images')[0].get('path') or metadata.get('images')[0].get('url') or '' %}
+                          {% endif %}
+                          {% set ns.rows = ns.rows + [dict(
+                            title=title,
+                            name=title,
+                            artist=artist,
+                            uri=uri,
+                            cover=cover,
+                            image=cover
+                          )] %}
+                        {% endfor %}
+                        {{ dict(
+                          request_id=request_id,
+                          playlist_id=playlist_value,
+                          offset=offset,
+                          limit=limit,
+                          total=total,
+                          returned=ns.rows | count,
+                          has_more=(offset + (ns.rows | count)) < total,
+                          tracks=ns.rows
+                        ) | to_json }}
+            default:
+              - action: mqtt.publish
+                data:
+                  topic: passion_wave/media/playlist_tracks/state
+                  retain: false
+                  payload: >-
+                    {{ dict(
+                      request_id=request_id,
+                      playlist_id=playlist_value,
+                      offset=request_offset | int(0),
+                      limit=request_limit | int(16),
+                      total=0,
+                      returned=0,
+                      has_more=false,
+                      tracks=[]
+                    ) | to_json }}
+
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'refresh_static' }}"
+        sequence:
+          - action: music_assistant.get_library
+            data:
+              config_entry_id: !input music_assistant_instance
+              media_type: playlist
+              limit: !input bootstrap_limit
+              offset: 0
+            response_variable: playlist_response
+          - action: mqtt.publish
+            data:
+              topic: passion_wave/media/playlists
+              retain: true
+              payload: >-
+                {% set items = playlist_response.get('items', []) if playlist_response is mapping else [] %}
+                {% set ns = namespace(rows=[]) %}
+                {% for item in items %}
+                  {% set ns.rows = ns.rows + [dict(
+                    name=item.get('name') or item.get('title') or '',
+                    uri=item.get('uri') or item.get('id') or '',
+                    item_id=item.get('item_id') or '',
+                    media_type=item.get('media_type') or 'playlist'
+                  )] %}
+                {% endfor %}
+                {{ ns.rows | to_json }}
+          - action: music_assistant.get_library
+            data:
+              config_entry_id: !input music_assistant_instance
+              media_type: radio
+              limit: !input bootstrap_limit
+              offset: 0
+            response_variable: radio_response
+          - action: mqtt.publish
+            data:
+              topic: passion_wave/media/radios
+              retain: true
+              payload: >-
+                {% set items = radio_response.get('items', []) if radio_response is mapping else [] %}
+                {% set ns = namespace(rows=[]) %}
+                {% for item in items %}
+                  {% set ns.rows = ns.rows + [dict(
+                    name=item.get('name') or item.get('title') or '',
+                    uri=item.get('uri') or item.get('id') or '',
+                    media_type=item.get('media_type') or 'radio'
+                  )] %}
+                {% endfor %}
+                {{ ns.rows | to_json }}
+          - action: music_assistant.get_library
+            data:
+              config_entry_id: !input music_assistant_instance
+              media_type: podcast
+              limit: !input bootstrap_limit
+              offset: 0
+            response_variable: podcast_response
+          - action: mqtt.publish
+            data:
+              topic: passion_wave/media/podcasts
+              retain: true
+              payload: >-
+                {% set items = podcast_response.get('items', []) if podcast_response is mapping else [] %}
+                {% set ns = namespace(rows=[]) %}
+                {% for item in items %}
+                  {% set ns.rows = ns.rows + [dict(
+                    name=item.get('name') or item.get('title') or '',
+                    uri=item.get('uri') or item.get('id') or '',
+                    media_type=item.get('media_type') or 'podcast'
+                  )] %}
+                {% endfor %}
+                {{ ns.rows | to_json }}

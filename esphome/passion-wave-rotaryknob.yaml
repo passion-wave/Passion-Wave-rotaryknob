@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave Rotaryknob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "1.1.0"
+  project_version: "1.2.0"
   ha_player: "media_player.passion_wave_media"
   light_1_name: "Light 1"
   light_1_entity: "light.passion_wave_light_1"
@@ -38,8 +38,8 @@ substitutions:
   playlist_tracks_json_sensor: "passion_wave/media/playlist_tracks/state"
   media_debug_topic: "passion_wave/rotaryknob/media/debug"
   playlist_track_limit: "16"
-  ha_weather: "weather.home"
-  weather_location: "Home"
+  ha_weather: !secret ha_weather_entity
+  weather_location: !secret weather_location_fallback
   ha_base_url: !secret home_assistant_base_url
   rain_radar_image_url: !secret rain_radar_image_url
   photo_image_url_0: !secret photo_image_url_0
@@ -58,6 +58,7 @@ esphome:
     - <ArduinoJson.h>
     - <cctype>
     - <cmath>
+    - <cstring>
     - <cstdlib>
     - <ctime>
     - <vector>
@@ -79,16 +80,27 @@ esphome:
     then:
       - lambda: |-
           rotary_encoder_tune::setup(GPIO_NUM_7, GPIO_NUM_8, 500);
+      - script.execute: refresh_media_target_runtime
       - delay: 800ms
       - script.execute: show_weather_page
       - script.execute: refresh_weather_time
       - script.execute: refresh_weather_ui
-      - delay: 2s
-      - script.execute: fetch_weather
-      - script.execute: fetch_rain_eta
-      - delay: 8s
-      - script.execute: fetch_weather
-      - script.execute: fetch_rain_eta
+      - delay: 5s
+      - script.execute: sync_demo_mode_with_wifi
+      - if:
+          condition:
+            lambda: 'return id(wifi_connected) && !id(demo_mode_active);'
+          then:
+            - script.execute: fetch_weather
+            - script.execute: fetch_rain_eta
+      - delay: 10s
+      - script.execute: sync_demo_mode_with_wifi
+      - if:
+          condition:
+            lambda: 'return id(wifi_connected) && !id(demo_mode_active);'
+          then:
+            - script.execute: fetch_weather
+            - script.execute: fetch_rain_eta
 
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/passion-wave-rotaryknob.yaml@main
@@ -119,16 +131,21 @@ psram:
   mode: octal
 
 logger:
-  level: ERROR
+  level: WARN
 
 api:
+  reboot_timeout: 0s
   encryption:
     key: !secret api_encryption_key
 
 mqtt:
+  id: mqtt_client
   broker: ${mqtt_host}
   username: ${mqtt_username}
   password: ${mqtt_password}
+  enable_on_boot: false
+  discovery: false
+  reboot_timeout: 0s
   log_topic: null
 
 http_request:
@@ -139,9 +156,31 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
+safe_mode:
+  num_attempts: 30
+  boot_is_good_after: 90s
+  reboot_timeout: 10min
+
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  power_save_mode: none
+  reboot_timeout: 0s
+  on_connect:
+    then:
+      - lambda: 'id(wifi_connected) = true;'
+      - script.execute: disable_demo_mode
+      - mqtt.enable:
+          id: mqtt_client
+      - delay: 2s
+      - script.execute: fetch_weather
+      - script.execute: fetch_rain_eta
+      - script.execute: refresh_settings_ui
+  on_disconnect:
+    then:
+      - lambda: 'id(wifi_connected) = false;'
+      - delay: 12s
+      - script.execute: sync_demo_mode_with_wifi
   ap:
     ssid: "Passion-Wave-Rotaryknob"
     password: !secret fallback_ap_password
@@ -156,6 +195,7 @@ i2c:
   sda: 11
   scl: 12
   id: touchscreen_bus
+  frequency: 400kHz
 
 drv2605:
   id: haptic_driver
@@ -177,6 +217,22 @@ globals:
     type: int
     restore_value: no
     initial_value: '4'
+  - id: wifi_connected
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: demo_mode_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: demo_data_seeded
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: demo_mode_enabled
+    type: bool
+    restore_value: yes
+    initial_value: 'true'
   - id: media_is_playing
     type: bool
     restore_value: no
@@ -512,6 +568,10 @@ globals:
     type: lv_obj_t *
     restore_value: no
     initial_value: 'nullptr'
+  - id: weather_day_now_arc
+    type: lv_obj_t *
+    restore_value: no
+    initial_value: 'nullptr'
   - id: screensaver_hour_hand
     type: lv_obj_t *
     restore_value: no
@@ -596,6 +656,18 @@ globals:
     type: int
     restore_value: yes
     initial_value: '3'
+  - id: media_effective_entity_id
+    type: std::string
+    restore_value: no
+    initial_value: '"${ha_player}"'
+  - id: media_effective_label
+    type: std::string
+    restore_value: no
+    initial_value: '"Media Player"'
+  - id: media_static_fallback_active
+    type: bool
+    restore_value: no
+    initial_value: 'true'
   - id: scene_slot_index
     type: int
     restore_value: yes
@@ -672,6 +744,10 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: rain_radar_image_path_cache
+    type: std::string
+    restore_value: no
+    initial_value: '""'
   - id: photo_slideshow_ready
     type: bool
     restore_value: no
@@ -920,6 +996,10 @@ globals:
     type: std::string
     restore_value: no
     initial_value: '"Teilweise wolkig"'
+  - id: weather_location_name
+    type: std::string
+    restore_value: no
+    initial_value: '"${weather_location}"'
   - id: weather_condition_raw
     type: std::string
     restore_value: no
@@ -943,7 +1023,7 @@ globals:
   - id: weather_precipitation_probability
     type: int
     restore_value: no
-    initial_value: '55'
+    initial_value: '0'
   - id: weather_rain_minutes
     type: int
     restore_value: no
@@ -1140,6 +1220,8 @@ font:
     bpp: 4
     glyphs:
       - "\U0000E3E7"  # flash_on
+      - "\U0000E834"  # check_box
+      - "\U0000E835"  # check_box_outline_blank
   - file: "gfonts://Material Symbols Outlined"
     id: media_icon_28
     size: 28
@@ -1155,6 +1237,10 @@ font:
       - "\U0000E0F0"  # lightbulb
       - "\U0000E405"  # music_note
       - "\U0000E2BD"  # cloud
+      - "\U0000E430"  # wb_sunny
+      - "\U0000F176"  # rainy
+      - "\U0000EBDB"  # thunderstorm
+      - "\U0000EB3B"  # ac_unit
       - "\U0000E5CB"  # chevron_left
       - "\U0000E5CC"  # chevron_right
       - "\U0000E5CD"  # close
@@ -1557,6 +1643,468 @@ display:
       - delay 120ms
       - [0x29, 0x00]
 script:
+  - id: refresh_media_target_runtime
+    mode: restart
+    then:
+      - lambda: |-
+          auto trim = [](std::string value) -> std::string {
+            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
+              value.erase(value.begin());
+            }
+            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+              value.pop_back();
+            }
+            return value;
+          };
+
+          const std::string static_player = "${ha_player}";
+          const std::string public_default = "media_player.passion_wave_media";
+          std::string configured = trim(id(media_target_entity_text).state);
+          if (configured.empty() || configured == public_default) {
+            configured = static_player;
+          }
+
+          id(media_effective_entity_id) = configured;
+          id(media_static_fallback_active) = configured == static_player;
+
+          std::string configured_label = trim(id(media_target_label_text).state);
+          const bool has_static_friendly_label =
+            id(media_static_fallback_active) &&
+            !id(media_effective_label).empty() &&
+            id(media_effective_label) != "Media Player";
+
+          if (!has_static_friendly_label || (!configured_label.empty() && configured_label != "Media Player")) {
+            if (configured_label.empty()) {
+              configured_label = configured;
+            }
+            id(media_effective_label) = configured_label;
+          }
+
+          id(media_ui_dirty) = true;
+  - id: refresh_dynamic_media_snapshot
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: |-
+              const std::string entity = id(media_effective_entity_id);
+              return !id(demo_mode_active) &&
+                     id(wifi_connected) &&
+                     !id(media_static_fallback_active) &&
+                     entity.rfind("media_player.", 0) == 0;
+          then:
+            - homeassistant.action:
+                action: weather.get_forecasts
+                data:
+                  entity_id: ${ha_weather}
+                  type: hourly
+                capture_response: true
+                response_template: !lambda |-
+                  auto sanitize_entity = [](std::string entity) -> std::string {
+                    if (entity.rfind("media_player.", 0) != 0) {
+                      return "";
+                    }
+                    for (char c : entity) {
+                      const bool valid =
+                        std::isalnum(static_cast<unsigned char>(c)) ||
+                        c == '_' ||
+                        c == '.';
+                      if (!valid) {
+                        return "";
+                      }
+                    }
+                    return entity;
+                  };
+
+                  const std::string entity = sanitize_entity(id(media_effective_entity_id));
+                  if (entity.empty()) {
+                    return std::string("{{ {} | to_json }}");
+                  }
+                  return std::string("{% set e = '") + entity + "' %}"
+                    "{% set cover = state_attr(e, 'entity_picture') or state_attr(e, 'entity_picture_local') or state_attr(e, 'media_image_url') or state_attr(e, 'media_thumbnail') or state_attr(e, 'thumbnail') or '' %}"
+                    "{{ {"
+                    "'entity_id': e,"
+                    "'label': state_attr(e, 'friendly_name') or e,"
+                    "'state': states(e),"
+                    "'title': state_attr(e, 'media_title') or '',"
+                    "'artist': state_attr(e, 'media_artist') or state_attr(e, 'media_album_artist') or '',"
+                    "'cover': cover,"
+                    "'volume': state_attr(e, 'volume_level') or 0,"
+                    "'position': state_attr(e, 'media_position') or 0,"
+                    "'duration': state_attr(e, 'media_duration') or 0,"
+                    "'shuffle': state_attr(e, 'shuffle') or false,"
+                    "'repeat': state_attr(e, 'repeat') or ''"
+                    "} | to_json }}";
+                on_success:
+                  - lambda: |-
+                      auto read_string = [](JsonVariantConst value) -> std::string {
+                        if (value.isNull()) {
+                          return "";
+                        }
+                        const char *text = value.as<const char *>();
+                        return text == nullptr ? "" : std::string(text);
+                      };
+                      auto read_float = [](JsonVariantConst value, float fallback) -> float {
+                        if (value.isNull()) {
+                          return fallback;
+                        }
+                        if (value.is<float>() || value.is<double>() || value.is<int>()) {
+                          return value.as<float>();
+                        }
+                        const char *text = value.as<const char *>();
+                        if (text == nullptr || text[0] == '\0') {
+                          return fallback;
+                        }
+                        char *end = nullptr;
+                        const float parsed = strtof(text, &end);
+                        return end != text ? parsed : fallback;
+                      };
+                      auto read_bool = [](JsonVariantConst value) -> bool {
+                        if (value.is<bool>()) {
+                          return value.as<bool>();
+                        }
+                        const char *text = value.as<const char *>();
+                        if (text == nullptr) {
+                          return false;
+                        }
+                        return strcmp(text, "true") == 0 ||
+                               strcmp(text, "on") == 0 ||
+                               strcmp(text, "1") == 0;
+                      };
+
+                      auto has_snapshot_shape = [](JsonObjectConst object) -> bool {
+                        if (object.isNull()) {
+                          return false;
+                        }
+                        return object["entity_id"].is<const char *>() ||
+                               object["state"].is<const char *>() ||
+                               object["cover"].is<const char *>() ||
+                               object["title"].is<const char *>();
+                      };
+
+                      DynamicJsonDocument doc(1536);
+                      JsonObjectConst snapshot;
+                      if (has_snapshot_shape(response)) {
+                        snapshot = response;
+                      } else {
+                        JsonVariantConst payload = response["response"];
+                        if (payload.is<JsonObjectConst>()) {
+                          snapshot = payload.as<JsonObjectConst>();
+                        } else if (payload.is<const char *>()) {
+                          const char *raw = payload.as<const char *>();
+                          if (raw == nullptr || raw[0] == '\0') {
+                            return;
+                          }
+                          DeserializationError error = deserializeJson(doc, raw);
+                          if (error) {
+                            return;
+                          }
+                          snapshot = doc.as<JsonObjectConst>();
+                        } else {
+                          payload = response["service_response"];
+                          if (payload.is<JsonObjectConst>() && has_snapshot_shape(payload.as<JsonObjectConst>())) {
+                            snapshot = payload.as<JsonObjectConst>();
+                          } else {
+                            const char *raw = payload.as<const char *>();
+                            if (raw == nullptr || raw[0] == '\0') {
+                              return;
+                            }
+                            DeserializationError error = deserializeJson(doc, raw);
+                            if (error) {
+                              return;
+                            }
+                            snapshot = doc.as<JsonObjectConst>();
+                          }
+                        }
+                      }
+                      if (snapshot.isNull()) {
+                        return;
+                      }
+
+                      const std::string entity = read_string(snapshot["entity_id"]);
+                      if (!entity.empty() && entity != id(media_effective_entity_id)) {
+                        return;
+                      }
+
+                      const std::string label = read_string(snapshot["label"]);
+                      if (!label.empty()) {
+                        id(media_effective_label) = label;
+                      }
+
+                      std::string state = read_string(snapshot["state"]);
+                      for (char &c : state) {
+                        c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+                      }
+                      if (!state.empty() && state != "unknown" && state != "unavailable") {
+                        id(music_state_cache) = state;
+                        id(media_runtime_state_text).publish_state(state);
+                        id(media_is_playing) = state == "playing";
+                        if (id(media_is_playing)) {
+                          id(media_cover_fullscreen_active) = false;
+                          if (id(media_cover_fullscreen_due_ms) == 0) {
+                            id(media_cover_fullscreen_due_ms) = millis() + 10000;
+                          }
+                        } else {
+                          id(media_cover_fullscreen_active) = false;
+                          id(media_cover_fullscreen_due_ms) = 0;
+                        }
+                      }
+
+                      const std::string title = read_string(snapshot["title"]);
+                      id(media_title_cache) = title;
+                      id(media_runtime_title_text).publish_state(title);
+                      if (!title.empty()) {
+                        id(current_media_label) = title;
+                      }
+                      const std::string artist = read_string(snapshot["artist"]);
+                      id(media_artist_cache) = artist;
+                      id(media_runtime_artist_text).publish_state(artist);
+                      const std::string cover = read_string(snapshot["cover"]);
+                      id(media_entity_picture_cache) = cover;
+                      id(media_runtime_cover_url_text).publish_state(cover);
+                      id(media_entity_picture_local_cache).clear();
+                      id(media_image_url_cache).clear();
+
+                      const float volume = read_float(snapshot["volume"], id(display_volume_level));
+                      if (!isnan(volume)) {
+                        id(display_volume_level) = volume;
+                      }
+                      id(media_position_seconds) = read_float(snapshot["position"], id(media_position_seconds));
+                      id(media_duration_seconds) = read_float(snapshot["duration"], id(media_duration_seconds));
+                      id(media_shuffle_enabled) = read_bool(snapshot["shuffle"]);
+                      const std::string repeat = read_string(snapshot["repeat"]);
+                      id(media_repeat_single_enabled) = repeat == "one" || repeat == "repeat_one";
+                      id(media_ui_dirty) = true;
+                  - script.execute: refresh_media_cover_url
+                  - script.execute: refresh_settings_ui
+                  - if:
+                      condition:
+                        lambda: 'return id(current_page) == 6 && id(music_state_cache) != "playing";'
+                      then:
+                        - script.execute: show_media_page
+                on_error:
+                  - lambda: |-
+                      id(media_runtime_state_text).publish_state("snapshot_error");
+                      id(media_ui_dirty) = true;
+                  - logger.log:
+                      level: WARN
+                      format: "Dynamic media snapshot failed"
+                  - script.execute: refresh_media_ui_if_needed
+  - id: sync_demo_mode_with_wifi
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return id(wifi_connected);'
+          then:
+            - script.execute: disable_demo_mode
+          else:
+            - if:
+                condition:
+                  lambda: 'return id(demo_mode_enabled);'
+                then:
+                  - script.execute: enable_demo_mode
+                else:
+                  - script.execute: disable_demo_mode
+  - id: enable_demo_mode
+    mode: restart
+    then:
+      - lambda: |-
+          if (!id(demo_mode_enabled)) {
+            return;
+          }
+          if (id(demo_mode_active) && id(demo_data_seeded)) {
+            id(weather_ui_dirty) = true;
+            id(light_ui_dirty) = true;
+            id(media_ui_dirty) = true;
+            return;
+          }
+          id(demo_mode_active) = true;
+          id(demo_data_seeded) = true;
+
+          id(weather_location_name) = "Demo";
+          id(weather_temperature) = 22.0f;
+          id(weather_minimum) = 14.0f;
+          id(weather_maximum) = 28.0f;
+          id(weather_forecast_min_0) = 14.0f;
+          id(weather_forecast_max_0) = 28.0f;
+          id(weather_forecast_min_1) = 16.0f;
+          id(weather_forecast_max_1) = 29.0f;
+          id(weather_forecast_min_2) = 13.0f;
+          id(weather_forecast_max_2) = 24.0f;
+          id(weather_humidity) = 48;
+          id(weather_wind_speed) = 11.0f;
+          id(weather_precipitation_probability) = 15;
+          id(weather_rain_minutes) = -1;
+          id(weather_rain_eta_text) = "Kein Regen";
+          id(weather_detail_text) = "Promo ohne WLAN";
+          id(weather_condition_raw) = "partlycloudy";
+          id(weather_condition_text) = "Demo Wetter";
+          id(weather_morning_condition) = "sunny";
+          id(weather_noon_condition) = "partlycloudy";
+          id(weather_evening_condition) = "rainy";
+          id(rain_radar_ready) = false;
+
+          id(ma_playlists_names_cache).clear();
+          id(ma_playlists_uris_cache).clear();
+          id(ma_playlists_item_ids_cache).clear();
+          id(ma_playlists_types_cache).clear();
+          const char *playlist_names[] = {"Demo Mix", "Morning Flow", "Evening Lounge", "Product Tour"};
+          for (int i = 0; i < 4; i++) {
+            id(ma_playlists_names_cache).push_back(playlist_names[i]);
+            id(ma_playlists_uris_cache).push_back(std::string("demo:playlist:") + std::to_string(i + 1));
+            id(ma_playlists_item_ids_cache).push_back(std::string("demo-playlist-") + std::to_string(i + 1));
+            id(ma_playlists_types_cache).push_back("playlist");
+          }
+          id(ma_radios_names_cache).clear();
+          id(ma_radios_uris_cache).clear();
+          id(ma_radios_types_cache).clear();
+          const char *radio_names[] = {"Passion Wave Radio", "Kitchen Beats", "Focus Radio"};
+          for (int i = 0; i < 3; i++) {
+            id(ma_radios_names_cache).push_back(radio_names[i]);
+            id(ma_radios_uris_cache).push_back(std::string("demo:radio:") + std::to_string(i + 1));
+            id(ma_radios_types_cache).push_back("radio");
+          }
+          id(ma_podcasts_names_cache).clear();
+          id(ma_podcasts_uris_cache).clear();
+          id(ma_podcasts_types_cache).clear();
+          const char *podcast_names[] = {"Smart Home Briefing", "Design Notes", "Automation Talk"};
+          for (int i = 0; i < 3; i++) {
+            id(ma_podcasts_names_cache).push_back(podcast_names[i]);
+            id(ma_podcasts_uris_cache).push_back(std::string("demo:podcast:") + std::to_string(i + 1));
+            id(ma_podcasts_types_cache).push_back("podcast");
+          }
+          id(ma_track_titles_cache).clear();
+          id(ma_track_artists_cache).clear();
+          id(ma_track_uris_cache).clear();
+          const char *track_titles[] = {"Rotary Waves", "Soft Morning", "Cloud Pulse", "Night Scene"};
+          for (int i = 0; i < 4; i++) {
+            id(ma_track_titles_cache).push_back(track_titles[i]);
+            id(ma_track_artists_cache).push_back("Passion Wave");
+            id(ma_track_uris_cache).push_back(std::string("demo:track:") + std::to_string(i + 1));
+          }
+          id(selected_playlist_index) = 0;
+          id(selected_radio_index) = 0;
+          id(selected_podcast_index) = 0;
+          id(selected_track_index) = 0;
+          id(playlist_loaded_count) = static_cast<int>(id(ma_playlists_names_cache).size());
+          id(playlist_total_available) = id(playlist_loaded_count);
+          id(playlist_request_offset) = id(playlist_loaded_count);
+          id(playlist_has_more) = false;
+          id(playlist_autoload_inflight) = false;
+          id(playlist_paged_mode_ready) = true;
+          id(pending_playlist_request_id).clear();
+          id(track_loaded_count) = static_cast<int>(id(ma_track_titles_cache).size());
+          id(track_total_available) = id(track_loaded_count);
+          id(track_request_offset) = id(track_loaded_count);
+          id(track_has_more) = false;
+          id(track_autoload_inflight) = false;
+          id(pending_track_request_id).clear();
+          id(chosen_playlist_name) = "Demo Mix";
+          id(chosen_playlist_uri) = "demo:playlist:1";
+          id(chosen_playlist_item_id) = "demo-playlist-1";
+          id(chosen_media_type) = "playlist";
+          id(current_media_label) = "Demo Mix";
+          id(music_state_cache) = "playing";
+          id(media_is_playing) = true;
+          id(media_title_cache) = "Rotary Waves";
+          id(media_artist_cache) = "Passion Wave";
+          id(display_volume_level) = 0.42f;
+          id(media_position_seconds) = 38.0f;
+          id(media_duration_seconds) = 180.0f;
+          id(media_cover_url_cache).clear();
+          id(media_entity_picture_cache).clear();
+          id(media_entity_picture_local_cache).clear();
+          id(media_image_url_cache).clear();
+          id(media_cover_ready) = false;
+          id(media_page_cover_ready) = false;
+          id(media_cover_fullscreen_due_ms) = 0;
+
+          id(light_1_on) = true;
+          id(light_1_brightness_pct) = 75;
+          id(light_2_on) = true;
+          id(light_2_brightness_pct) = 45;
+          id(light_3_on) = false;
+          id(light_3_brightness_pct) = 0;
+          id(light_4_on) = true;
+          id(light_4_brightness_pct) = 25;
+          id(light_source_index) = 0;
+          id(light_brightness_pct) = 75;
+          id(light_color_temp) = 3000;
+          id(light_1_color_temp) = 3000;
+          id(light_rgb_red) = 245;
+          id(light_rgb_green) = 158;
+          id(light_rgb_blue) = 11;
+          id(light_pending_brightness_sync) = false;
+          id(light_pending_color_sync) = false;
+
+          id(weather_ui_dirty) = true;
+          id(light_ui_dirty) = true;
+          id(media_ui_dirty) = true;
+      - script.execute: refresh_weather_ui_if_needed
+      - script.execute: refresh_weather_screensaver
+      - script.execute: refresh_light_ui_if_needed
+      - script.execute: refresh_media_ui_if_needed
+      - script.execute: refresh_settings_ui
+      - script.execute: refresh_rain_radar_ui
+  - id: disable_demo_mode
+    mode: restart
+    then:
+      - lambda: |-
+          if (!id(demo_mode_active)) {
+            return;
+          }
+          id(demo_mode_active) = false;
+          id(demo_data_seeded) = false;
+          id(ma_playlists_names_cache).clear();
+          id(ma_playlists_uris_cache).clear();
+          id(ma_playlists_item_ids_cache).clear();
+          id(ma_playlists_types_cache).clear();
+          id(ma_radios_names_cache).clear();
+          id(ma_radios_uris_cache).clear();
+          id(ma_radios_types_cache).clear();
+          id(ma_podcasts_names_cache).clear();
+          id(ma_podcasts_uris_cache).clear();
+          id(ma_podcasts_types_cache).clear();
+          id(ma_track_titles_cache).clear();
+          id(ma_track_artists_cache).clear();
+          id(ma_track_uris_cache).clear();
+          id(playlist_loaded_count) = 0;
+          id(playlist_total_available) = 0;
+          id(playlist_request_offset) = 0;
+          id(playlist_has_more) = false;
+          id(playlist_autoload_inflight) = false;
+          id(playlist_paged_mode_ready) = false;
+          id(pending_playlist_request_id).clear();
+          id(track_loaded_count) = 0;
+          id(track_total_available) = 0;
+          id(track_request_offset) = 0;
+          id(track_has_more) = false;
+          id(track_autoload_inflight) = false;
+          id(pending_track_request_id).clear();
+          id(chosen_playlist_name).clear();
+          id(chosen_playlist_uri).clear();
+          id(chosen_playlist_item_id).clear();
+          id(chosen_track_uri).clear();
+          id(current_media_label).clear();
+          id(music_state_cache) = "idle";
+          id(media_title_cache).clear();
+          id(media_artist_cache).clear();
+          id(media_cover_url_cache).clear();
+          id(media_entity_picture_cache).clear();
+          id(media_entity_picture_local_cache).clear();
+          id(media_image_url_cache).clear();
+          id(media_cover_ready) = false;
+          id(media_page_cover_ready) = false;
+          id(media_cover_fullscreen_due_ms) = 0;
+          id(weather_location_name) = "${weather_location}";
+          id(weather_ui_dirty) = true;
+          id(light_ui_dirty) = true;
+          id(media_ui_dirty) = true;
+      - script.execute: refresh_weather_ui_if_needed
+      - script.execute: refresh_light_ui_if_needed
+      - script.execute: refresh_media_ui_if_needed
+      - script.execute: refresh_settings_ui
   - id: publish_media_debug
     mode: queued
     parameters:
@@ -1567,7 +2115,7 @@ script:
     then:
       - if:
           condition:
-            switch.is_on: media_latency_debug_enabled
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(media_latency_debug_enabled).state;'
           then:
             - mqtt.publish:
                 topic: ${media_debug_topic}
@@ -1801,13 +2349,14 @@ script:
     then:
       - script.execute: refresh_control_time
       - lambda: |-
-          const int focus_count = 9;
+          const int focus_count = 10;
           id(settings_focus_index) = scrollwheel_targets::clamp_index(id(settings_focus_index), focus_count);
           const char *focus_names[focus_count] = {
             "Haptik",
             "Rotary Effekt",
             "Timer Effekt",
             "Screensaver",
+            "Demo",
             "Media Ziel",
             "Licht 1",
             "Licht 2",
@@ -1815,6 +2364,7 @@ script:
             "Licht 4",
           };
           std::string value;
+          const bool demo = id(demo_mode_active);
           switch (id(settings_focus_index)) {
             case 0:
               value = id(haptic_enabled) ? "Haptik ON" : "Haptik OFF";
@@ -1829,31 +2379,57 @@ script:
               value = std::to_string(id(screensaver_timeout_seconds)) + " Sekunden";
               break;
             case 4:
-              value = id(media_target_label_text).state;
+              if (!id(demo_mode_enabled)) {
+                value = "Demo AUS";
+              } else if (demo) {
+                value = "Demo AKTIV";
+              } else {
+                value = "Demo bereit";
+              }
               break;
             case 5:
-              value = id(light_slot_1_label_text).state;
+              value = demo ? "Demo Player" : id(media_effective_label);
               break;
             case 6:
-              value = id(light_slot_2_label_text).state;
+              value = demo ? "Ambiente" : id(light_slot_1_label_text).state;
               break;
             case 7:
-              value = id(light_slot_3_label_text).state;
+              value = demo ? "Couch" : id(light_slot_2_label_text).state;
+              break;
+            case 8:
+              value = demo ? "Table" : id(light_slot_3_label_text).state;
               break;
             default:
-              value = id(light_slot_4_label_text).state;
+              value = demo ? "Accent" : id(light_slot_4_label_text).state;
               break;
           }
           lv_label_set_text(settings_status_label, focus_names[id(settings_focus_index)]);
           lv_label_set_text(settings_haptic_label, value.c_str());
-          const bool route_setting = id(settings_focus_index) >= 4;
-          const uint32_t button_color = route_setting ? 0x2563EB : (id(haptic_enabled) ? 0xEC4899 : 0x1F2937);
+          const std::string ip_address = id(wifi_ip_address_text).state;
+          const bool wifi_ok = id(wifi_connected) && !ip_address.empty() && ip_address != "0.0.0.0";
+          const bool ha_ok = !demo && id(wifi_connected) && id(ha_time).now().is_valid();
+          lv_label_set_text(settings_wifi_check_label, wifi_ok ? "\U0000E834" : "\U0000E835");
+          lv_label_set_text(settings_ha_check_label, ha_ok ? "\U0000E834" : "\U0000E835");
+          lv_obj_set_style_text_color(settings_wifi_check_label, lv_color_hex(wifi_ok ? 0x22C55E : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
+          lv_obj_set_style_text_color(settings_wifi_status_label, lv_color_hex(wifi_ok ? 0xCBD5E1 : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
+          lv_obj_set_style_text_color(settings_ha_check_label, lv_color_hex(ha_ok ? 0x22C55E : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
+          lv_obj_set_style_text_color(settings_ha_status_label, lv_color_hex(ha_ok ? 0xCBD5E1 : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
+          lv_label_set_text_fmt(settings_ip_address_label, "IP %s", wifi_ok ? ip_address.c_str() : "--");
+          const bool route_setting = id(settings_focus_index) >= 5;
+          const bool demo_setting = id(settings_focus_index) == 4;
+          uint32_t button_color = route_setting ? 0x2563EB : (id(haptic_enabled) ? 0xEC4899 : 0x1F2937);
+          if (demo_setting) {
+            button_color = id(demo_mode_enabled) ? 0x16A34A : 0x1F2937;
+          }
           lv_obj_set_style_bg_color(settings_haptic_button, lv_color_hex(button_color), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_text_color(settings_haptic_label, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_label_set_text(settings_effect_value_label, "Wert");
           lv_label_set_text_fmt(settings_timer_done_effect_value_label, "%02d/%02d", id(settings_focus_index) + 1, focus_count);
           lv_label_set_long_mode(settings_haptic_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
           lv_label_set_long_mode(settings_status_label, LV_LABEL_LONG_CLIP);
+          lv_label_set_long_mode(settings_wifi_status_label, LV_LABEL_LONG_CLIP);
+          lv_label_set_long_mode(settings_ha_status_label, LV_LABEL_LONG_CLIP);
+          lv_label_set_long_mode(settings_ip_address_label, LV_LABEL_LONG_CLIP);
   - id: settings_focus_prev
     mode: restart
     then:
@@ -1861,7 +2437,7 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(settings_focus_index) -= 1;
-          if (id(settings_focus_index) < 0) id(settings_focus_index) = 8;
+          if (id(settings_focus_index) < 0) id(settings_focus_index) = 9;
       - script.execute: refresh_settings_ui
   - id: settings_focus_next
     mode: restart
@@ -1870,7 +2446,7 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(settings_focus_index) += 1;
-          if (id(settings_focus_index) > 8) id(settings_focus_index) = 0;
+          if (id(settings_focus_index) > 9) id(settings_focus_index) = 0;
       - script.execute: refresh_settings_ui
   - id: settings_value_prev
     mode: restart
@@ -1894,6 +2470,9 @@ script:
               if (id(screensaver_timeout_seconds) < 10) id(screensaver_timeout_seconds) = 10;
               break;
             case 4:
+              id(demo_mode_enabled) = !id(demo_mode_enabled);
+              break;
+            case 5:
               id(music_state_cache).clear();
               id(media_title_cache).clear();
               id(media_artist_cache).clear();
@@ -1903,9 +2482,6 @@ script:
               id(media_cover_url_cache).clear();
               id(display_volume_level) = 0.5f;
               id(media_ui_dirty) = true;
-              break;
-            case 5:
-              id(light_ui_dirty) = true;
               break;
             case 6:
               id(light_ui_dirty) = true;
@@ -1917,6 +2493,11 @@ script:
               id(light_ui_dirty) = true;
               break;
           }
+      - if:
+          condition:
+            lambda: 'return id(settings_focus_index) == 4;'
+          then:
+            - script.execute: sync_demo_mode_with_wifi
       - script.execute: play_haptic_feedback
       - script.execute: refresh_settings_ui
   - id: settings_value_next
@@ -1941,6 +2522,9 @@ script:
               if (id(screensaver_timeout_seconds) > 180) id(screensaver_timeout_seconds) = 180;
               break;
             case 4:
+              id(demo_mode_enabled) = !id(demo_mode_enabled);
+              break;
+            case 5:
               id(music_state_cache).clear();
               id(media_title_cache).clear();
               id(media_artist_cache).clear();
@@ -1950,9 +2534,6 @@ script:
               id(media_cover_url_cache).clear();
               id(display_volume_level) = 0.5f;
               id(media_ui_dirty) = true;
-              break;
-            case 5:
-              id(light_ui_dirty) = true;
               break;
             case 6:
               id(light_ui_dirty) = true;
@@ -1964,6 +2545,11 @@ script:
               id(light_ui_dirty) = true;
               break;
           }
+      - if:
+          condition:
+            lambda: 'return id(settings_focus_index) == 4;'
+          then:
+            - script.execute: sync_demo_mode_with_wifi
       - script.execute: play_haptic_feedback
       - script.execute: refresh_settings_ui
   - id: settings_toggle_haptic
@@ -2031,9 +2617,29 @@ script:
   - id: refresh_rain_radar_image
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(rain_radar_ready) = false;
+            - script.execute: refresh_rain_radar_ui
+            - script.stop: refresh_rain_radar_image
       - lambda: |-
           id(rain_radar_ready) = false;
-          const std::string url = std::string("${rain_radar_image_url}") + "?v=" + std::to_string(millis());
+          std::string url = id(rain_radar_image_path_cache);
+          if (!url.empty() && url[0] == '/') {
+            std::string base = "${ha_base_url}";
+            while (!base.empty() && base.back() == '/') base.pop_back();
+            url = base + url;
+          }
+          if (url.empty() || url == "unknown" || url == "unavailable") {
+            url = "${rain_radar_image_url}";
+          }
+          const char sep = url.find('?') == std::string::npos ? '?' : '&';
+          url += sep;
+          url += "v=";
+          url += std::to_string(millis());
           id(rain_radar_image).set_url(url);
           id(rain_radar_image).update();
       - script.execute: refresh_rain_radar_ui
@@ -2045,7 +2651,7 @@ script:
             lambda: 'return id(current_page) == 8 || (id(current_page) == 4 && weather_radar_popup != nullptr && !lv_obj_has_flag(weather_radar_popup, LV_OBJ_FLAG_HIDDEN));'
           then:
             - lambda: |-
-                lv_label_set_text(rain_radar_status_label, id(rain_radar_ready) ? "Lokaler Fokus" : "Lade Radar");
+                lv_label_set_text(rain_radar_status_label, id(demo_mode_active) ? "Demo ohne WLAN" : (id(rain_radar_ready) ? "Lokaler Fokus" : "Lade Radar"));
                 if (id(rain_radar_ready)) {
                   lv_img_set_src(rain_radar_image_widget, id(rain_radar_image));
                   lv_obj_clear_flag(rain_radar_image_widget, LV_OBJ_FLAG_HIDDEN);
@@ -2067,6 +2673,14 @@ script:
   - id: refresh_photo_image
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(photo_slideshow_ready) = false;
+            - script.execute: refresh_photo_ui
+            - script.stop: refresh_photo_image
       - lambda: |-
           const char *urls[] = {
             "${photo_image_url_0}",
@@ -2094,6 +2708,11 @@ script:
                   lv_obj_clear_flag(photo_slideshow_image_widget, LV_OBJ_FLAG_HIDDEN);
                   lv_obj_add_flag(photo_fallback_label, LV_OBJ_FLAG_HIDDEN);
                 } else {
+                  if (id(demo_mode_active)) {
+                    lv_label_set_text(photo_fallback_label, "Demo Fotos");
+                  } else {
+                    lv_label_set_text(photo_fallback_label, "Lade Bild");
+                  }
                   lv_obj_add_flag(photo_slideshow_image_widget, LV_OBJ_FLAG_HIDDEN);
                   lv_obj_clear_flag(photo_fallback_label, LV_OBJ_FLAG_HIDDEN);
                 }
@@ -2116,6 +2735,15 @@ script:
   - id: refresh_house_image
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(house_floorplan_ready) = false;
+                id(house_floorplan_error) = false;
+            - script.execute: refresh_house_ui
+            - script.stop: refresh_house_image
       - lambda: |-
           id(house_floorplan_ready) = false;
           id(house_floorplan_error) = false;
@@ -2136,7 +2764,7 @@ script:
                   lv_obj_clear_flag(house_floorplan_image_widget, LV_OBJ_FLAG_HIDDEN);
                   lv_obj_add_flag(house_fallback_label, LV_OBJ_FLAG_HIDDEN);
                 } else {
-                  lv_label_set_text(house_fallback_label, id(house_floorplan_error) ? "Hausbild fehlt" : "Lade Haus");
+                  lv_label_set_text(house_fallback_label, id(demo_mode_active) ? "Demo Grundriss" : (id(house_floorplan_error) ? "Hausbild fehlt" : "Lade Haus"));
                   lv_obj_add_flag(house_floorplan_image_widget, LV_OBJ_FLAG_HIDDEN);
                   lv_obj_clear_flag(house_fallback_label, LV_OBJ_FLAG_HIDDEN);
                 }
@@ -2672,13 +3300,37 @@ script:
             if (picture.empty()) {
               return "";
             }
+            auto tune_music_assistant_proxy = [](std::string url) -> std::string {
+              if (url.find("/imageproxy?") == std::string::npos) {
+                return url;
+              }
+              auto set_query_value = [](std::string &target, const std::string &key, const std::string &value) {
+                const std::string needle = key + "=";
+                const size_t query = target.find('?');
+                size_t pos = query == std::string::npos ? std::string::npos : target.find(needle, query + 1);
+                if (pos == std::string::npos) {
+                  target += target.find('?') == std::string::npos ? "?" : "&";
+                  target += needle + value;
+                  return;
+                }
+                const size_t value_start = pos + needle.size();
+                size_t value_end = target.find('&', value_start);
+                if (value_end == std::string::npos) {
+                  value_end = target.size();
+                }
+                target.replace(value_start, value_end - value_start, value);
+              };
+              set_query_value(url, "size", "368");
+              set_query_value(url, "fmt", "jpeg");
+              return url;
+            };
             if (picture.rfind("http://", 0) == 0 || picture.rfind("https://", 0) == 0) {
-              return picture;
+              return tune_music_assistant_proxy(picture);
             }
             if (picture[0] == '/') {
-              return std::string("${ha_base_url}") + picture;
+              return tune_music_assistant_proxy(std::string("${ha_base_url}") + picture);
             }
-            return std::string("${ha_base_url}/") + picture;
+            return tune_music_assistant_proxy(std::string("${ha_base_url}/") + picture);
           };
 
           std::string raw_picture = id(media_entity_picture_cache);
@@ -2705,6 +3357,7 @@ script:
 
           if (url != id(media_cover_url_cache)) {
             id(media_cover_url_cache) = url;
+            id(media_runtime_cover_url_text).publish_state(url);
             id(media_cover_ready) = false;
             id(media_page_cover_ready) = false;
             id(media_ui_dirty) = true;
@@ -3003,6 +3656,16 @@ script:
   - id: fetch_weather
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - if:
+                condition:
+                  lambda: 'return !id(wifi_connected);'
+                then:
+                  - script.execute: enable_demo_mode
+            - script.stop: fetch_weather
       - homeassistant.action:
           action: weather.get_forecasts
           data:
@@ -3012,9 +3675,20 @@ script:
           on_success:
             - lambda: |-
                   JsonObjectConst root = response["response"].as<JsonObjectConst>();
+                  if (root.isNull()) {
+                    root = response["service_response"].as<JsonObjectConst>();
+                  }
+                  if (root.isNull()) {
+                    root = response;
+                  }
                   JsonObjectConst weather = root["${ha_weather}"].as<JsonObjectConst>();
+                  if (weather.isNull() && root.containsKey("forecast")) {
+                    weather = root;
+                  }
                   JsonArrayConst forecasts = weather["forecast"].as<JsonArrayConst>();
                   if (forecasts.isNull() || forecasts.size() == 0) {
+                    id(weather_detail_text) = "Forecast nicht geladen";
+                    id(weather_ui_dirty) = true;
                     return;
                   }
 
@@ -3069,13 +3743,15 @@ script:
                     if (index == 0) {
                       id(weather_minimum) = minimum;
                       id(weather_maximum) = maximum;
-                      const float rain_probability = read_float(forecast["precipitation_probability"], id(weather_precipitation_probability));
-                      if (!isnan(rain_probability)) {
-                        int rounded_rain = static_cast<int>(lroundf(rain_probability));
-                        if (rounded_rain < 0) rounded_rain = 0;
-                        if (rounded_rain > 100) rounded_rain = 100;
-                        id(weather_precipitation_probability) = rounded_rain;
+                      float rain_probability = read_float(forecast["precipitation_probability"], -1.0f);
+                      if (rain_probability < 0.0f) {
+                        const float precipitation = read_float(forecast["precipitation"], 0.0f);
+                        rain_probability = precipitation > 0.01f ? 80.0f : 0.0f;
                       }
+                      int rounded_rain = static_cast<int>(lroundf(rain_probability));
+                      if (rounded_rain < 0) rounded_rain = 0;
+                      if (rounded_rain > 100) rounded_rain = 100;
+                      id(weather_precipitation_probability) = rounded_rain;
                     }
                     set_forecast(index, minimum, maximum);
                   }
@@ -3089,6 +3765,16 @@ script:
   - id: fetch_rain_eta
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - if:
+                condition:
+                  lambda: 'return !id(wifi_connected);'
+                then:
+                  - script.execute: enable_demo_mode
+            - script.stop: fetch_rain_eta
       - homeassistant.action:
           action: weather.get_forecasts
           data:
@@ -3110,7 +3796,16 @@ script:
                   }
 
                   JsonObjectConst root = response["response"].as<JsonObjectConst>();
+                  if (root.isNull()) {
+                    root = response["service_response"].as<JsonObjectConst>();
+                  }
+                  if (root.isNull()) {
+                    root = response;
+                  }
                   JsonObjectConst weather = root["${ha_weather}"].as<JsonObjectConst>();
+                  if (weather.isNull() && root.containsKey("forecast")) {
+                    weather = root;
+                  }
                   JsonArrayConst forecasts = weather["forecast"].as<JsonArrayConst>();
                   if (forecasts.isNull() || forecasts.size() == 0) {
                     id(weather_rain_minutes) = -1;
@@ -3277,6 +3972,23 @@ script:
           lv_label_set_text_fmt(weather_time_label, "%02d:%02d", now.hour, now.minute);
           lv_label_set_text_fmt(weather_date_label, "%s %02d.%s", weekdays[weekday_index], now.day_of_month, months[month_index]);
 
+          if (id(weather_day_now_arc) != nullptr) {
+            constexpr int day_start_minutes = 6 * 60;
+            constexpr int day_end_minutes = 20 * 60;
+            int minutes_now = now.hour * 60 + now.minute;
+            if (minutes_now < day_start_minutes) minutes_now = day_start_minutes;
+            if (minutes_now > day_end_minutes) minutes_now = day_end_minutes;
+            const float ratio = static_cast<float>(minutes_now - day_start_minutes) /
+                                static_cast<float>(day_end_minutes - day_start_minutes);
+            // Right weather day arc: 06:00 at the upper start, 20:00 at the lower end.
+            int tick_rotation = 275 + static_cast<int>(roundf(ratio * 159.0f));
+            tick_rotation %= 360;
+            lv_arc_set_rotation(id(weather_day_now_arc), tick_rotation);
+            lv_arc_set_value(id(weather_day_now_arc), 100);
+            lv_obj_invalidate(id(weather_day_now_arc));
+            lv_obj_move_foreground(id(weather_day_now_arc));
+          }
+
           lv_label_set_text(weather_day_0_label, short_weekdays[weekday_index]);
           for (int offset = 1; offset < 3; offset++) {
             ESPTime forecast_day = ESPTime::from_epoch_local(now.timestamp + (86400 * offset));
@@ -3410,7 +4122,10 @@ script:
           if (weather_ring > 100) weather_ring = 100;
           if (id(weather_ring_arc) != nullptr) {
             const int tick_rotation = 106 + static_cast<int>(roundf(weather_ring * 159.0f / 100.0f));
+            const uint32_t current_color = temp_index_color(id(weather_temperature));
             lv_arc_set_rotation(id(weather_ring_arc), tick_rotation);
+            lv_obj_set_style_arc_color(id(weather_ring_arc), lv_color_hex(current_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_arc_color(id(weather_ring_arc), lv_color_hex(current_color), LV_PART_INDICATOR | LV_STATE_DEFAULT);
             lv_arc_set_value(id(weather_ring_arc), 100);
             lv_obj_invalidate(id(weather_ring_arc));
           }
@@ -3463,25 +4178,76 @@ script:
             lv_obj_set_style_arc_color(arc, lv_color_hex(color), LV_PART_INDICATOR | LV_STATE_DEFAULT);
             lv_obj_invalidate(arc);
           };
-          const uint32_t morning_color = temp_index_color(id(weather_minimum));
-          const uint32_t noon_color = temp_index_color(id(weather_temperature));
-          const uint32_t evening_color = temp_index_color(id(weather_maximum));
+          struct WeatherVisual {
+            const char *icon;
+            uint32_t color;
+          };
+          auto weather_visual_for_condition = [](const std::string &condition) -> WeatherVisual {
+            if (condition == "lightning" || condition == "lightning-rainy" || condition == "exceptional") {
+              return {"\U0000EBDB", 0x050505};
+            }
+            if (condition == "rainy" || condition == "pouring" || condition == "hail" || condition == "snowy-rainy") {
+              return {"\U0000F176", 0x2563EB};
+            }
+            if (condition == "snowy") {
+              return {"\U0000EB3B", 0x38BDF8};
+            }
+            if (condition == "sunny" || condition == "clear-night") {
+              return {"\U0000E430", 0xFACC15};
+            }
+            return {"\U0000E2BD", 0x94A3B8};
+          };
+          const WeatherVisual morning_visual = weather_visual_for_condition(id(weather_morning_condition));
+          const WeatherVisual noon_visual = weather_visual_for_condition(id(weather_noon_condition));
+          const WeatherVisual evening_visual = weather_visual_for_condition(id(weather_evening_condition));
+          const uint32_t morning_color = morning_visual.color;
+          const uint32_t noon_color = noon_visual.color;
+          const uint32_t evening_color = evening_visual.color;
           set_day_arc(id(weather_day_morning_arc), morning_color);
           set_day_arc(id(weather_day_noon_arc), noon_color);
           set_day_arc(id(weather_day_evening_arc), evening_color);
+          if (id(weather_day_now_arc) != nullptr) {
+            lv_obj_set_style_arc_color(id(weather_day_now_arc), lv_color_hex(0xF8FAFC), LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_arc_color(id(weather_day_now_arc), lv_color_hex(0xF8FAFC), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+            lv_obj_move_foreground(id(weather_day_now_arc));
+          }
+          lv_label_set_text(weather_location_label, id(weather_location_name).c_str());
           lv_label_set_text_fmt(weather_temp_label, "%d°", rounded_int(id(weather_temperature)));
           lv_label_set_text_fmt(weather_wind_value_label, "%d km/h", rounded_int(id(weather_wind_speed)));
           lv_label_set_text_fmt(weather_humidity_value_label, "%d%%", id(weather_humidity));
           lv_label_set_text_fmt(weather_max_value_label, "%d°", rounded_int(id(weather_maximum)));
           lv_label_set_text_fmt(weather_max_label, "%d°", rounded_int(id(weather_maximum)));
           lv_label_set_text_fmt(weather_min_label, "%d°", rounded_int(id(weather_minimum)));
-          lv_label_set_text(weather_morning_label, "\U0000E2BD");
-          lv_label_set_text(weather_noon_label, "\U0000E2BD");
-          lv_label_set_text(weather_afternoon_label, "");
-          lv_label_set_text(weather_evening_label, "\U0000E2BD");
+          lv_label_set_text(weather_morning_label, morning_visual.icon);
+          lv_label_set_text(weather_noon_label, noon_visual.icon);
+          lv_label_set_text(weather_evening_label, evening_visual.icon);
           lv_obj_set_style_text_color(weather_morning_label, lv_color_hex(morning_color), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_text_color(weather_noon_label, lv_color_hex(noon_color), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_text_color(weather_evening_label, lv_color_hex(evening_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+          lv_obj_t *morning_text[] = {
+            weather_morning_text_v,
+            weather_morning_text_o,
+            weather_morning_text_r,
+            weather_morning_text_m,
+            weather_morning_text_i,
+            weather_morning_text_t1,
+            weather_morning_text_t2,
+            weather_morning_text_a,
+            weather_morning_text_g,
+          };
+          lv_obj_t *evening_text[] = {
+            weather_evening_text_a,
+            weather_evening_text_b,
+            weather_evening_text_e,
+            weather_evening_text_n,
+            weather_evening_text_d,
+          };
+          for (auto *label : morning_text) {
+            lv_obj_set_style_text_color(label, lv_color_hex(morning_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+          }
+          for (auto *label : evening_text) {
+            lv_obj_set_style_text_color(label, lv_color_hex(evening_color), LV_PART_MAIN | LV_STATE_DEFAULT);
+          }
           lv_label_set_text_fmt(weather_forecast_0_range_label, "%d/%d°", rounded_int(id(weather_forecast_min_0)), rounded_int(id(weather_forecast_max_0)));
           lv_label_set_text_fmt(weather_forecast_1_range_label, "%d/%d°", rounded_int(id(weather_forecast_min_1)), rounded_int(id(weather_forecast_max_1)));
           lv_label_set_text_fmt(weather_forecast_2_range_label, "%d/%d°", rounded_int(id(weather_forecast_min_2)), rounded_int(id(weather_forecast_max_2)));
@@ -3721,7 +4487,7 @@ script:
             if (subtitle.empty()) subtitle = id(music_state_cache);
             if (subtitle.empty()) subtitle = "Home Assistant";
           }
-          lv_label_set_text(media_source_label, id(media_target_label_text).state.c_str());
+          lv_label_set_text(media_source_label, id(demo_mode_active) ? "Demo Player" : id(media_effective_label).c_str());
           lv_label_set_text(media_main_label, title.c_str());
           lv_label_set_text(media_subtitle_label, subtitle.c_str());
           lv_label_set_text(media_track_prev_label, prev_track.c_str());
@@ -3854,6 +4620,15 @@ script:
           id(ui_last_activity_ms) = millis();
           id(media_last_activity_ms) = millis();
           id(media_track_index) = (id(media_track_index) + 2) % 3;
+          if (id(demo_mode_active) && !id(ma_track_titles_cache).empty()) {
+            const int size = static_cast<int>(id(ma_track_titles_cache).size());
+            id(selected_track_index) = (id(selected_track_index) + size - 1) % size;
+            id(media_title_cache) = id(ma_track_titles_cache)[id(selected_track_index)];
+            id(media_artist_cache) = id(selected_track_index) < static_cast<int>(id(ma_track_artists_cache).size()) ? id(ma_track_artists_cache)[id(selected_track_index)] : "Passion Wave";
+            id(current_media_label) = id(media_title_cache);
+            id(music_state_cache) = "playing";
+            id(media_is_playing) = true;
+          }
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_ui_if_needed
   - id: media_next_track
@@ -3863,19 +4638,37 @@ script:
           id(ui_last_activity_ms) = millis();
           id(media_last_activity_ms) = millis();
           id(media_track_index) = (id(media_track_index) + 1) % 3;
+          if (id(demo_mode_active) && !id(ma_track_titles_cache).empty()) {
+            const int size = static_cast<int>(id(ma_track_titles_cache).size());
+            id(selected_track_index) = (id(selected_track_index) + 1) % size;
+            id(media_title_cache) = id(ma_track_titles_cache)[id(selected_track_index)];
+            id(media_artist_cache) = id(selected_track_index) < static_cast<int>(id(ma_track_artists_cache).size()) ? id(ma_track_artists_cache)[id(selected_track_index)] : "Passion Wave";
+            id(current_media_label) = id(media_title_cache);
+            id(music_state_cache) = "playing";
+            id(media_is_playing) = true;
+          }
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_ui_if_needed
   - id: media_toggle_play
     mode: restart
     then:
-      - homeassistant.service:
-          service: media_player.media_play_pause
-          data_template:
-            entity_id: !lambda 'return id(media_target_entity_text).state;'
+      - if:
+          condition:
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+          then:
+            - homeassistant.service:
+                service: media_player.media_play_pause
+                data_template:
+                  entity_id: !lambda 'return id(media_effective_entity_id);'
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(media_last_activity_ms) = millis();
-          if (id(media_device_on)) id(media_is_playing) = !id(media_is_playing);
+          if (id(media_device_on)) {
+            id(media_is_playing) = !id(media_is_playing);
+            if (id(demo_mode_active)) {
+              id(music_state_cache) = id(media_is_playing) ? "playing" : "paused";
+            }
+          }
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_ui_if_needed
   - id: media_toggle_favorite
@@ -3905,11 +4698,15 @@ script:
           id(media_last_activity_ms) = millis();
           id(media_shuffle_enabled) = !id(media_shuffle_enabled);
           id(media_ui_dirty) = true;
-      - homeassistant.service:
-          service: media_player.shuffle_set
-          data_template:
-            entity_id: !lambda 'return id(media_target_entity_text).state;'
-            shuffle: !lambda 'return id(media_shuffle_enabled) ? "true" : "false";'
+      - if:
+          condition:
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+          then:
+            - homeassistant.service:
+                service: media_player.shuffle_set
+                data_template:
+                  entity_id: !lambda 'return id(media_effective_entity_id);'
+                  shuffle: !lambda 'return id(media_shuffle_enabled) ? "true" : "false";'
       - script.execute: refresh_media_ui_if_needed
   - id: media_toggle_repeat_one
     mode: restart
@@ -3919,11 +4716,15 @@ script:
           id(media_last_activity_ms) = millis();
           id(media_repeat_single_enabled) = !id(media_repeat_single_enabled);
           id(media_ui_dirty) = true;
-      - homeassistant.service:
-          service: media_player.repeat_set
-          data_template:
-            entity_id: !lambda 'return id(media_target_entity_text).state;'
-            repeat: !lambda 'return id(media_repeat_single_enabled) ? "one" : "off";'
+      - if:
+          condition:
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+          then:
+            - homeassistant.service:
+                service: media_player.repeat_set
+                data_template:
+                  entity_id: !lambda 'return id(media_effective_entity_id);'
+                  repeat: !lambda 'return id(media_repeat_single_enabled) ? "one" : "off";'
       - script.execute: refresh_media_ui_if_needed
   - id: media_cycle_menu
     mode: restart
@@ -4043,6 +4844,17 @@ script:
     then:
       - if:
           condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(track_autoload_inflight) = false;
+                id(pending_track_request_id).clear();
+                id(track_has_more) = false;
+                id(media_ui_dirty) = true;
+            - script.execute: refresh_media_ui_if_needed
+            - script.stop: request_selected_playlist_tracks
+      - if:
+          condition:
             lambda: 'return !id(chosen_playlist_uri).empty() || !id(chosen_playlist_item_id).empty();'
           then:
             - lambda: |-
@@ -4089,6 +4901,18 @@ script:
   - id: request_more_playlist_tracks
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(track_autoload_inflight) = false;
+                id(pending_track_request_id).clear();
+                id(track_has_more) = false;
+                id(media_ui_dirty) = true;
+            - script.execute: refresh_media_picker_popup
+            - script.execute: refresh_media_ui_if_needed
+            - script.stop: request_more_playlist_tracks
       - if:
           condition:
             lambda: |-
@@ -4280,6 +5104,18 @@ script:
     then:
       - if:
           condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(playlist_autoload_inflight) = false;
+                id(pending_playlist_request_id).clear();
+                id(playlist_has_more) = false;
+                id(media_ui_dirty) = true;
+            - script.execute: refresh_media_picker_popup
+            - script.execute: refresh_media_ui_if_needed
+            - script.stop: request_initial_playlist_page
+      - if:
+          condition:
             lambda: |-
               return !id(playlist_autoload_inflight) &&
                      (!id(playlist_paged_mode_ready) || id(ma_playlists_names_cache).empty());
@@ -4309,6 +5145,18 @@ script:
   - id: request_more_playlist_page
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(playlist_autoload_inflight) = false;
+                id(pending_playlist_request_id).clear();
+                id(playlist_has_more) = false;
+                id(media_ui_dirty) = true;
+            - script.execute: refresh_media_picker_popup
+            - script.execute: refresh_media_ui_if_needed
+            - script.stop: request_more_playlist_page
       - if:
           condition:
             lambda: |-
@@ -4372,6 +5220,10 @@ script:
           id(media_artist_cache) = idx < static_cast<int>(id(ma_track_artists_cache).size()) ? id(ma_track_artists_cache)[idx] : "";
           id(current_media_label) = id(media_title_cache);
           id(chosen_media_type) = "music";
+          if (id(demo_mode_active)) {
+            id(music_state_cache) = "playing";
+            id(media_is_playing) = true;
+          }
           id(media_debug_trace_id) = App.get_name() + "-track-" + std::to_string(millis());
           id(media_debug_start_ms) = millis();
           id(track_select_active) = false;
@@ -4385,7 +5237,7 @@ script:
       - script.execute: refresh_media_ui_if_needed
       - if:
           condition:
-            lambda: 'return !id(chosen_track_uri).empty();'
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected) && !id(chosen_track_uri).empty();'
           then:
             - lambda: |-
                 id(publish_media_debug).execute(
@@ -4399,7 +5251,7 @@ script:
                   media_content_type: music
                   enqueue: "play"
                 data_template:
-                  entity_id: !lambda 'return id(media_target_entity_text).state;'
+                  entity_id: !lambda 'return id(media_effective_entity_id);'
                   media_content_id: !lambda 'return id(chosen_track_uri);'
             - lambda: |-
                 id(publish_media_debug).execute(
@@ -4746,7 +5598,7 @@ script:
           }
           if (follow_row < 0) follow_row = 0;
           if (follow_row > 15) follow_row = 15;
-          int scroll_target = follow_row <= 4 ? 0 : (follow_row * 38) - 76;
+          int scroll_target = follow_row <= 2 ? 0 : (follow_row * 48) - 96;
           if (scroll_target < 0) scroll_target = 0;
           if (id(media_picker_scroll_reset_requested) || follow_row >= 0) {
             lv_obj_scroll_to_y(media_picker_list, scroll_target, LV_ANIM_OFF);
@@ -4847,6 +5699,14 @@ script:
                                     (id(media_browser_mode) == 2) ? "radio" : "podcast";
           }
           id(current_media_label) = id(chosen_playlist_name);
+          if (id(demo_mode_active)) {
+            id(music_state_cache) = "playing";
+            id(media_is_playing) = true;
+            id(media_title_cache) = id(chosen_playlist_name);
+            id(media_artist_cache) = "Passion Wave";
+            id(media_position_seconds) = 0.0f;
+            id(media_duration_seconds) = 180.0f;
+          }
           if (id(media_browser_mode) != 1) {
             id(ma_playlist_tracks_json_cache) = "[]";
             id(ma_track_titles_cache).clear();
@@ -4871,7 +5731,7 @@ script:
       - script.execute: refresh_media_ui_if_needed
       - if:
           condition:
-            lambda: 'return !id(chosen_playlist_uri).empty();'
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected) && !id(chosen_playlist_uri).empty();'
           then:
             - lambda: |-
                 id(publish_media_debug).execute(
@@ -4884,7 +5744,7 @@ script:
                 data:
                   enqueue: "play"
                 data_template:
-                  entity_id: !lambda 'return id(media_target_entity_text).state;'
+                  entity_id: !lambda 'return id(media_effective_entity_id);'
                   media_content_id: !lambda 'return id(chosen_playlist_uri);'
                   media_content_type: !lambda 'return id(chosen_media_type);'
             - lambda: |-
@@ -4895,7 +5755,7 @@ script:
                   id(chosen_playlist_uri));
       - if:
           condition:
-            lambda: 'return id(media_browser_mode) == 1 && !id(chosen_playlist_name).empty();'
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(media_browser_mode) == 1 && !id(chosen_playlist_name).empty();'
           then:
             - lambda: |-
                 id(publish_media_debug).execute(
@@ -4953,12 +5813,21 @@ script:
     then:
       - if:
           condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(media_pending_volume_sync) = false;
+                id(media_ui_dirty) = true;
+            - script.execute: refresh_media_ui_if_needed
+            - script.stop: media_sync_remote
+      - if:
+          condition:
             lambda: 'return id(media_pending_volume_sync);'
           then:
             - homeassistant.service:
                 service: media_player.volume_set
                 data_template:
-                  entity_id: !lambda 'return id(media_target_entity_text).state;'
+                  entity_id: !lambda 'return id(media_effective_entity_id);'
                   volume_level: !lambda 'return to_string(id(display_volume_level));'
             - lambda: 'id(media_pending_volume_sync) = false;'
   - id: light_rotate_left
@@ -5128,6 +5997,12 @@ script:
             id(light_slot_3_label_text).state.c_str(),
             id(light_slot_4_label_text).state.c_str(),
           };
+          const char *demo_light_names[] = {"Ambiente", "Couch", "Table", "Accent"};
+          if (id(demo_mode_active)) {
+            for (int i = 0; i < 4; i++) {
+              light_names[i] = demo_light_names[i];
+            }
+          }
           const bool light_on[] = {id(light_1_on), id(light_2_on), id(light_3_on), id(light_4_on)};
           auto style_light_status = [&](lv_obj_t *chip, lv_obj_t *icon, bool is_on, bool selected) {
             const uint32_t bg = is_on ? 0xF59E0B : 0x111827;
@@ -5264,10 +6139,14 @@ script:
                               lambda: 'return id(control_mode) == 1;'
                             then:
                               - script.execute: media_prev_track
-                              - homeassistant.service:
-                                  service: media_player.media_previous_track
-                                  data_template:
-                                    entity_id: !lambda 'return id(media_target_entity_text).state;'
+                              - if:
+                                  condition:
+                                    lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+                                  then:
+                                    - homeassistant.service:
+                                        service: media_player.media_previous_track
+                                        data_template:
+                                          entity_id: !lambda 'return id(media_effective_entity_id);'
   - id: control_next_action
     mode: restart
     then:
@@ -5294,10 +6173,14 @@ script:
                               lambda: 'return id(control_mode) == 1;'
                             then:
                               - script.execute: media_next_track
-                              - homeassistant.service:
-                                  service: media_player.media_next_track
-                                  data_template:
-                                    entity_id: !lambda 'return id(media_target_entity_text).state;'
+                              - if:
+                                  condition:
+                                    lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+                                  then:
+                                    - homeassistant.service:
+                                        service: media_player.media_next_track
+                                        data_template:
+                                          entity_id: !lambda 'return id(media_effective_entity_id);'
   - id: refresh_control_ui_if_needed
     mode: restart
     then:
@@ -5400,6 +6283,16 @@ script:
             id(light_4_on) = id(light_brightness_pct) > 0;
           }
           id(light_ui_dirty) = true;
+      - if:
+          condition:
+            lambda: 'return id(demo_mode_active) || !id(wifi_connected);'
+          then:
+            - lambda: |-
+                id(light_pending_brightness_sync) = false;
+                id(light_pending_color_sync) = false;
+                id(light_ui_dirty) = true;
+            - script.execute: refresh_light_ui_if_needed
+            - script.stop: light_sync_remote
       - if:
           condition:
             lambda: 'return id(light_pending_brightness_sync) && id(light_brightness_pct) <= 0 && id(light_source_index) == 0;'
@@ -5558,7 +6451,7 @@ script:
           id(light_ui_dirty) = true;
       - if:
           condition:
-            lambda: 'return id(light_source_index) == 0;'
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 0;'
           then:
             - homeassistant.service:
                 service: light.turn_off
@@ -5566,7 +6459,7 @@ script:
                   entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
       - if:
           condition:
-            lambda: 'return id(light_source_index) == 1;'
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 1;'
           then:
             - homeassistant.service:
                 service: light.turn_off
@@ -5574,7 +6467,7 @@ script:
                   entity_id: !lambda 'return id(light_slot_2_entity_text).state;'
       - if:
           condition:
-            lambda: 'return id(light_source_index) == 2;'
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 2;'
           then:
             - homeassistant.service:
                 service: light.turn_off
@@ -5582,7 +6475,7 @@ script:
                   entity_id: !lambda 'return id(light_slot_3_entity_text).state;'
       - if:
           condition:
-            lambda: 'return id(light_source_index) == 3;'
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 3;'
           then:
             - homeassistant.service:
                 service: light.turn_off
@@ -5625,7 +6518,7 @@ script:
                 id(light_ui_dirty) = true;
             - if:
                 condition:
-                  lambda: 'return id(light_source_index) == 0;'
+                  lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 0;'
                 then:
                   - homeassistant.service:
                       service: light.turn_on
@@ -5634,7 +6527,7 @@ script:
                         brightness_pct: "100"
             - if:
                 condition:
-                  lambda: 'return id(light_source_index) == 1;'
+                  lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 1;'
                 then:
                   - homeassistant.service:
                       service: light.turn_on
@@ -5643,7 +6536,7 @@ script:
                         brightness_pct: "100"
             - if:
                 condition:
-                  lambda: 'return id(light_source_index) == 2;'
+                  lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 2;'
                 then:
                   - homeassistant.service:
                       service: light.turn_on
@@ -5652,7 +6545,7 @@ script:
                         brightness_pct: "100"
             - if:
                 condition:
-                  lambda: 'return id(light_source_index) == 3;'
+                  lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 3;'
                 then:
                   - homeassistant.service:
                       service: light.turn_on
@@ -5679,22 +6572,26 @@ script:
           id(light_pending_brightness_sync) = false;
           id(light_pending_color_sync) = false;
           id(light_ui_dirty) = true;
-      - homeassistant.service:
-          service: light.turn_off
-          data_template:
-            entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
-      - homeassistant.service:
-          service: light.turn_off
-          data_template:
-            entity_id: !lambda 'return id(light_slot_2_entity_text).state;'
-      - homeassistant.service:
-          service: light.turn_off
-          data_template:
-            entity_id: !lambda 'return id(light_slot_3_entity_text).state;'
-      - homeassistant.service:
-          service: light.turn_off
-          data_template:
-            entity_id: !lambda 'return id(light_slot_4_entity_text).state;'
+      - if:
+          condition:
+            lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+          then:
+            - homeassistant.service:
+                service: light.turn_off
+                data_template:
+                  entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
+            - homeassistant.service:
+                service: light.turn_off
+                data_template:
+                  entity_id: !lambda 'return id(light_slot_2_entity_text).state;'
+            - homeassistant.service:
+                service: light.turn_off
+                data_template:
+                  entity_id: !lambda 'return id(light_slot_3_entity_text).state;'
+            - homeassistant.service:
+                service: light.turn_off
+                data_template:
+                  entity_id: !lambda 'return id(light_slot_4_entity_text).state;'
       - script.execute: refresh_light_ui_if_needed
 
 time:
@@ -6273,6 +7170,9 @@ interval:
                 id(volume_override_active) = false;
                 id(media_ui_dirty) = true;
             - script.execute: refresh_media_ui_if_needed
+  - interval: 5s
+    then:
+      - script.execute: refresh_dynamic_media_snapshot
   - interval: 15min
     then:
       - if:
@@ -6300,6 +7200,19 @@ switch:
       - script.execute: refresh_settings_ui
     turn_off_action:
       - lambda: 'id(haptic_enabled) = false;'
+      - script.execute: refresh_settings_ui
+  - platform: template
+    name: "scrollwheel Demo"
+    id: demo_mode_enabled_switch
+    entity_category: config
+    lambda: "return id(demo_mode_enabled);"
+    turn_on_action:
+      - lambda: 'id(demo_mode_enabled) = true;'
+      - script.execute: sync_demo_mode_with_wifi
+      - script.execute: refresh_settings_ui
+    turn_off_action:
+      - lambda: 'id(demo_mode_enabled) = false;'
+      - script.execute: disable_demo_mode
       - script.execute: refresh_settings_ui
 
 number:
@@ -6380,6 +7293,7 @@ text:
           id(media_cover_url_cache).clear();
           id(display_volume_level) = 0.5f;
           id(media_ui_dirty) = true;
+      - script.execute: refresh_media_target_runtime
       - script.execute: refresh_settings_ui
       - script.execute: refresh_media_ui_if_needed
   - platform: template
@@ -6395,8 +7309,91 @@ text:
     set_action:
       - lambda: |-
           id(media_ui_dirty) = true;
+      - script.execute: refresh_media_target_runtime
       - script.execute: refresh_settings_ui
       - script.execute: refresh_media_ui_if_needed
+  - platform: template
+    name: "Rotaryknob Media Runtime State"
+    id: media_runtime_state_text
+    entity_category: diagnostic
+    optimistic: true
+    restore_value: false
+    initial_value: "idle"
+    min_length: 0
+    max_length: 32
+    mode: text
+    set_action:
+      - lambda: |-
+          std::string state = x;
+          for (char &c : state) {
+            c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+          }
+          id(music_state_cache) = state;
+          id(media_is_playing) = state == "playing";
+          if (id(media_is_playing)) {
+            id(media_cover_fullscreen_active) = false;
+            if (id(media_cover_fullscreen_due_ms) == 0) {
+              id(media_cover_fullscreen_due_ms) = millis() + 10000;
+            }
+          } else {
+            id(media_cover_fullscreen_active) = false;
+            id(media_cover_fullscreen_due_ms) = 0;
+          }
+          id(media_ui_dirty) = true;
+      - script.execute: refresh_media_ui_if_needed
+      - if:
+          condition:
+            lambda: 'return id(current_page) == 6 && id(music_state_cache) != "playing";'
+          then:
+            - script.execute: show_media_page
+  - platform: template
+    name: "Rotaryknob Media Runtime Title"
+    id: media_runtime_title_text
+    entity_category: diagnostic
+    optimistic: true
+    restore_value: false
+    initial_value: ""
+    min_length: 0
+    max_length: 160
+    mode: text
+    set_action:
+      - lambda: |-
+          id(media_title_cache) = x;
+          if (!x.empty()) id(current_media_label) = x;
+          id(media_ui_dirty) = true;
+      - script.execute: refresh_media_ui_if_needed
+  - platform: template
+    name: "Rotaryknob Media Runtime Artist"
+    id: media_runtime_artist_text
+    entity_category: diagnostic
+    optimistic: true
+    restore_value: false
+    initial_value: ""
+    min_length: 0
+    max_length: 160
+    mode: text
+    set_action:
+      - lambda: |-
+          id(media_artist_cache) = x;
+          id(media_ui_dirty) = true;
+      - script.execute: refresh_media_ui_if_needed
+  - platform: template
+    name: "Rotaryknob Media Runtime Cover URL"
+    id: media_runtime_cover_url_text
+    entity_category: diagnostic
+    optimistic: true
+    restore_value: false
+    initial_value: ""
+    min_length: 0
+    max_length: 255
+    mode: text
+    set_action:
+      - lambda: |-
+          id(media_entity_picture_cache) = x;
+          id(media_entity_picture_local_cache).clear();
+          id(media_image_url_cache).clear();
+          id(media_ui_dirty) = true;
+      - script.execute: refresh_media_cover_url
   - platform: template
     name: "Rotaryknob Light Slot 1 Entity ID"
     id: light_slot_1_entity_text
@@ -6586,7 +7583,7 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             if (isnan(x)) {
               return;
             }
@@ -6605,7 +7602,7 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             if (isnan(x)) return;
             id(media_position_seconds) = x;
             id(media_ui_dirty) = true;
@@ -6618,7 +7615,7 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             if (isnan(x)) return;
             id(media_duration_seconds) = x;
             id(media_ui_dirty) = true;
@@ -6739,6 +7736,7 @@ sensor:
             id(weather_temperature) = x;
             id(weather_ui_dirty) = true;
         - script.execute: refresh_weather_ui_if_needed
+        - script.execute: refresh_weather_screensaver
   - platform: homeassistant
     id: ha_weather_humidity
     entity_id: ${ha_weather}
@@ -6748,6 +7746,8 @@ sensor:
       then:
         - lambda: |-
             if (isnan(x)) {
+              id(weather_precipitation_probability) = 0;
+              id(weather_ui_dirty) = true;
               return;
             }
             id(weather_humidity) = static_cast<int>(lroundf(x));
@@ -6786,6 +7786,36 @@ sensor:
         - script.execute: refresh_weather_ui_if_needed
 
 text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip_address_text
+      internal: true
+      on_value:
+        then:
+          - script.execute: refresh_settings_ui
+  - platform: homeassistant
+    id: ha_rain_radar_image_path
+    entity_id: sensor.scrollwheel_rain_radar_image_path
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (!x.empty() && x != "unknown" && x != "unavailable") {
+              id(rain_radar_image_path_cache) = x;
+            }
+  - platform: homeassistant
+    id: ha_weather_location_name
+    entity_id: ${ha_weather}
+    attribute: friendly_name
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (!x.empty()) {
+              id(weather_location_name) = x;
+              id(weather_ui_dirty) = true;
+            }
+        - script.execute: refresh_weather_ui_if_needed
   - platform: homeassistant
     id: ha_weather_condition
     entity_id: ${ha_weather}
@@ -6828,8 +7858,8 @@ text_sensor:
               translated = "Windig wolkig";
             }
             id(weather_condition_text) = translated;
-            if (id(weather_detail_text).empty() || id(weather_detail_text) == "Lokale Vorhersage") {
-              id(weather_detail_text) = "DWD Ebersberg";
+            if (id(weather_detail_text).empty() || id(weather_detail_text) == "Lokale Vorhersage" || id(weather_detail_text) == "DWD Ebersberg") {
+              id(weather_detail_text) = id(weather_rain_eta_text);
             }
             id(weather_ui_dirty) = true;
         - script.execute: refresh_weather_ui_if_needed
@@ -6914,21 +7944,39 @@ text_sensor:
             id(light_ui_dirty) = true;
         - script.execute: refresh_light_ui_if_needed
   - platform: homeassistant
+    id: media_friendly_name
+    entity_id: ${ha_player}
+    attribute: friendly_name
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (!id(media_static_fallback_active) || x.empty()) return;
+            const std::string configured_label = id(media_target_label_text).state;
+            if (configured_label.empty() || configured_label == "Media Player") {
+              id(media_effective_label) = x;
+              id(media_ui_dirty) = true;
+            }
+        - script.execute: refresh_settings_ui
+        - script.execute: refresh_media_ui_if_needed
+  - platform: homeassistant
     id: music_state
     entity_id: ${ha_player}
     internal: true
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             id(music_state_cache) = x;
             id(media_is_playing) = x == "playing";
             if (id(media_is_playing)) {
-            id(media_cover_fullscreen_active) = false;
-            id(media_cover_fullscreen_due_ms) = millis() + 10000;
+              id(media_cover_fullscreen_active) = false;
+              if (id(media_cover_fullscreen_due_ms) == 0) {
+                id(media_cover_fullscreen_due_ms) = millis() + 10000;
+              }
             } else {
-            id(media_cover_fullscreen_active) = false;
-            id(media_cover_fullscreen_due_ms) = 0;
+              id(media_cover_fullscreen_active) = false;
+              id(media_cover_fullscreen_due_ms) = 0;
             }
             id(media_ui_dirty) = true;
             id(publish_media_debug).execute(
@@ -6950,8 +7998,9 @@ text_sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             id(media_title_cache) = x;
+            if (!x.empty()) id(current_media_label) = x;
             id(media_ui_dirty) = true;
             id(publish_media_debug).execute(
             "esp_ha_title_received",
@@ -6967,9 +8016,23 @@ text_sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             id(media_artist_cache) = x;
             id(media_ui_dirty) = true;
+        - script.execute: refresh_media_ui_if_needed
+  - platform: homeassistant
+    id: media_album_artist
+    entity_id: ${ha_player}
+    attribute: media_album_artist
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (!id(media_static_fallback_active) || x.empty()) return;
+            if (id(media_artist_cache).empty()) {
+              id(media_artist_cache) = x;
+              id(media_ui_dirty) = true;
+            }
         - script.execute: refresh_media_ui_if_needed
   - platform: homeassistant
     id: media_shuffle_state
@@ -6979,7 +8042,7 @@ text_sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             id(media_shuffle_enabled) = x == "true" || x == "on" || x == "1";
             id(media_ui_dirty) = true;
         - script.execute: refresh_media_ui_if_needed
@@ -6991,7 +8054,7 @@ text_sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             id(media_repeat_single_enabled) = x == "one" || x == "repeat_one";
             id(media_ui_dirty) = true;
         - script.execute: refresh_media_ui_if_needed
@@ -7003,7 +8066,7 @@ text_sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             id(media_entity_picture_cache) = x;
             id(media_ui_dirty) = true;
         - script.execute: refresh_media_cover_url
@@ -7015,7 +8078,7 @@ text_sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             id(media_entity_picture_local_cache) = x;
             id(media_ui_dirty) = true;
         - script.execute: refresh_media_cover_url
@@ -7027,7 +8090,7 @@ text_sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(media_target_index) != 3) return;
+            if (!id(media_static_fallback_active)) return;
             id(media_image_url_cache) = x;
             id(media_ui_dirty) = true;
         - script.execute: refresh_media_cover_url
@@ -7375,7 +8438,7 @@ text_sensor:
         - script.execute: refresh_light_ui_if_needed
 
 lvgl:
-  update_interval: 50ms
+  update_interval: 33ms
   log_level: ERROR
   pages:
     # Minimalistische Lichtseite mit Außenring
@@ -7548,11 +8611,11 @@ lvgl:
             text_font: roboto_12
             text_color: 0x94A3B8
         - button:
-            x: 91
-            y: 34
-            width: 42
-            height: 52
-            radius: 21
+            x: 84
+            y: 31
+            width: 56
+            height: 58
+            radius: 28
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -7566,11 +8629,11 @@ lvgl:
                   text_font: media_icon_28
                   text_color: 0x374151
         - button:
-            x: 227
-            y: 34
-            width: 42
-            height: 52
-            radius: 21
+            x: 220
+            y: 31
+            width: 56
+            height: 58
+            radius: 28
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -7597,11 +8660,11 @@ lvgl:
               - script.execute: toggle_extra_menu
         - button:
             id: light_status_1_chip
-            x: 46
-            y: 92
-            width: 42
-            height: 42
-            radius: 21
+            x: 43
+            y: 89
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x111827
             border_width: 1
             border_color: 0x334155
@@ -7618,11 +8681,11 @@ lvgl:
                   text_color: 0x64748B
         - button:
             id: light_status_2_chip
-            x: 46
-            y: 136
-            width: 42
-            height: 42
-            radius: 21
+            x: 43
+            y: 133
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x111827
             border_width: 1
             border_color: 0x334155
@@ -7639,11 +8702,11 @@ lvgl:
                   text_color: 0x64748B
         - button:
             id: light_status_3_chip
-            x: 46
-            y: 180
-            width: 42
-            height: 42
-            radius: 21
+            x: 43
+            y: 177
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x111827
             border_width: 1
             border_color: 0x334155
@@ -7660,11 +8723,11 @@ lvgl:
                   text_color: 0x64748B
         - button:
             id: light_status_4_chip
-            x: 46
-            y: 224
-            width: 42
-            height: 42
-            radius: 21
+            x: 43
+            y: 221
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x111827
             border_width: 1
             border_color: 0x334155
@@ -7707,10 +8770,10 @@ lvgl:
             text_color: 0xF59E0B
         - button:
             x: 64
-            y: 210
+            y: 207
             width: 232
-            height: 38
-            radius: 19
+            height: 44
+            radius: 22
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -7718,10 +8781,10 @@ lvgl:
             on_click:
               - script.execute: show_light_drawer
         - button:
-            x: 138
-            y: 165
+            x: 158
+            y: 145
             width: 104
-            height: 28
+            height: 44
             radius: 8
             bg_opa: 0%
             border_width: 0
@@ -7731,7 +8794,7 @@ lvgl:
               - label:
                   id: light_value_label
                   x: 0
-                  y: 0
+                  y: 8
                   width: 104
                   height: 28
                   text: "100%"
@@ -7739,7 +8802,7 @@ lvgl:
                   text_color: 0xFFFFFF
         - obj:
             id: light_swatch
-            x: 295
+            x: 304
             y: 187
             width: 26
             height: 26
@@ -7749,35 +8812,35 @@ lvgl:
             pad_all: 0
         - label:
             id: light_context_1_label
-            x: 238
+            x: 264
             y: 146
-            width: 76
+            width: 68
             height: 16
             text: "3000K"
             text_font: roboto_12
             text_color: 0xE5E7EB
         - label:
             id: light_context_2_label
-            x: 238
+            x: 264
             y: 164
-            width: 76
+            width: 68
             height: 16
             text: "Warm"
             text_font: roboto_12
             text_color: 0xCBD5E1
         - label:
             id: light_context_3_label
-            x: 238
+            x: 264
             y: 182
-            width: 76
+            width: 68
             height: 14
             text: "FARBE"
             text_font: roboto_10
             text_color: 0x94A3B8
         - button:
-            x: 240
+            x: 264
             y: 144
-            width: 94
+            width: 70
             height: 70
             radius: 8
             bg_opa: 0%
@@ -7805,10 +8868,10 @@ lvgl:
             text_color: 0x94A3B8
         - button:
             x: 52
-            y: 290
+            y: 282
             width: 118
-            height: 22
-            radius: 11
+            height: 46
+            radius: 23
             bg_color: 0x1F2937
             border_width: 0
             shadow_width: 0
@@ -7823,10 +8886,10 @@ lvgl:
                   text_color: 0xCBD5E1
         - button:
             x: 190
-            y: 290
+            y: 282
             width: 118
-            height: 22
-            radius: 11
+            height: 46
+            radius: 23
             bg_color: 0x1F2937
             border_width: 0
             shadow_width: 0
@@ -7894,7 +8957,7 @@ lvgl:
             x: 38
             y: 184
             width: 284
-            height: 116
+            height: 128
             radius: 22
             bg_color: 0x1F2937
             bg_opa: 96%
@@ -7906,8 +8969,8 @@ lvgl:
                   x: 10
                   y: 10
                   width: 126
-                  height: 38
-                  radius: 19
+                  height: 44
+                  radius: 22
                   bg_color: 0x101827
                   border_width: 0
                   pad_all: 0
@@ -7923,8 +8986,8 @@ lvgl:
                   x: 148
                   y: 10
                   width: 126
-                  height: 38
-                  radius: 19
+                  height: 44
+                  radius: 22
                   bg_color: 0x101827
                   border_width: 0
                   pad_all: 0
@@ -7938,10 +9001,10 @@ lvgl:
                         text_color: 0xFFFFFF
               - button:
                   x: 10
-                  y: 62
+                  y: 64
                   width: 126
-                  height: 38
-                  radius: 19
+                  height: 44
+                  radius: 22
                   bg_color: 0x101827
                   border_width: 0
                   pad_all: 0
@@ -7955,10 +9018,10 @@ lvgl:
                         text_color: 0xFFFFFF
               - button:
                   x: 148
-                  y: 62
+                  y: 64
                   width: 126
-                  height: 38
-                  radius: 19
+                  height: 44
+                  radius: 22
                   bg_color: 0x101827
                   border_width: 0
                   pad_all: 0
@@ -8178,11 +9241,11 @@ lvgl:
             text_font: roboto_20
             text_color: 0xD1D5DB
         - button:
-            x: 91
-            y: 30
-            width: 42
-            height: 52
-            radius: 21
+            x: 84
+            y: 27
+            width: 56
+            height: 58
+            radius: 28
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -8196,11 +9259,11 @@ lvgl:
                   text_font: media_icon_28
                   text_color: 0x374151
         - button:
-            x: 227
-            y: 30
-            width: 42
-            height: 52
-            radius: 21
+            x: 220
+            y: 27
+            width: 56
+            height: 58
+            radius: 28
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -8308,24 +9371,28 @@ lvgl:
             on_click:
               - script.execute: media_title_click
         - button:
-            x: 112
-            y: 286
-            width: 42
-            height: 42
-            radius: 21
+            x: 82
+            y: 270
+            width: 58
+            height: 58
+            radius: 29
             bg_opa: 0%
             border_width: 0
             on_click:
               - script.execute: media_prev_track
-              - homeassistant.service:
-                  service: media_player.media_previous_track
-                  data_template:
-                    entity_id: !lambda 'return id(media_target_entity_text).state;'
+              - if:
+                  condition:
+                    lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+                  then:
+                    - homeassistant.service:
+                        service: media_player.media_previous_track
+                        data_template:
+                          entity_id: !lambda 'return id(media_effective_entity_id);'
             widgets:
               - label:
                   align: center
                   text: "\U0000E045"
-                  text_font: media_icon_28
+                  text_font: media_icon_42
                   text_color: 0xFFFFFF
         - button:
             x: 153
@@ -8345,24 +9412,28 @@ lvgl:
                   text_font: media_icon_42
                   text_color: 0xFFFFFF
         - button:
-            x: 206
-            y: 286
-            width: 42
-            height: 42
-            radius: 21
+            x: 220
+            y: 270
+            width: 58
+            height: 58
+            radius: 29
             bg_opa: 0%
             border_width: 0
             on_click:
               - script.execute: media_next_track
-              - homeassistant.service:
-                  service: media_player.media_next_track
-                  data_template:
-                    entity_id: !lambda 'return id(media_target_entity_text).state;'
+              - if:
+                  condition:
+                    lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+                  then:
+                    - homeassistant.service:
+                        service: media_player.media_next_track
+                        data_template:
+                          entity_id: !lambda 'return id(media_effective_entity_id);'
             widgets:
               - label:
                   align: center
                   text: "\U0000E044"
-                  text_font: media_icon_28
+                  text_font: media_icon_42
                   text_color: 0xFFFFFF
         - label:
             id: media_list_mode_label
@@ -8511,11 +9582,11 @@ lvgl:
                   text_font: roboto_20
                   text_color: 0xFFFFFF
               - button:
-                  x: 244
-                  y: 12
-                  width: 30
-                  height: 30
-                  radius: 15
+                  x: 232
+                  y: 8
+                  width: 44
+                  height: 44
+                  radius: 22
                   bg_color: 0x1F2937
                   border_width: 0
                   pad_all: 0
@@ -8530,10 +9601,10 @@ lvgl:
               - button:
                   id: media_picker_tab_list_button
                   x: 13
-                  y: 52
+                  y: 48
                   width: 62
-                  height: 28
-                  radius: 14
+                  height: 44
+                  radius: 22
                   bg_color: 0x1F2937
                   border_width: 0
                   pad_all: 0
@@ -8551,10 +9622,10 @@ lvgl:
               - button:
                   id: media_picker_tab_playlist_button
                   x: 79
-                  y: 52
+                  y: 48
                   width: 62
-                  height: 28
-                  radius: 14
+                  height: 44
+                  radius: 22
                   bg_color: 0xEC4899
                   border_width: 0
                   pad_all: 0
@@ -8572,10 +9643,10 @@ lvgl:
               - button:
                   id: media_picker_tab_radio_button
                   x: 145
-                  y: 52
+                  y: 48
                   width: 62
-                  height: 28
-                  radius: 14
+                  height: 44
+                  radius: 22
                   bg_color: 0x1F2937
                   border_width: 0
                   pad_all: 0
@@ -8593,10 +9664,10 @@ lvgl:
               - button:
                   id: media_picker_tab_podcast_button
                   x: 211
-                  y: 52
+                  y: 48
                   width: 62
-                  height: 28
-                  radius: 14
+                  height: 44
+                  radius: 22
                   bg_color: 0x1F2937
                   border_width: 0
                   pad_all: 0
@@ -8614,9 +9685,9 @@ lvgl:
               - obj:
                   id: media_picker_list
                   x: 14
-                  y: 90
+                  y: 98
                   width: 260
-                  height: 178
+                  height: 172
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
@@ -8626,8 +9697,8 @@ lvgl:
                         x: 0
                         y: 0
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8635,14 +9706,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 0 }
                         widgets:
-                          - label: { id: media_picker_item_0_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_0_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_1_button
                         x: 0
-                        y: 38
+                        y: 48
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8650,14 +9721,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 1 }
                         widgets:
-                          - label: { id: media_picker_item_1_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_1_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_2_button
                         x: 0
-                        y: 76
+                        y: 96
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8665,14 +9736,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 2 }
                         widgets:
-                          - label: { id: media_picker_item_2_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_2_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_3_button
                         x: 0
-                        y: 114
+                        y: 144
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8680,14 +9751,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 3 }
                         widgets:
-                          - label: { id: media_picker_item_3_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_3_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_4_button
                         x: 0
-                        y: 152
+                        y: 192
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8695,14 +9766,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 4 }
                         widgets:
-                          - label: { id: media_picker_item_4_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_4_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_5_button
                         x: 0
-                        y: 190
+                        y: 240
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8710,14 +9781,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 5 }
                         widgets:
-                          - label: { id: media_picker_item_5_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_5_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_6_button
                         x: 0
-                        y: 228
+                        y: 288
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8725,14 +9796,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 6 }
                         widgets:
-                          - label: { id: media_picker_item_6_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_6_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_7_button
                         x: 0
-                        y: 266
+                        y: 336
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8740,14 +9811,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 7 }
                         widgets:
-                          - label: { id: media_picker_item_7_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_7_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_8_button
                         x: 0
-                        y: 304
+                        y: 384
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8755,14 +9826,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 8 }
                         widgets:
-                          - label: { id: media_picker_item_8_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_8_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_9_button
                         x: 0
-                        y: 342
+                        y: 432
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8770,14 +9841,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 9 }
                         widgets:
-                          - label: { id: media_picker_item_9_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_9_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_10_button
                         x: 0
-                        y: 380
+                        y: 480
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8785,14 +9856,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 10 }
                         widgets:
-                          - label: { id: media_picker_item_10_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_10_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_11_button
                         x: 0
-                        y: 418
+                        y: 528
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8800,14 +9871,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 11 }
                         widgets:
-                          - label: { id: media_picker_item_11_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_11_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_12_button
                         x: 0
-                        y: 456
+                        y: 576
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8815,14 +9886,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 12 }
                         widgets:
-                          - label: { id: media_picker_item_12_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_12_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_13_button
                         x: 0
-                        y: 494
+                        y: 624
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8830,14 +9901,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 13 }
                         widgets:
-                          - label: { id: media_picker_item_13_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_13_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_14_button
                         x: 0
-                        y: 532
+                        y: 672
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8845,14 +9916,14 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 14 }
                         widgets:
-                          - label: { id: media_picker_item_14_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_14_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
                     - button:
                         id: media_picker_item_15_button
                         x: 0
-                        y: 570
+                        y: 720
                         width: 248
-                        height: 34
-                        radius: 8
+                        height: 44
+                        radius: 12
                         bg_color: 0x111827
                         border_width: 1
                         border_color: 0x334155
@@ -8860,7 +9931,7 @@ lvgl:
                         on_click:
                           - script.execute: { id: media_picker_select_item, item_index: 15 }
                         widgets:
-                          - label: { id: media_picker_item_15_label, x: 10, y: 8, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
+                          - label: { id: media_picker_item_15_label, x: 10, y: 13, width: 226, height: 18, text: "", text_font: roboto_14, text_color: 0xFFFFFF }
         - obj:
             x: 0
             y: 0
@@ -8870,11 +9941,11 @@ lvgl:
             border_width: 0
             pad_all: 0
         - button:
-            x: 98
-            y: 318
-            width: 62
-            height: 34
-            radius: 17
+            x: 88
+            y: 310
+            width: 64
+            height: 44
+            radius: 22
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -8882,11 +9953,11 @@ lvgl:
             on_click:
               - script.execute: nav_to_media
         - button:
-            x: 157
-            y: 324
+            x: 156
+            y: 310
             width: 48
-            height: 30
-            radius: 15
+            height: 44
+            radius: 22
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -8894,11 +9965,11 @@ lvgl:
             on_click:
               - script.execute: nav_to_light
         - button:
-            x: 200
-            y: 318
-            width: 62
-            height: 34
-            radius: 17
+            x: 208
+            y: 310
+            width: 64
+            height: 44
+            radius: 22
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -8969,19 +10040,19 @@ lvgl:
             text_font: roboto_12
             text_color: 0x64748B
         - label:
-            align: top_mid
+            x: 122
             y: 84
-            width: 180
+            width: 150
             height: 24
             text: "System"
             text_font: roboto_24
             text_color: 0xF8FAFC
         - button:
-            x: 62
-            y: 80
-            width: 40
-            height: 40
-            radius: 20
+            x: 58
+            y: 78
+            width: 48
+            height: 44
+            radius: 22
             bg_color: 0x1F2937
             border_width: 0
             pad_all: 0
@@ -8990,7 +10061,7 @@ lvgl:
             widgets:
               - label:
                   align: center
-                  text: "\U0000E2BD"
+                  text: "\U0000E5CB"
                   text_font: media_icon_28
                   text_color: 0xE2E8F0
         - label:
@@ -9013,10 +10084,10 @@ lvgl:
         - button:
             id: settings_haptic_button
             align: top_mid
-            y: 157
+            y: 154
             width: 176
-            height: 38
-            radius: 19
+            height: 44
+            radius: 22
             bg_color: 0xEC4899
             border_width: 0
             pad_all: 0
@@ -9041,8 +10112,8 @@ lvgl:
             x: 164
             y: 193
             width: 44
-            height: 40
-            radius: 20
+            height: 44
+            radius: 22
             bg_color: 0x1F2937
             border_width: 0
             pad_all: 0
@@ -9067,8 +10138,8 @@ lvgl:
             x: 260
             y: 193
             width: 44
-            height: 40
-            radius: 20
+            height: 44
+            radius: 22
             bg_color: 0x1F2937
             border_width: 0
             pad_all: 0
@@ -9092,8 +10163,8 @@ lvgl:
             x: 164
             y: 233
             width: 44
-            height: 40
-            radius: 20
+            height: 44
+            radius: 22
             bg_color: 0x1F2937
             border_width: 0
             pad_all: 0
@@ -9118,8 +10189,8 @@ lvgl:
             x: 260
             y: 233
             width: 44
-            height: 40
-            radius: 20
+            height: 44
+            radius: 22
             bg_color: 0x1F2937
             border_width: 0
             pad_all: 0
@@ -9131,6 +10202,51 @@ lvgl:
                   text: "\U0000E5CC"
                   text_font: media_icon_28
                   text_color: 0xE2E8F0
+        - label:
+            id: settings_wifi_check_label
+            x: 70
+            y: 286
+            width: 16
+            height: 18
+            text: "\U0000E835"
+            text_font: media_icon_12
+            text_color: 0x64748B
+        - label:
+            id: settings_wifi_status_label
+            x: 91
+            y: 282
+            width: 54
+            height: 20
+            text: "WIFI"
+            text_font: roboto_12
+            text_color: 0x64748B
+        - label:
+            id: settings_ha_check_label
+            x: 156
+            y: 286
+            width: 16
+            height: 18
+            text: "\U0000E835"
+            text_font: media_icon_12
+            text_color: 0x64748B
+        - label:
+            id: settings_ha_status_label
+            x: 176
+            y: 282
+            width: 120
+            height: 20
+            text: "Home Assistant"
+            text_font: roboto_12
+            text_color: 0x64748B
+        - label:
+            id: settings_ip_address_label
+            align: top_mid
+            y: 305
+            width: 240
+            height: 18
+            text: "IP --"
+            text_font: roboto_12
+            text_color: 0x94A3B8
         - label:
             id: settings_battery_label
             align: top_mid
@@ -9301,6 +10417,34 @@ lvgl:
       on_load:
         - lambda: |-
             id(current_page) = 7;
+            auto lock_screensaver_object = [](lv_obj_t *obj) {
+              if (obj == nullptr) return;
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_ELASTIC);
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_CHAIN);
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_WITH_ARROW);
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_SNAPPABLE);
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_GESTURE_BUBBLE);
+              lv_obj_clear_flag(obj, LV_OBJ_FLAG_EVENT_BUBBLE);
+              lv_obj_set_scroll_dir(obj, LV_DIR_NONE);
+              lv_obj_scroll_to(obj, 0, 0, LV_ANIM_OFF);
+            };
+            lv_obj_t *screensaver_root = screensaver_bg != nullptr ? lv_obj_get_parent(screensaver_bg) : lv_scr_act();
+            if (screensaver_root != nullptr) {
+              std::vector<lv_obj_t *> stack;
+              stack.push_back(screensaver_root);
+              while (!stack.empty()) {
+                lv_obj_t *obj = stack.back();
+                stack.pop_back();
+                lock_screensaver_object(obj);
+                const uint32_t child_count = lv_obj_get_child_cnt(obj);
+                for (uint32_t child_index = 0; child_index < child_count; child_index++) {
+                  stack.push_back(lv_obj_get_child(obj, child_index));
+                }
+              }
+            }
             lv_obj_add_flag(screensaver_time_shadow_label, LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(screensaver_time_label, LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(screensaver_clock_host, LV_OBJ_FLAG_CLICKABLE);
@@ -9329,6 +10473,18 @@ lvgl:
             lv_obj_set_style_text_align(screensaver_summary_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(screensaver_rain_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(screensaver_temp_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+            if (screensaver_exit_button != nullptr) {
+              lock_screensaver_object(screensaver_exit_button);
+              lv_obj_add_flag(screensaver_exit_button, LV_OBJ_FLAG_CLICKABLE);
+              lv_obj_move_foreground(screensaver_exit_button);
+              static bool screensaver_exit_press_handler_added = false;
+              if (!screensaver_exit_press_handler_added) {
+                lv_obj_add_event_cb(screensaver_exit_button, [](lv_event_t *event) {
+                  id(return_from_screensaver).execute();
+                }, LV_EVENT_PRESSED, nullptr);
+                screensaver_exit_press_handler_added = true;
+              }
+            }
         - script.execute: refresh_weather_screensaver
       widgets:
         - obj:
@@ -9825,6 +10981,7 @@ lvgl:
             text_font: media_icon_12
             text_color: 0xFFFFFF
         - button:
+            id: screensaver_exit_button
             x: 0
             y: 0
             width: 360
@@ -9941,6 +11098,30 @@ lvgl:
             if (id(weather_day_morning_arc) == nullptr) id(weather_day_morning_arc) = create_weather_day_segment(275);
             if (id(weather_day_noon_arc) == nullptr) id(weather_day_noon_arc) = create_weather_day_segment(328);
             if (id(weather_day_evening_arc) == nullptr) id(weather_day_evening_arc) = create_weather_day_segment(21);
+            if (id(weather_day_now_arc) == nullptr) {
+              auto *arc = lv_arc_create(id(weather_ring_host));
+              lv_obj_set_size(arc, 356, 356);
+              lv_obj_center(arc);
+              lv_obj_remove_style(arc, nullptr, LV_PART_SCROLLBAR);
+              lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
+              lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_pad_all(arc, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_arc_color(arc, lv_color_hex(0xF8FAFC), LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_arc_width(arc, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_arc_rounded(arc, true, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_arc_color(arc, lv_color_hex(0xF8FAFC), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+              lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+              lv_obj_set_style_arc_width(arc, 8, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+              lv_obj_set_style_arc_rounded(arc, true, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+              lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, LV_PART_KNOB | LV_STATE_DEFAULT);
+              lv_arc_set_range(arc, 0, 100);
+              lv_arc_set_rotation(arc, 275);
+              lv_arc_set_bg_angles(arc, 0, 5);
+              lv_arc_set_mode(arc, LV_ARC_MODE_NORMAL);
+              lv_arc_set_value(arc, 100);
+              id(weather_day_now_arc) = arc;
+            }
             lv_label_set_long_mode(weather_location_label, LV_LABEL_LONG_CLIP);
             lv_obj_set_style_transform_angle(weather_max_label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_transform_angle(weather_min_label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -9949,8 +11130,28 @@ lvgl:
             lv_obj_move_foreground(id(weather_ring_arc));
             lv_obj_set_style_transform_angle(weather_morning_label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_transform_angle(weather_noon_label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_transform_angle(weather_afternoon_label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_transform_angle(weather_evening_label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+            auto style_weather_arc_letter = [](lv_obj_t *label, int angle) {
+              lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+              lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_transform_pivot_x(label, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_transform_pivot_y(label, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_transform_angle(label, angle, LV_PART_MAIN | LV_STATE_DEFAULT);
+            };
+            style_weather_arc_letter(weather_evening_text_a, 2360);
+            style_weather_arc_letter(weather_evening_text_b, 2200);
+            style_weather_arc_letter(weather_evening_text_e, 2040);
+            style_weather_arc_letter(weather_evening_text_n, 1880);
+            style_weather_arc_letter(weather_evening_text_d, 1720);
+            style_weather_arc_letter(weather_morning_text_v, -420);
+            style_weather_arc_letter(weather_morning_text_o, -320);
+            style_weather_arc_letter(weather_morning_text_r, -230);
+            style_weather_arc_letter(weather_morning_text_m, -140);
+            style_weather_arc_letter(weather_morning_text_i, -50);
+            style_weather_arc_letter(weather_morning_text_t1, 40);
+            style_weather_arc_letter(weather_morning_text_t2, 130);
+            style_weather_arc_letter(weather_morning_text_a, 220);
+            style_weather_arc_letter(weather_morning_text_g, 320);
             static lv_obj_t *weather_nav_media_arc = nullptr;
             static lv_obj_t *weather_nav_light_arc = nullptr;
             static lv_obj_t *weather_nav_weather_arc = nullptr;
@@ -10050,7 +11251,7 @@ lvgl:
         - label:
             id: weather_max_label
             x: 120
-            y: 330
+            y: 20
             width: 42
             height: 16
             text: "34°"
@@ -10059,7 +11260,7 @@ lvgl:
         - label:
             id: weather_min_label
             x: 120
-            y: 20
+            y: 330
             width: 42
             height: 16
             text: "18°"
@@ -10067,39 +11268,156 @@ lvgl:
             text_color: 0x94A3B8
         - label:
             id: weather_morning_label
-            x: 270
-            y: 62
-            width: 24
+            x: 230
+            y: 20
+            width: 28
             height: 24
             text: "\U0000E2BD"
             text_font: media_icon_28
             text_color: 0x94A3B8
         - label:
             id: weather_noon_label
-            x: 318
-            y: 168
-            width: 24
+            x: 320
+            y: 160
+            width: 28
             height: 24
             text: "\U0000E2BD"
             text_font: media_icon_28
             text_color: 0x94A3B8
         - label:
-            id: weather_afternoon_label
-            x: 0
-            y: 0
-            width: 1
-            height: 18
-            text: ""
-            text_font: roboto_12
-            text_color: 0xFFFFFF
-        - label:
             id: weather_evening_label
-            x: 270
-            y: 274
-            width: 24
+            x: 230
+            y: 305
+            width: 28
             height: 24
             text: "\U0000E2BD"
             text_font: media_icon_28
+            text_color: 0x94A3B8
+        - label:
+            id: weather_evening_text_a
+            x: 266
+            y: 86
+            width: 16
+            height: 16
+            text: "A"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_evening_text_b
+            x: 275
+            y: 76
+            width: 16
+            height: 16
+            text: "b"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_evening_text_e
+            x: 287
+            y: 68
+            width: 16
+            height: 16
+            text: "e"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_evening_text_n
+            x: 300
+            y: 62
+            width: 16
+            height: 16
+            text: "n"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_evening_text_d
+            x: 313
+            y: 61
+            width: 16
+            height: 16
+            text: "d"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_v
+            x: 254
+            y: 304
+            width: 16
+            height: 16
+            text: "V"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_o
+            x: 262
+            y: 296
+            width: 16
+            height: 16
+            text: "o"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_r
+            x: 271
+            y: 289
+            width: 16
+            height: 16
+            text: "r"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_m
+            x: 281
+            y: 284
+            width: 16
+            height: 16
+            text: "m"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_i
+            x: 292
+            y: 280
+            width: 16
+            height: 16
+            text: "i"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_t1
+            x: 303
+            y: 279
+            width: 16
+            height: 16
+            text: "t"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_t2
+            x: 314
+            y: 281
+            width: 16
+            height: 16
+            text: "t"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_a
+            x: 324
+            y: 286
+            width: 16
+            height: 16
+            text: "a"
+            text_font: roboto_12
+            text_color: 0x94A3B8
+        - label:
+            id: weather_morning_text_g
+            x: 332
+            y: 294
+            width: 16
+            height: 16
+            text: "g"
+            text_font: roboto_12
             text_color: 0x94A3B8
         - obj:
             x: 116
@@ -10153,11 +11471,11 @@ lvgl:
             text_font: roboto_12
             text_color: 0x94A3B8
         - button:
-            x: 91
-            y: 34
-            width: 42
-            height: 52
-            radius: 21
+            x: 84
+            y: 31
+            width: 56
+            height: 58
+            radius: 28
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -10171,11 +11489,11 @@ lvgl:
                   text_font: media_icon_28
                   text_color: 0x374151
         - button:
-            x: 227
-            y: 34
-            width: 42
-            height: 52
-            radius: 21
+            x: 220
+            y: 31
+            width: 56
+            height: 58
+            radius: 28
             bg_opa: 0%
             border_width: 0
             shadow_width: 0
@@ -10592,11 +11910,11 @@ lvgl:
                   text_font: roboto_16
                   text_color: 0xFFFFFF
               - button:
-                  x: 234
-                  y: 16
-                  width: 38
-                  height: 38
-                  radius: 19
+                  x: 231
+                  y: 13
+                  width: 44
+                  height: 44
+                  radius: 22
                   bg_color: 0x111827
                   bg_opa: 84%
                   border_width: 1
@@ -10678,11 +11996,11 @@ lvgl:
             text_font: roboto_12
             text_color: 0xD8E7F8
         - button:
-            x: 52
-            y: 52
-            width: 42
-            height: 42
-            radius: 21
+            x: 49
+            y: 49
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0xFFFFFF
             bg_opa: 24%
             border_width: 0
@@ -10696,11 +12014,11 @@ lvgl:
                   text_font: media_icon_28
                   text_color: 0xFFFFFF
         - button:
-            x: 266
-            y: 52
-            width: 42
-            height: 42
-            radius: 21
+            x: 263
+            y: 49
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0xFFFFFF
             bg_opa: 24%
             border_width: 0
@@ -10795,11 +12113,11 @@ lvgl:
             text_font: roboto_24
             text_color: 0xFFFFFF
         - button:
-            x: 76
-            y: 82
-            width: 42
-            height: 42
-            radius: 21
+            x: 73
+            y: 79
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x272C36
             border_width: 0
             pad_all: 0
@@ -10829,11 +12147,11 @@ lvgl:
                   text_font: roboto_16
                   text_color: 0xF59E0B
         - button:
-            x: 242
-            y: 82
-            width: 42
-            height: 42
-            radius: 21
+            x: 239
+            y: 79
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x272C36
             border_width: 0
             pad_all: 0
@@ -10922,11 +12240,11 @@ lvgl:
                   text_color: 0xFFFFFF
         - button:
             id: timer_reset_button
-            x: 151
-            y: 277
-            width: 38
-            height: 38
-            radius: 19
+            x: 146
+            y: 272
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x1F2937
             border_width: 0
             pad_all: 0
@@ -11030,11 +12348,11 @@ lvgl:
             text_font: roboto_16
             text_color: 0xC9CCD2
         - button:
-            x: 64
-            y: 222
-            width: 42
-            height: 42
-            radius: 21
+            x: 61
+            y: 219
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x272C36
             border_width: 0
             pad_all: 0
@@ -11048,11 +12366,11 @@ lvgl:
                   text_color: 0xFFFFFF
         - button:
             id: alarm_hour_button
-            x: 114
-            y: 226
-            width: 62
-            height: 34
-            radius: 17
+            x: 111
+            y: 221
+            width: 68
+            height: 44
+            radius: 22
             bg_color: 0x1F2937
             border_width: 0
             pad_all: 0
@@ -11067,11 +12385,11 @@ lvgl:
                   text_color: 0xCBD5E1
         - button:
             id: alarm_minute_button
-            x: 184
-            y: 226
-            width: 62
-            height: 34
-            radius: 17
+            x: 181
+            y: 221
+            width: 68
+            height: 44
+            radius: 22
             bg_color: 0xEC4899
             border_width: 0
             pad_all: 0
@@ -11085,11 +12403,11 @@ lvgl:
                   text_font: roboto_14
                   text_color: 0xFFFFFF
         - button:
-            x: 254
-            y: 222
-            width: 42
-            height: 42
-            radius: 21
+            x: 251
+            y: 219
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x272C36
             border_width: 0
             pad_all: 0
@@ -11102,11 +12420,11 @@ lvgl:
                   text_font: media_icon_28
                   text_color: 0xFFFFFF
         - button:
-            x: 54
-            y: 272
-            width: 42
-            height: 42
-            radius: 21
+            x: 51
+            y: 269
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x272C36
             border_width: 0
             pad_all: 0
@@ -11138,11 +12456,11 @@ lvgl:
                   text_font: roboto_17
                   text_color: 0xCBD5E1
         - button:
-            x: 264
-            y: 272
-            width: 42
-            height: 42
-            radius: 21
+            x: 261
+            y: 269
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0x272C36
             border_width: 0
             pad_all: 0
@@ -11190,10 +12508,10 @@ lvgl:
             text_font: roboto_20
             text_color: 0xFFFFFF
         - button:
-            x: 0
-            y: 96
-            width: 360
-            height: 206
+            x: 80
+            y: 104
+            width: 200
+            height: 170
             radius: 0
             bg_opa: 0%
             border_width: 0
@@ -11228,11 +12546,11 @@ lvgl:
             text_font: roboto_12
             text_color: 0xF2E3C4
         - button:
-            x: 28
-            y: 159
-            width: 42
-            height: 42
-            radius: 21
+            x: 25
+            y: 156
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0xFFFFFF
             bg_opa: 24%
             border_width: 0
@@ -11246,11 +12564,11 @@ lvgl:
                   text_font: media_icon_28
                   text_color: 0xFFFFFF
         - button:
-            x: 290
-            y: 159
-            width: 42
-            height: 42
-            radius: 21
+            x: 287
+            y: 156
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0xFFFFFF
             bg_opa: 24%
             border_width: 0
@@ -11264,11 +12582,11 @@ lvgl:
                   text_font: media_icon_28
                   text_color: 0xFFFFFF
         - button:
-            x: 159
-            y: 294
-            width: 42
-            height: 42
-            radius: 21
+            x: 156
+            y: 291
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0xFFFFFF
             bg_opa: 24%
             border_width: 0
@@ -11338,11 +12656,11 @@ lvgl:
             text_font: roboto_24
             text_color: 0xFFFFFF
         - button:
-            x: 159
-            y: 294
-            width: 42
-            height: 42
-            radius: 21
+            x: 156
+            y: 291
+            width: 48
+            height: 48
+            radius: 24
             bg_color: 0xFFFFFF
             bg_opa: 24%
             border_width: 0
