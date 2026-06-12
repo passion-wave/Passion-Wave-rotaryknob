@@ -61,6 +61,7 @@ esphome:
     - <cstring>
     - <cstdlib>
     - <ctime>
+    - <esp_system.h>
     - <vector>
     - scrollwheel_dynamic_targets.h
     - encoder_pulse_decoder.h
@@ -80,6 +81,31 @@ esphome:
     then:
       - lambda: |-
           rotary_encoder_tune::setup(GPIO_NUM_7, GPIO_NUM_8, 500);
+      - lambda: |-
+          auto reset_reason_to_text = [](esp_reset_reason_t reason) -> const char * {
+            switch (reason) {
+              case ESP_RST_POWERON: return "poweron";
+              case ESP_RST_EXT: return "external";
+              case ESP_RST_SW: return "software";
+              case ESP_RST_PANIC: return "panic";
+              case ESP_RST_INT_WDT: return "interrupt_watchdog";
+              case ESP_RST_TASK_WDT: return "task_watchdog";
+              case ESP_RST_WDT: return "watchdog";
+              case ESP_RST_DEEPSLEEP: return "deepsleep";
+              case ESP_RST_BROWNOUT: return "brownout";
+              case ESP_RST_SDIO: return "sdio";
+              default: return "unknown";
+            }
+          };
+          const char *reason = reset_reason_to_text(esp_reset_reason());
+          id(media_debug_reset_reason_text).publish_state(reason);
+          id(media_debug_last_event) = std::string("boot reset=") + reason;
+          id(media_debug_status_text).publish_state(id(media_debug_last_event));
+          id(media_cover_boot_defer_until_ms) = millis() + 12000;
+          ESP_LOGW("media_debug", "boot reset_reason=%s free_heap=%u min_free_heap=%u",
+                   reason,
+                   static_cast<unsigned>(esp_get_free_heap_size()),
+                   static_cast<unsigned>(esp_get_minimum_free_heap_size()));
       - script.execute: refresh_media_target_runtime
       - delay: 800ms
       - script.execute: show_weather_page
@@ -137,6 +163,20 @@ api:
   reboot_timeout: 0s
   encryption:
     key: !secret api_encryption_key
+  services:
+    - service: media_debug_on
+      then:
+        - switch.turn_on: media_latency_debug_enabled
+        - delay: 100ms
+        - script.execute: media_debug_dump_state
+    - service: media_debug_off
+      then:
+        - switch.turn_off: media_latency_debug_enabled
+    - service: media_debug_dump
+      then:
+        - switch.turn_on: media_latency_debug_enabled
+        - delay: 100ms
+        - script.execute: media_debug_dump_state
 
 mqtt:
   id: mqtt_client
@@ -466,6 +506,14 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: '0'
+  - id: media_debug_event_seq
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: media_debug_last_event
+    type: std::string
+    restore_value: no
+    initial_value: '"debug disabled"'
   - id: music_state_cache
     type: std::string
     restore_value: no
@@ -887,6 +935,51 @@ globals:
   - id: media_cover_url_cache
     type: std::string
     restore_value: no
+  - id: media_cover_update_pending
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: media_cover_pipeline_state
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: media_cover_active_target
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: media_cover_active_url
+    type: std::string
+    restore_value: no
+  - id: media_cover_last_attempt_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: media_cover_last_skip_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: media_cover_last_success_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: media_cover_backoff_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: media_cover_boot_defer_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: media_cover_failure_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: media_page_cover_loaded_url
+    type: std::string
+    restore_value: no
+  - id: media_full_cover_loaded_url
+    type: std::string
+    restore_value: no
   - id: media_entity_picture_cache
     type: std::string
     restore_value: no
@@ -1048,13 +1141,83 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: touch_swipe_start_x
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: touch_swipe_start_y
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: touch_swipe_last_x
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: touch_swipe_last_y
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: touch_swipe_start_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: touch_swipe_direction
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: touch_swipe_handled
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: touch_swipe_started_sleeping
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: touch_swipe_nav_suppress_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
 touchscreen:
   platform: cst816
   id: my_touchscreen
+  touch_timeout: 70ms
   interrupt_pin:
     number: GPIO9
     allow_other_uses: true
   reset_pin: GPIO10
+  on_touch:
+    - lambda: |-
+        id(touch_swipe_start_x) = touch.x;
+        id(touch_swipe_start_y) = touch.y;
+        id(touch_swipe_last_x) = touch.x;
+        id(touch_swipe_last_y) = touch.y;
+        id(touch_swipe_start_ms) = millis();
+        id(touch_swipe_direction) = 0;
+        id(touch_swipe_handled) = false;
+        id(touch_swipe_started_sleeping) = id(display_sleeping);
+  on_update:
+    - lambda: |-
+        if (touches.empty() || id(touch_swipe_handled) || id(touch_swipe_start_ms) == 0) {
+          return;
+        }
+        const auto &tp = touches.front();
+        id(touch_swipe_last_x) = tp.x;
+        id(touch_swipe_last_y) = tp.y;
+        const int dx = id(touch_swipe_last_x) - id(touch_swipe_start_x);
+        const int dy = id(touch_swipe_last_y) - id(touch_swipe_start_y);
+        const int abs_dx = abs(dx);
+        const int abs_dy = abs(dy);
+        const uint32_t dt = millis() - id(touch_swipe_start_ms);
+        if (dt > 550) {
+          return;
+        }
+        if (abs_dx >= 58 && abs_dx > abs_dy + 18) {
+          id(touch_swipe_direction) = dx < 0 ? 1 : 2;
+          id(handle_fast_touch_swipe).execute();
+        } else if (abs_dy >= 68 && abs_dy > abs_dx + 18) {
+          id(touch_swipe_direction) = dy > 0 ? 3 : 4;
+          id(handle_fast_touch_swipe).execute();
+        }
   on_release:
     - if:
         condition:
@@ -1067,6 +1230,26 @@ touchscreen:
           - lvgl.resume:
           - lvgl.widget.redraw:
           - light.turn_on: display_backlight
+    - lambda: |-
+        if (id(touch_swipe_handled) ||
+            id(touch_swipe_started_sleeping) ||
+            id(touch_swipe_start_ms) == 0) {
+          id(touch_swipe_start_ms) = 0;
+          return;
+        }
+        const int dx = id(touch_swipe_last_x) - id(touch_swipe_start_x);
+        const int dy = id(touch_swipe_last_y) - id(touch_swipe_start_y);
+        const int abs_dx = abs(dx);
+        const int abs_dy = abs(dy);
+        const uint32_t dt = millis() - id(touch_swipe_start_ms);
+        if (dt <= 620 && abs_dx >= 50 && abs_dx > abs_dy + 16) {
+          id(touch_swipe_direction) = dx < 0 ? 1 : 2;
+          id(handle_fast_touch_swipe).execute();
+        } else if (dt <= 620 && abs_dy >= 62 && abs_dy > abs_dx + 16) {
+          id(touch_swipe_direction) = dy > 0 ? 3 : 4;
+          id(handle_fast_touch_swipe).execute();
+        }
+        id(touch_swipe_start_ms) = 0;
 
 light:
   - platform: monochromatic
@@ -1290,18 +1473,48 @@ online_image:
     url: "http://127.0.0.1/"
     format: JPEG
     type: RGB565
-    resize: 368x368
+    resize: 256x256
     buffer_size: 65536
     update_interval: never
     on_download_finished:
       - lambda: |-
-          id(media_cover_ready) = true;
+          const bool current =
+            id(media_cover_active_target) == 2 &&
+            id(media_cover_active_url) == id(media_cover_url_cache);
+          id(media_cover_ready) = current;
+          if (current) {
+            id(media_full_cover_loaded_url) = id(media_cover_url_cache);
+            id(media_cover_failure_count) = 0;
+            id(media_cover_last_success_ms) = millis();
+          } else {
+            id(media_full_cover_loaded_url).clear();
+            id(media_cover_update_pending) = true;
+          }
+          id(media_cover_pipeline_state) = 0;
+          id(media_cover_active_target) = 0;
+          id(media_cover_active_url).clear();
           id(media_ui_dirty) = true;
+          id(publish_media_debug).execute(
+            current ? "esp_cover_update_done" : "esp_cover_update_deferred",
+            "fullscreen",
+            "cover",
+            current ? id(media_cover_url_cache) : std::string("stale download ignored"));
       - script.execute: refresh_media_ui_if_needed
     on_error:
       - lambda: |-
           id(media_cover_ready) = false;
+          id(media_full_cover_loaded_url).clear();
+          id(media_cover_failure_count) += 1;
+          id(media_cover_backoff_until_ms) = millis() + (id(media_cover_failure_count) >= 3 ? 60000 : 5000);
+          id(media_cover_pipeline_state) = 4;
+          id(media_cover_active_target) = 0;
+          id(media_cover_active_url).clear();
           id(media_ui_dirty) = true;
+          id(publish_media_debug).execute(
+            "esp_cover_update_failed_backoff",
+            "fullscreen",
+            "cover",
+            std::string("failures=") + std::to_string(id(media_cover_failure_count)));
       - script.execute: refresh_media_ui_if_needed
   - id: media_page_cover_image
     url: "http://127.0.0.1/"
@@ -1312,13 +1525,44 @@ online_image:
     update_interval: never
     on_download_finished:
       - lambda: |-
-          id(media_page_cover_ready) = true;
+          const bool current =
+            id(media_cover_active_target) == 1 &&
+            id(media_cover_active_url) == id(media_cover_url_cache);
+          id(media_page_cover_ready) = current;
+          if (current) {
+            id(media_page_cover_loaded_url) = id(media_cover_url_cache);
+            id(media_cover_update_pending) = false;
+            id(media_cover_failure_count) = 0;
+            id(media_cover_last_success_ms) = millis();
+          } else {
+            id(media_page_cover_loaded_url).clear();
+            id(media_cover_update_pending) = true;
+          }
+          id(media_cover_pipeline_state) = 0;
+          id(media_cover_active_target) = 0;
+          id(media_cover_active_url).clear();
           id(media_ui_dirty) = true;
+          id(publish_media_debug).execute(
+            current ? "esp_cover_update_done" : "esp_cover_update_deferred",
+            "page",
+            "cover",
+            current ? id(media_cover_url_cache) : std::string("stale download ignored"));
       - script.execute: refresh_media_ui_if_needed
     on_error:
       - lambda: |-
           id(media_page_cover_ready) = false;
+          id(media_page_cover_loaded_url).clear();
+          id(media_cover_failure_count) += 1;
+          id(media_cover_backoff_until_ms) = millis() + (id(media_cover_failure_count) >= 3 ? 60000 : 5000);
+          id(media_cover_pipeline_state) = 4;
+          id(media_cover_active_target) = 0;
+          id(media_cover_active_url).clear();
           id(media_ui_dirty) = true;
+          id(publish_media_debug).execute(
+            "esp_cover_update_failed_backoff",
+            "page",
+            "cover",
+            std::string("failures=") + std::to_string(id(media_cover_failure_count)));
       - script.execute: refresh_media_ui_if_needed
   - id: rain_radar_image
     url: "${rain_radar_image_url}"
@@ -2013,6 +2257,14 @@ script:
           id(media_position_seconds) = 38.0f;
           id(media_duration_seconds) = 180.0f;
           id(media_cover_url_cache).clear();
+          id(media_cover_update_pending) = false;
+          id(media_cover_pipeline_state) = 0;
+          id(media_cover_active_target) = 0;
+          id(media_cover_active_url).clear();
+          id(media_cover_backoff_until_ms) = 0;
+          id(media_cover_failure_count) = 0;
+          id(media_page_cover_loaded_url).clear();
+          id(media_full_cover_loaded_url).clear();
           id(media_entity_picture_cache).clear();
           id(media_entity_picture_local_cache).clear();
           id(media_image_url_cache).clear();
@@ -2091,6 +2343,14 @@ script:
           id(media_title_cache).clear();
           id(media_artist_cache).clear();
           id(media_cover_url_cache).clear();
+          id(media_cover_update_pending) = false;
+          id(media_cover_pipeline_state) = 0;
+          id(media_cover_active_target) = 0;
+          id(media_cover_active_url).clear();
+          id(media_cover_backoff_until_ms) = 0;
+          id(media_cover_failure_count) = 0;
+          id(media_page_cover_loaded_url).clear();
+          id(media_full_cover_loaded_url).clear();
           id(media_entity_picture_cache).clear();
           id(media_entity_picture_local_cache).clear();
           id(media_image_url_cache).clear();
@@ -2117,18 +2377,111 @@ script:
           condition:
             lambda: 'return !id(demo_mode_active) && id(wifi_connected) && id(media_latency_debug_enabled).state;'
           then:
+            - lambda: |-
+                const uint32_t now_ms = millis();
+                auto compact_debug = [](const std::string &input, size_t limit) -> std::string {
+                  std::string out;
+                  out.reserve(input.size() < limit ? input.size() : limit);
+                  bool last_space = false;
+                  for (unsigned char c : input) {
+                    char next = '\0';
+                    if (c >= 32 && c <= 126) {
+                      next = static_cast<char>(c);
+                    } else if (c == '\n' || c == '\r' || c == '\t' || c >= 127) {
+                      next = ' ';
+                    }
+                    if (next == '\0') continue;
+                    if (next == ' ') {
+                      if (last_space) continue;
+                      last_space = true;
+                    } else {
+                      last_space = false;
+                    }
+                    out.push_back(next);
+                    if (out.size() >= limit) break;
+                  }
+                  while (!out.empty() && out.back() == ' ') out.pop_back();
+                  return out.empty() ? std::string("-") : out;
+                };
+                const std::string safe_phase = compact_debug(phase, 48);
+                const std::string safe_item = compact_debug(item, 96);
+                const std::string safe_type = compact_debug(media_type, 40);
+                const std::string safe_detail = compact_debug(detail, 160);
+                id(media_debug_event_seq) += 1;
+                char status[240];
+                snprintf(
+                  status,
+                  sizeof(status),
+                  "#%lu %s item=%s type=%s tracks=%d selected=%d pending=%s heap=%u",
+                  static_cast<unsigned long>(id(media_debug_event_seq)),
+                  safe_phase.c_str(),
+                  safe_item.c_str(),
+                  safe_type.c_str(),
+                  static_cast<int>(id(ma_track_titles_cache).size()),
+                  id(selected_track_index),
+                  id(pending_track_request_id).empty() ? "-" : id(pending_track_request_id).c_str(),
+                  static_cast<unsigned>(esp_get_free_heap_size()));
+                id(media_debug_last_event) = status;
+                id(media_debug_status_text).publish_state(id(media_debug_last_event));
+                ESP_LOGW(
+                  "media_debug",
+                  "#%lu phase=%s item=%s type=%s detail=%s page=%d mode=%d browser=%d tracks=%d uris=%d selected=%d loaded=%d total=%d has_more=%s inflight=%s pending=%s since_start=%lu since_track_request=%lu heap=%u min_heap=%u",
+                  static_cast<unsigned long>(id(media_debug_event_seq)),
+                  safe_phase.c_str(),
+                  safe_item.c_str(),
+                  safe_type.c_str(),
+                  safe_detail.c_str(),
+                  id(current_page),
+                  id(control_mode),
+                  id(media_browser_mode),
+                  static_cast<int>(id(ma_track_titles_cache).size()),
+                  static_cast<int>(id(ma_track_uris_cache).size()),
+                  id(selected_track_index),
+                  id(track_loaded_count),
+                  id(track_total_available),
+                  id(track_has_more) ? "true" : "false",
+                  id(track_autoload_inflight) ? "true" : "false",
+                  id(pending_track_request_id).empty() ? "-" : id(pending_track_request_id).c_str(),
+                  static_cast<unsigned long>(id(media_debug_start_ms) == 0 ? 0 : now_ms - id(media_debug_start_ms)),
+                  static_cast<unsigned long>(id(media_debug_track_request_ms) == 0 ? 0 : now_ms - id(media_debug_track_request_ms)),
+                  static_cast<unsigned>(esp_get_free_heap_size()),
+                  static_cast<unsigned>(esp_get_minimum_free_heap_size()));
             - mqtt.publish:
                 topic: ${media_debug_topic}
                 retain: false
                 payload: !lambda |-
                   DynamicJsonDocument doc(1024);
                   const uint32_t now_ms = millis();
+                  auto compact_debug = [](const std::string &input, size_t limit) -> std::string {
+                    std::string out;
+                    out.reserve(input.size() < limit ? input.size() : limit);
+                    bool last_space = false;
+                    for (unsigned char c : input) {
+                      char next = '\0';
+                      if (c >= 32 && c <= 126) {
+                        next = static_cast<char>(c);
+                      } else if (c == '\n' || c == '\r' || c == '\t' || c >= 127) {
+                        next = ' ';
+                      }
+                      if (next == '\0') continue;
+                      if (next == ' ') {
+                        if (last_space) continue;
+                        last_space = true;
+                      } else {
+                        last_space = false;
+                      }
+                      out.push_back(next);
+                      if (out.size() >= limit) break;
+                    }
+                    while (!out.empty() && out.back() == ' ') out.pop_back();
+                    return out.empty() ? std::string("-") : out;
+                  };
                   doc["device"] = App.get_name();
                   doc["trace_id"] = id(media_debug_trace_id);
-                  doc["phase"] = phase;
-                  doc["item"] = item;
-                  doc["media_type"] = media_type;
-                  doc["detail"] = detail;
+                  doc["phase"] = compact_debug(phase, 48);
+                  doc["item"] = compact_debug(item, 96);
+                  doc["media_type"] = compact_debug(media_type, 40);
+                  doc["detail"] = compact_debug(detail, 160);
                   doc["page"] = id(current_page);
                   doc["mode"] = id(control_mode);
                   doc["browser_mode"] = id(media_browser_mode);
@@ -2140,6 +2493,25 @@ script:
                   std::string payload;
                   serializeJson(doc, payload);
                   return payload;
+  - id: media_debug_dump_state
+    mode: restart
+    then:
+      - lambda: |-
+          std::string detail =
+            std::string("selected=") + std::to_string(id(selected_track_index)) +
+            " tracks=" + std::to_string(static_cast<int>(id(ma_track_titles_cache).size())) +
+            " uris=" + std::to_string(static_cast<int>(id(ma_track_uris_cache).size())) +
+            " loaded=" + std::to_string(id(track_loaded_count)) +
+            " total=" + std::to_string(id(track_total_available)) +
+            " has_more=" + (id(track_has_more) ? "true" : "false") +
+            " inflight=" + (id(track_autoload_inflight) ? "true" : "false") +
+            " pending=" + (id(pending_track_request_id).empty() ? "-" : id(pending_track_request_id)) +
+            " player=" + id(media_effective_entity_id);
+          id(publish_media_debug).execute(
+            "esp_debug_dump",
+            id(media_title_cache).empty() ? std::string("-") : id(media_title_cache),
+            id(chosen_media_type).empty() ? std::string("-") : id(chosen_media_type),
+            detail);
   - id: play_haptic_feedback
     mode: restart
     then:
@@ -2480,6 +2852,16 @@ script:
               id(media_entity_picture_local_cache).clear();
               id(media_image_url_cache).clear();
               id(media_cover_url_cache).clear();
+              id(media_cover_update_pending) = false;
+              id(media_cover_pipeline_state) = 0;
+              id(media_cover_active_target) = 0;
+              id(media_cover_active_url).clear();
+              id(media_cover_backoff_until_ms) = 0;
+              id(media_cover_failure_count) = 0;
+              id(media_page_cover_loaded_url).clear();
+              id(media_full_cover_loaded_url).clear();
+              id(media_cover_ready) = false;
+              id(media_page_cover_ready) = false;
               id(display_volume_level) = 0.5f;
               id(media_ui_dirty) = true;
               break;
@@ -2532,6 +2914,16 @@ script:
               id(media_entity_picture_local_cache).clear();
               id(media_image_url_cache).clear();
               id(media_cover_url_cache).clear();
+              id(media_cover_update_pending) = false;
+              id(media_cover_pipeline_state) = 0;
+              id(media_cover_active_target) = 0;
+              id(media_cover_active_url).clear();
+              id(media_cover_backoff_until_ms) = 0;
+              id(media_cover_failure_count) = 0;
+              id(media_page_cover_loaded_url).clear();
+              id(media_full_cover_loaded_url).clear();
+              id(media_cover_ready) = false;
+              id(media_page_cover_ready) = false;
               id(display_volume_level) = 0.5f;
               id(media_ui_dirty) = true;
               break;
@@ -3297,7 +3689,7 @@ script:
     then:
       - lambda: |-
           auto normalize_cover_url = [](const std::string &picture) -> std::string {
-            if (picture.empty()) {
+            if (picture.empty() || picture == "unknown" || picture == "unavailable") {
               return "";
             }
             auto tune_music_assistant_proxy = [](std::string url) -> std::string {
@@ -3320,17 +3712,22 @@ script:
                 }
                 target.replace(value_start, value_end - value_start, value);
               };
-              set_query_value(url, "size", "368");
+              set_query_value(url, "size", "256");
               set_query_value(url, "fmt", "jpeg");
               return url;
             };
+            std::string normalized;
             if (picture.rfind("http://", 0) == 0 || picture.rfind("https://", 0) == 0) {
-              return tune_music_assistant_proxy(picture);
+              normalized = tune_music_assistant_proxy(picture);
+            } else if (picture[0] == '/') {
+              normalized = tune_music_assistant_proxy(std::string("${ha_base_url}") + picture);
+            } else {
+              normalized = tune_music_assistant_proxy(std::string("${ha_base_url}/") + picture);
             }
-            if (picture[0] == '/') {
-              return tune_music_assistant_proxy(std::string("${ha_base_url}") + picture);
+            if (normalized.size() > 512) {
+              return "";
             }
-            return tune_music_assistant_proxy(std::string("${ha_base_url}/") + picture);
+            return normalized;
           };
 
           std::string raw_picture = id(media_entity_picture_cache);
@@ -3348,9 +3745,22 @@ script:
           if (url.empty()) {
             if (!id(media_cover_url_cache).empty() || id(media_cover_ready) || id(media_page_cover_ready)) {
               id(media_cover_url_cache).clear();
+              id(media_cover_update_pending) = false;
+              id(media_cover_pipeline_state) = 0;
+              id(media_cover_active_target) = 0;
+              id(media_cover_active_url).clear();
+              id(media_cover_backoff_until_ms) = 0;
+              id(media_cover_failure_count) = 0;
+              id(media_page_cover_loaded_url).clear();
+              id(media_full_cover_loaded_url).clear();
               id(media_cover_ready) = false;
               id(media_page_cover_ready) = false;
               id(media_ui_dirty) = true;
+              id(publish_media_debug).execute(
+                "esp_cover_update_deferred",
+                "empty",
+                source,
+                "fallback");
             }
             return;
           }
@@ -3358,19 +3768,162 @@ script:
           if (url != id(media_cover_url_cache)) {
             id(media_cover_url_cache) = url;
             id(media_runtime_cover_url_text).publish_state(url);
+            id(media_cover_update_pending) = true;
+            id(media_cover_pipeline_state) = 1;
+            id(media_cover_active_target) = 0;
+            id(media_cover_active_url).clear();
+            id(media_cover_backoff_until_ms) = 0;
+            id(media_cover_failure_count) = 0;
+            id(media_page_cover_loaded_url).clear();
+            id(media_full_cover_loaded_url).clear();
             id(media_cover_ready) = false;
             id(media_page_cover_ready) = false;
             id(media_ui_dirty) = true;
-            id(media_cover_image).set_url(url);
-            id(media_cover_image).update();
-            id(media_page_cover_image).set_url(url);
-            id(media_page_cover_image).update();
+            id(publish_media_debug).execute(
+              "esp_cover_url_changed",
+              source,
+              "cover",
+              url);
+          } else if (!id(media_page_cover_ready) && !id(media_cover_update_pending)) {
+            id(media_cover_update_pending) = true;
+            id(media_cover_pipeline_state) = 1;
+            id(publish_media_debug).execute(
+              "esp_cover_update_deferred",
+              source,
+              "cover",
+              "page cover missing");
           }
 
           if (id(music_state_cache) == "playing" && id(media_cover_fullscreen_due_ms) == 0) {
             id(media_cover_fullscreen_due_ms) = millis() + 10000;
           }
       - script.execute: refresh_media_ui_if_needed
+  - id: process_media_cover_update
+    mode: restart
+    then:
+      - lambda: |-
+          const uint32_t now = millis();
+          const uint32_t heap = esp_get_free_heap_size();
+          const bool loading =
+            id(media_cover_pipeline_state) == 2 ||
+            id(media_cover_pipeline_state) == 3;
+
+          auto publish_skip = [&](const std::string &phase, const std::string &detail) {
+            if (id(media_cover_last_skip_ms) == 0 || now - id(media_cover_last_skip_ms) >= 3000) {
+              id(media_cover_last_skip_ms) = now;
+              id(publish_media_debug).execute(
+                phase,
+                id(media_cover_url_cache).empty() ? std::string("-") : id(media_cover_url_cache),
+                "cover",
+                detail);
+            }
+          };
+
+          if (id(media_cover_url_cache).empty()) {
+            id(media_cover_update_pending) = false;
+            if (!loading) {
+              id(media_cover_pipeline_state) = 0;
+              id(media_cover_active_target) = 0;
+              id(media_cover_active_url).clear();
+            }
+            return;
+          }
+
+          if (loading) {
+            return;
+          }
+
+          if (id(media_cover_pipeline_state) == 4) {
+            if (now < id(media_cover_backoff_until_ms)) {
+              publish_skip("esp_cover_update_failed_backoff", "waiting");
+              return;
+            }
+            id(media_cover_pipeline_state) = 1;
+            id(media_cover_failure_count) = 0;
+          }
+
+          const bool page_wanted =
+            id(media_cover_update_pending) ||
+            !id(media_page_cover_ready) ||
+            id(media_page_cover_loaded_url) != id(media_cover_url_cache);
+          const bool fullscreen_context =
+            id(current_page) == 6 ||
+            (id(music_state_cache) == "playing" &&
+             id(media_cover_fullscreen_due_ms) != 0 &&
+             now + 2500 >= id(media_cover_fullscreen_due_ms));
+          const bool fullscreen_wanted =
+            fullscreen_context &&
+            (id(media_full_cover_loaded_url) != id(media_cover_url_cache) || !id(media_cover_ready));
+
+          if (!page_wanted && !fullscreen_wanted) {
+            id(media_cover_pipeline_state) = 0;
+            id(media_cover_active_target) = 0;
+            id(media_cover_active_url).clear();
+            return;
+          }
+
+          const bool media_list_active = id(current_page) == 2 && id(control_mode) == 2;
+          const bool request_busy =
+            id(track_autoload_inflight) ||
+            id(playlist_autoload_inflight) ||
+            !id(pending_track_request_id).empty() ||
+            !id(pending_playlist_request_id).empty();
+          const bool recent_touch =
+            id(ui_last_activity_ms) != 0 &&
+            now - id(ui_last_activity_ms) < 700;
+          const bool busy =
+            id(demo_mode_active) ||
+            !id(wifi_connected) ||
+            id(display_sleeping) ||
+            id(media_picker_visible) ||
+            id(track_select_active) ||
+            media_list_active ||
+            request_busy ||
+            recent_touch ||
+            (id(media_cover_boot_defer_until_ms) != 0 && now < id(media_cover_boot_defer_until_ms));
+
+          if (busy) {
+            publish_skip("esp_cover_update_skip_busy", "ui/network busy");
+            id(media_cover_pipeline_state) = 1;
+            return;
+          }
+
+          if (id(media_cover_last_attempt_ms) != 0 && now - id(media_cover_last_attempt_ms) < 2000) {
+            id(media_cover_pipeline_state) = 1;
+            return;
+          }
+
+          if (heap < 2097152) {
+            id(media_cover_pipeline_state) = 4;
+            id(media_cover_backoff_until_ms) = now + 5000;
+            publish_skip("esp_cover_update_skip_heap", std::string("heap=") + std::to_string(heap));
+            return;
+          }
+
+          const int target = page_wanted ? 1 : 2;
+          id(media_cover_active_target) = target;
+          id(media_cover_active_url) = id(media_cover_url_cache);
+          id(media_cover_pipeline_state) = target == 1 ? 2 : 3;
+          id(media_cover_last_attempt_ms) = now;
+          if (target == 1) {
+            id(media_page_cover_ready) = false;
+            id(publish_media_debug).execute(
+              "esp_cover_update_start",
+              "page",
+              "cover",
+              id(media_cover_url_cache));
+            id(media_page_cover_image).set_url(id(media_cover_url_cache));
+            id(media_page_cover_image).update();
+          } else {
+            id(media_cover_ready) = false;
+            id(publish_media_debug).execute(
+              "esp_cover_update_start",
+              "fullscreen",
+              "cover",
+              id(media_cover_url_cache));
+            id(media_cover_image).set_url(id(media_cover_url_cache));
+            id(media_cover_image).update();
+          }
   - id: show_weather_screensaver
     mode: restart
     then:
@@ -3476,6 +4029,73 @@ script:
               stack.push_back(lv_obj_get_child(obj, child_index));
             }
           }
+  - id: handle_fast_touch_swipe
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(touch_swipe_handled) || id(touch_swipe_started_sleeping) || id(display_sleeping)) {
+            return;
+          }
+
+          const int direction = id(touch_swipe_direction);
+          const int page = id(current_page);
+          const bool radar_popup_open =
+            weather_radar_popup != nullptr &&
+            !lv_obj_has_flag(weather_radar_popup, LV_OBJ_FLAG_HIDDEN);
+          if (radar_popup_open || id(media_picker_visible) || id(track_select_active)) {
+            return;
+          }
+
+          auto mark_handled = []() {
+            id(touch_swipe_handled) = true;
+            id(touch_swipe_nav_suppress_until_ms) = millis() + 450;
+            id(ui_last_activity_ms) = millis();
+            id(hide_extra_menu).execute();
+            id(play_haptic_feedback).execute();
+          };
+
+          if (page == 7) {
+            mark_handled();
+            id(return_from_screensaver).execute();
+            return;
+          }
+          if (page == 6) {
+            mark_handled();
+            id(show_media_page).execute();
+            return;
+          }
+
+          if (direction == 1) {
+            if (page == 1) {
+              mark_handled();
+              id(show_weather_page).execute();
+            } else if (page == 2) {
+              mark_handled();
+              id(show_light_page).execute();
+            } else if (page == 4) {
+              mark_handled();
+              id(show_media_page).execute();
+            }
+          } else if (direction == 2) {
+            if (page == 1) {
+              mark_handled();
+              id(show_media_page).execute();
+            } else if (page == 2) {
+              mark_handled();
+              id(show_weather_page).execute();
+            } else if (page == 4) {
+              mark_handled();
+              id(show_light_page).execute();
+            }
+          } else if (direction == 3) {
+            if (page == 4) {
+              mark_handled();
+              id(show_media_page).execute();
+            } else if (page == 8 || page == 9 || page == 10 || page == 11 || page == 12) {
+              mark_handled();
+              id(show_weather_page).execute();
+            }
+          }
   - id: nav_to_light
     mode: restart
     then:
@@ -3499,7 +4119,7 @@ script:
     then:
       - if:
           condition:
-            lambda: 'return millis() > id(nav_ignore_click_until_ms);'
+            lambda: 'return millis() > id(nav_ignore_click_until_ms) && millis() >= id(touch_swipe_nav_suppress_until_ms);'
           then:
             - script.execute: play_haptic_feedback
             - script.execute: hide_extra_menu
@@ -3511,7 +4131,7 @@ script:
     then:
       - if:
           condition:
-            lambda: 'return millis() > id(nav_ignore_click_until_ms);'
+            lambda: 'return millis() > id(nav_ignore_click_until_ms) && millis() >= id(touch_swipe_nav_suppress_until_ms);'
           then:
             - script.execute: play_haptic_feedback
             - script.execute: hide_extra_menu
@@ -3521,43 +4141,51 @@ script:
   - id: nav_prev_page
     mode: restart
     then:
-      - script.execute: play_haptic_feedback
-      - lambda: 'id(ui_last_activity_ms) = millis();'
       - if:
           condition:
-            lambda: 'return id(current_page) == 1;'
+            lambda: 'return millis() >= id(touch_swipe_nav_suppress_until_ms);'
           then:
-            - script.execute: show_media_page
-      - if:
-          condition:
-            lambda: 'return id(current_page) == 2;'
-          then:
-            - script.execute: show_weather_page
-      - if:
-          condition:
-            lambda: 'return id(current_page) == 4;'
-          then:
-            - script.execute: show_light_page
+            - script.execute: play_haptic_feedback
+            - lambda: 'id(ui_last_activity_ms) = millis();'
+            - if:
+                condition:
+                  lambda: 'return id(current_page) == 1;'
+                then:
+                  - script.execute: show_media_page
+            - if:
+                condition:
+                  lambda: 'return id(current_page) == 2;'
+                then:
+                  - script.execute: show_weather_page
+            - if:
+                condition:
+                  lambda: 'return id(current_page) == 4;'
+                then:
+                  - script.execute: show_light_page
   - id: nav_next_page
     mode: restart
     then:
-      - script.execute: play_haptic_feedback
-      - lambda: 'id(ui_last_activity_ms) = millis();'
       - if:
           condition:
-            lambda: 'return id(current_page) == 1;'
+            lambda: 'return millis() >= id(touch_swipe_nav_suppress_until_ms);'
           then:
-            - script.execute: show_weather_page
-      - if:
-          condition:
-            lambda: 'return id(current_page) == 2;'
-          then:
-            - script.execute: show_light_page
-      - if:
-          condition:
-            lambda: 'return id(current_page) == 4;'
-          then:
-            - script.execute: show_media_page
+            - script.execute: play_haptic_feedback
+            - lambda: 'id(ui_last_activity_ms) = millis();'
+            - if:
+                condition:
+                  lambda: 'return id(current_page) == 1;'
+                then:
+                  - script.execute: show_weather_page
+            - if:
+                condition:
+                  lambda: 'return id(current_page) == 2;'
+                then:
+                  - script.execute: show_light_page
+            - if:
+                condition:
+                  lambda: 'return id(current_page) == 4;'
+                then:
+                  - script.execute: show_media_page
   - id: show_weather_radar_popup
     mode: restart
     then:
@@ -4487,11 +5115,12 @@ script:
             if (subtitle.empty()) subtitle = id(music_state_cache);
             if (subtitle.empty()) subtitle = "Home Assistant";
           }
-          lv_label_set_text(media_source_label, id(demo_mode_active) ? "Demo Player" : id(media_effective_label).c_str());
+          lv_label_set_text(media_source_label, "");
           lv_label_set_text(media_main_label, title.c_str());
           lv_label_set_text(media_subtitle_label, subtitle.c_str());
           lv_label_set_text(media_track_prev_label, prev_track.c_str());
           lv_label_set_text(media_track_next_label, next_track.c_str());
+          set_visible(media_source_label, false);
           set_visible(media_subtitle_label, !track_picker_active);
           set_visible(media_track_prev_label, track_picker_active);
           set_visible(media_track_next_label, track_picker_active);
@@ -4757,6 +5386,14 @@ script:
           condition:
             lambda: 'return id(track_select_active);'
           then:
+            - lambda: |-
+                id(publish_media_debug).execute(
+                  "esp_title_click_confirm_track",
+                  id(media_title_cache).empty() ? std::string("-") : id(media_title_cache),
+                  id(chosen_media_type).empty() ? std::string("-") : id(chosen_media_type),
+                  std::string("selected=") + std::to_string(id(selected_track_index)) +
+                    " tracks=" + std::to_string(static_cast<int>(id(ma_track_titles_cache).size())) +
+                    " uris=" + std::to_string(static_cast<int>(id(ma_track_uris_cache).size())));
             - script.execute: start_selected_track
           else:
             - lambda: |-
@@ -4781,12 +5418,25 @@ script:
                   }
                 }
                 id(media_ui_dirty) = true;
+                id(publish_media_debug).execute(
+                  "esp_title_click_open_track_select",
+                  id(media_title_cache).empty() ? std::string("-") : id(media_title_cache),
+                  id(chosen_media_type).empty() ? std::string("-") : id(chosen_media_type),
+                  std::string("selected=") + std::to_string(id(selected_track_index)) +
+                    " tracks=" + std::to_string(total_tracks) +
+                    " pending=" + (id(pending_track_request_id).empty() ? "-" : id(pending_track_request_id)));
             - if:
                 condition:
                   lambda: |-
                     return id(ma_track_titles_cache).empty() &&
                            (!id(chosen_playlist_uri).empty() || !id(chosen_playlist_item_id).empty());
                 then:
+                  - lambda: |-
+                      id(publish_media_debug).execute(
+                        "esp_title_click_request_tracks",
+                        id(chosen_playlist_uri).empty() ? id(chosen_playlist_item_id) : id(chosen_playlist_uri),
+                        "playlist_tracks",
+                        "track cache empty");
                   - script.execute: request_selected_playlist_tracks
             - script.execute: refresh_media_ui_if_needed
   - id: media_select_prev_track
@@ -5202,8 +5852,22 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(media_last_activity_ms) = millis();
+          id(media_debug_trace_id) = App.get_name() + "-track-" + std::to_string(millis());
+          id(media_debug_start_ms) = millis();
           const int idx = id(selected_track_index);
+          id(publish_media_debug).execute(
+            "esp_track_start_enter",
+            idx >= 0 && idx < static_cast<int>(id(ma_track_titles_cache).size()) ? id(ma_track_titles_cache)[idx] : std::string("-"),
+            "music",
+            std::string("idx=") + std::to_string(idx) +
+              " titles=" + std::to_string(static_cast<int>(id(ma_track_titles_cache).size())) +
+              " uris=" + std::to_string(static_cast<int>(id(ma_track_uris_cache).size())));
           if (idx < 0 || idx >= static_cast<int>(id(ma_track_uris_cache).size())) {
+            id(publish_media_debug).execute(
+              "esp_track_start_invalid_index",
+              std::to_string(idx),
+              "music",
+              std::string("uri_count=") + std::to_string(static_cast<int>(id(ma_track_uris_cache).size())));
             id(track_select_active) = false;
             id(control_mode) = 1;
             id(media_ui_dirty) = true;
@@ -5211,6 +5875,11 @@ script:
           }
           id(chosen_track_uri) = id(ma_track_uris_cache)[idx];
           if (id(chosen_track_uri).empty()) {
+            id(publish_media_debug).execute(
+              "esp_track_start_empty_uri",
+              idx < static_cast<int>(id(ma_track_titles_cache).size()) ? id(ma_track_titles_cache)[idx] : std::string("-"),
+              "music",
+              std::string("idx=") + std::to_string(idx));
             id(track_select_active) = false;
             id(control_mode) = 1;
             id(media_ui_dirty) = true;
@@ -5224,8 +5893,6 @@ script:
             id(music_state_cache) = "playing";
             id(media_is_playing) = true;
           }
-          id(media_debug_trace_id) = App.get_name() + "-track-" + std::to_string(millis());
-          id(media_debug_start_ms) = millis();
           id(track_select_active) = false;
           id(control_mode) = 1;
           id(media_ui_dirty) = true;
@@ -6683,6 +7350,7 @@ interval:
                      !id(track_select_active) &&
                      id(music_state_cache) == "playing" &&
                      !id(media_cover_url_cache).empty() &&
+                     (id(media_cover_ready) || id(media_page_cover_ready)) &&
                      id(media_cover_fullscreen_due_ms) != 0 &&
                      millis() >= id(media_cover_fullscreen_due_ms) &&
                      (millis() - id(ui_last_activity_ms)) >= 10000;
@@ -6712,6 +7380,7 @@ interval:
             - script.execute: sleep_display_on_battery
   - interval: 500ms
     then:
+      - script.execute: process_media_cover_update
       - if:
           condition:
             lambda: 'return !id(display_sleeping) && id(current_page) == 1 && id(light_color_selected) && id(light_color_timer) > 0;'
@@ -7184,11 +7853,27 @@ interval:
 
 switch:
   - platform: template
-    name: "scrollwheel Media Latenz Debug"
+    name: "scrollwheel Media Debug"
     id: media_latency_debug_enabled
     entity_category: diagnostic
+    icon: mdi:bug-check
     optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: |-
+          id(media_debug_trace_id) = App.get_name() + "-manual-debug-" + std::to_string(millis());
+          id(media_debug_start_ms) = millis();
+          id(media_debug_event_seq) = 0;
+          id(media_debug_last_event) = "debug enabled";
+          id(media_debug_status_text).publish_state(id(media_debug_last_event));
+          ESP_LOGW("media_debug", "enabled trace_id=%s heap=%u",
+                   id(media_debug_trace_id).c_str(),
+                   static_cast<unsigned>(esp_get_free_heap_size()));
+    turn_off_action:
+      - lambda: |-
+          id(media_debug_last_event) = "debug disabled";
+          id(media_debug_status_text).publish_state(id(media_debug_last_event));
+          ESP_LOGW("media_debug", "disabled");
   - platform: template
     name: "scrollwheel Vibration"
     id: haptic_enabled_switch
@@ -7291,6 +7976,16 @@ text:
           id(media_entity_picture_local_cache).clear();
           id(media_image_url_cache).clear();
           id(media_cover_url_cache).clear();
+          id(media_cover_update_pending) = false;
+          id(media_cover_pipeline_state) = 0;
+          id(media_cover_active_target) = 0;
+          id(media_cover_active_url).clear();
+          id(media_cover_backoff_until_ms) = 0;
+          id(media_cover_failure_count) = 0;
+          id(media_page_cover_loaded_url).clear();
+          id(media_full_cover_loaded_url).clear();
+          id(media_cover_ready) = false;
+          id(media_page_cover_ready) = false;
           id(display_volume_level) = 0.5f;
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_target_runtime
@@ -7786,6 +8481,18 @@ sensor:
         - script.execute: refresh_weather_ui_if_needed
 
 text_sensor:
+  - platform: template
+    name: "scrollwheel Media Debug Status"
+    id: media_debug_status_text
+    entity_category: diagnostic
+    icon: mdi:bug-check
+    update_interval: never
+  - platform: template
+    name: "scrollwheel Last Reset Reason"
+    id: media_debug_reset_reason_text
+    entity_category: diagnostic
+    icon: mdi:restart-alert
+    update_interval: never
   - platform: wifi_info
     ip_address:
       id: wifi_ip_address_text
@@ -8233,14 +8940,50 @@ text_sensor:
             }
             if (incoming.size() > 12288 || (first_non_ws != '[' && first_non_ws != '{')) {
               id(track_autoload_inflight) = false;
+              id(publish_media_debug).execute(
+                "esp_tracks_response_rejected",
+                "payload",
+                "playlist_tracks",
+                std::string("bytes=") + std::to_string(incoming.size()) +
+                  " first=" + std::string(first_non_ws == '\0' ? "none" : std::string(1, first_non_ws)));
               return;
             }
 
             DynamicJsonDocument doc(12288);
             if (deserializeJson(doc, incoming)) {
               id(track_autoload_inflight) = false;
+              id(publish_media_debug).execute(
+                "esp_tracks_response_parse_error",
+                "payload",
+                "playlist_tracks",
+                std::string("bytes=") + std::to_string(incoming.size()));
               return;
             }
+
+            auto sanitize_media_label = [](std::string text, const std::string &fallback, size_t limit) -> std::string {
+              std::string out;
+              out.reserve(text.size() < limit ? text.size() : limit);
+              bool last_space = false;
+              for (unsigned char c : text) {
+                char next = '\0';
+                if (c >= 32 && c <= 126) {
+                  next = static_cast<char>(c);
+                } else if (c == '\n' || c == '\r' || c == '\t' || c >= 127) {
+                  next = ' ';
+                }
+                if (next == '\0') continue;
+                if (next == ' ') {
+                  if (last_space) continue;
+                  last_space = true;
+                } else {
+                  last_space = false;
+                }
+                out.push_back(next);
+                if (out.size() >= limit) break;
+              }
+              while (!out.empty() && out.back() == ' ') out.pop_back();
+              return out.empty() ? fallback : out;
+            };
 
             auto append_track = [&](JsonObject track, int fallback_index) {
               const char *title = track["title"] | track["name"] | "";
@@ -8249,10 +8992,14 @@ text_sensor:
               const char *track_id = track["id"] | track["item_id"] | "";
               const char *url = track["url"] | "";
 
-              std::string title_s = title == nullptr ? "" : std::string(title);
-              if (title_s.empty()) {
-                title_s = "Titel " + std::to_string(fallback_index);
-              }
+              std::string title_s = sanitize_media_label(
+                title == nullptr ? std::string("") : std::string(title),
+                "Titel " + std::to_string(fallback_index),
+                96);
+              std::string artist_s = sanitize_media_label(
+                artist == nullptr ? std::string("") : std::string(artist),
+                "",
+                64);
 
               std::string uri_s = uri == nullptr ? "" : std::string(uri);
               if (uri_s.empty() && track_id != nullptr && track_id[0] != '\0') {
@@ -8264,7 +9011,7 @@ text_sensor:
               }
 
               id(ma_track_titles_cache).push_back(title_s);
-              id(ma_track_artists_cache).push_back(artist == nullptr ? "" : std::string(artist));
+              id(ma_track_artists_cache).push_back(artist_s);
               id(ma_track_uris_cache).push_back(uri_s);
             };
 
@@ -8273,9 +9020,19 @@ text_sensor:
               if (!id(pending_track_request_id).empty()) {
                 if (response_request_id.empty() || response_request_id != id(pending_track_request_id)) {
                   id(track_autoload_inflight) = false;
+                  id(publish_media_debug).execute(
+                    "esp_tracks_response_request_mismatch",
+                    response_request_id.empty() ? std::string("-") : response_request_id,
+                    "playlist_tracks",
+                    std::string("pending=") + id(pending_track_request_id));
                   return;
                 }
               } else if (!response_request_id.empty() && response_request_id.rfind(App.get_name(), 0) != 0) {
+                id(publish_media_debug).execute(
+                  "esp_tracks_response_other_device",
+                  response_request_id,
+                  "playlist_tracks",
+                  "ignored");
                 return;
               }
 
@@ -8285,6 +9042,11 @@ text_sensor:
               }
               if (arr.isNull()) {
                 id(track_autoload_inflight) = false;
+                id(publish_media_debug).execute(
+                  "esp_tracks_response_no_array",
+                  response_request_id.empty() ? std::string("-") : response_request_id,
+                  "playlist_tracks",
+                  "missing tracks/items");
                 return;
               }
 
@@ -8316,6 +9078,11 @@ text_sensor:
             } else if (doc.is<JsonArray>()) {
               if (!id(pending_track_request_id).empty()) {
                 id(track_autoload_inflight) = false;
+                id(publish_media_debug).execute(
+                  "esp_tracks_response_array_while_pending",
+                  id(pending_track_request_id),
+                  "playlist_tracks",
+                  "ignored");
                 return;
               }
               JsonArray arr = doc.as<JsonArray>();
@@ -8781,10 +9548,10 @@ lvgl:
             on_click:
               - script.execute: show_light_drawer
         - button:
-            x: 158
-            y: 145
-            width: 104
-            height: 44
+            x: 120
+            y: 144
+            width: 140
+            height: 70
             radius: 8
             bg_opa: 0%
             border_width: 0
@@ -8793,8 +9560,8 @@ lvgl:
             widgets:
               - label:
                   id: light_value_label
-                  x: 0
-                  y: 8
+                  x: 40
+                  y: 30
                   width: 104
                   height: 28
                   text: "100%"
@@ -9297,6 +10064,7 @@ lvgl:
             text: ""
             text_font: roboto_12
             text_color: 0x94A3B8
+            hidden: true
         - obj:
             id: media_page_cover_fallback
             x: 118
@@ -10329,8 +11097,8 @@ lvgl:
             pad_all: 0
         - image:
             id: media_cover_image_widget
-            x: -4
-            y: -4
+            x: 52
+            y: 52
             src: media_cover_image
         - obj:
             id: media_cover_volume_host
