@@ -80,6 +80,8 @@ See [docs/installation.md](docs/installation.md) for the complete setup and
 customer-facing browser install concept.
 The touch and rotary safety audit is documented in
 [docs/ux-assurance-report.md](docs/ux-assurance-report.md).
+Crash and media-selection diagnostics are documented in
+[docs/debugging.md](docs/debugging.md).
 
 ## Current Blueprint Scope
 
