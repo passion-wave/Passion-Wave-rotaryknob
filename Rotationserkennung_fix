@@ -1,0 +1,177 @@
+# Fix: Rotationserkennung auf guition-Ansatz umstellen
+
+## Kontext / Aufgabe für Claude Code
+
+Im Projekt **Passion-Wave-rotaryknob** funktioniert die Drehknopf-Rotationserkennung
+schlecht: spürbare **Latenz**, **verschluckte Schritte**, **Phantom-/Doppelschritte**
+und gelegentlich **falsche Richtung**.
+
+Ein Vergleichsprojekt (**esphome-guition-jc3636k718c-va**) nutzt dieselbe Knopf-Hardware
+und erkennt Rotationen deutlich zuverlässiger. Diese Aufgabe übernimmt dessen Ansatz.
+
+### Hardware-Erkenntnis (bestätigt)
+Der Knopf ist **kein klassischer Quadratur-Encoder**. Pro Rastung kommt **ein sauberer
+LOW-Puls**, und die **Richtung wird dadurch kodiert, welcher Pin pulst** (nicht über
+A/B-Phasenlage):
+- **GPIO7 = links** (Counter-Clockwise / −)
+- **GPIO8 = rechts** (Clockwise / +)
+
+### Warum die aktuelle Implementierung schlecht ist
+Das rotaryknob-Projekt zwingt diese Hardware durch einen Custom-ISR-/Akkumulations-Decoder:
+- `encoder_pulse_decoder.h` (ISR, 500 µs Edge-Guard)
+- 20 ms-Interval mit `pulse_balance`, `PULSES_PER_STEP = 10`,
+  `BURST_FINALIZE_MS = 45`, `BURST_IDLE_RESET_MS = 260`
+
+Diese Sammel-/Schwellwert-Logik erzeugt genau die o. g. Symptome (10 Pulse müssen erst
+akkumuliert oder per Timeout „finalisiert" werden → Verzögerung, verlorene/doppelte
+Schritte, falsche Richtung bei knappem Balance).
+
+### Wie guition es löst (Referenzansatz)
+Zwei einfache `binary_sensor: gpio` (`inverted: true` + interner `pullup`).
+Jedes `on_press` ist **direkt ein Schritt** → `id(knob_delta)++/--`. Keine
+Software-Entprellung, keine Schwellwerte. 1 Rastung = 1 Schritt.
+
+Referenz im guition-Projekt: `base/core.yaml`, Zeilen ~1401–1493 (knob_left GPIO2 /
+knob_right GPIO1) und Diagnose-Kommentar Zeilen ~474–504.
+
+---
+
+## Umzusetzende Änderungen
+
+**Datei:** `esphome/passion-wave-rotaryknob.yaml`
+
+### 1. Include entfernen (≈ Zeile 66)
+Aus dem `esphome: -> includes:`-Block entfernen:
+```yaml
+    - encoder_pulse_decoder.h
+```
+
+### 2. on_boot-Setup entfernen (≈ Zeile 82)
+Diese Zeile (Lambda im `on_boot`) löschen:
+```yaml
+          rotary_encoder_tune::setup(GPIO_NUM_7, GPIO_NUM_8, 500);
+```
+Falls der `- lambda:`-Block dadurch leer wird, den ganzen leeren Lambda-Eintrag entfernen.
+
+### 3. Global ergänzen
+Im `globals:`-Abschnitt hinzufügen:
+```yaml
+  - id: knob_delta
+    type: int
+    restore_value: false
+    initial_value: '0'
+```
+
+### 4. binary_sensor-Sektion ergänzen (analog guition)
+```yaml
+binary_sensor:
+  - platform: gpio
+    name: "Knob left"
+    id: knob_left
+    internal: true
+    pin:
+      number: GPIO7
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_press:
+      - lambda: |-
+          id(knob_delta)--;
+          id(ui_last_activity_ms) = millis();
+
+  - platform: gpio
+    name: "Knob right"
+    id: knob_right
+    internal: true
+    pin:
+      number: GPIO8
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_press:
+      - lambda: |-
+          id(knob_delta)++;
+          id(ui_last_activity_ms) = millis();
+```
+> Falls bereits eine `binary_sensor:`-Sektion existiert, nur die beiden Einträge dort
+> ergänzen (Top-Level-Key nicht doppeln). Links/Rechts-Vorzeichen ggf. am Gerät prüfen
+> und tauschen, falls die Richtung invertiert ist.
+
+### 5. Interval-Lambda vereinfachen (≈ Zeile 6792–6845)
+Im `- interval: 20ms`-Block den **gesamten Encoder-Block** ersetzen.
+
+**Vorher** (entfernen) – beginnt mit:
+```cpp
+const uint32_t left_count = rotary_encoder_tune::consume_left();
+const uint32_t right_count = rotary_encoder_tune::consume_right();
+...
+// bis einschließlich der pulse_balance / PULSES_PER_STEP-Logik und dem
+// abschließenden:
+if (steps == 0) {
+  return;
+}
+```
+
+**Nachher** (einsetzen):
+```cpp
+int steps = id(knob_delta);
+id(knob_delta) = 0;
+if (id(display_sleeping)) {
+  return;            // delta wurde bereits geleert
+}
+if (steps == 0) {
+  return;
+}
+```
+
+> **Wichtig:** Alles ab `const bool rotary_action_page = ...` bleibt **unverändert**.
+> Die gesamte seitenabhängige Logik (Page 1 Helligkeit, Page 2/6 Volume, Page 11 Timer,
+> Page 12 Alarm, Haptik, UI-Refresh) nutzt weiterhin die Variable `steps`.
+
+### 6. Header-Datei löschen (nach Verifikation)
+```
+esphome/encoder_pulse_decoder.h
+```
+
+---
+
+## Verifikation
+
+1. **Config-Check:** `esphome config esphome/passion-wave-rotaryknob.yaml`
+   → kompiliert ohne Bezug auf `rotary_encoder_tune` / `encoder_pulse_decoder`.
+2. **Build:** `tools/build.sh` (bzw. `esphome compile ...`).
+3. **Flash + Logs:** `esphome logs esphome/passion-wave-rotaryknob.yaml`
+   - Links/rechts drehen → **genau 1 Schritt pro Rastung**
+   - korrekte Richtung
+   - keine Doppel-/Phantomschritte
+   - spürbar geringere Latenz
+4. **Pro Seite testen:**
+   - Page 1: Helligkeit ±5 % / Szenen-Index
+   - Page 2 & 6: Volume ±2 % / Track-Auswahl
+   - Page 11: Timer (±60 s / ±10 s je Feld)
+   - Page 12: Alarm (Stunde / Minute in 5er-Schritten)
+
+---
+
+## Entscheidungen & Scope
+
+- **Scope:** Nur die Rotationserkennung. Seiten-Aktionslogik, Haptik und UI-Refresh
+  bleiben unverändert (konsumieren weiterhin `steps`).
+- **GPIO bleibt 7/8** – nur die Auswertung wechselt von ISR-Decoder auf `binary_sensor`.
+
+## Risiko & Fallback
+
+- **Polling-Risiko:** `binary_sensor` wird im Hauptloop gepollt (nicht per Interrupt).
+  Bei schwerer LVGL-Last theoretisch verschluckbare Pulse. Im guition-Projekt läuft
+  dieser Ansatz stabil.
+- **Fallback (falls Pulse verloren gehen):** `encoder_pulse_decoder.h` behalten, aber
+  `PULSES_PER_STEP = 1` setzen und die Burst-/Idle-Finalisierungslogik entfernen
+  → jeder Puls = 1 Schritt, Richtung über Pin. Behält Interrupt-Zuverlässigkeit bei
+  guition-Einfachheit.
+
+## Offene Frage
+
+- **Wake-Verhalten:** Aktuell `return` bei `display_sleeping`. Soll eine Drehung im
+  Schlaf das Display wecken oder weiterhin ignoriert werden (delta wird geleert)?
