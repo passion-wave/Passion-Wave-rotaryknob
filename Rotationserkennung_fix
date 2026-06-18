@@ -175,3 +175,4 @@ esphome/encoder_pulse_decoder.h
 
 - **Wake-Verhalten:** Aktuell `return` bei `display_sleeping`. Soll eine Drehung im
   Schlaf das Display wecken oder weiterhin ignoriert werden (delta wird geleert)?
+- Das Display sollte nach 15 Minuten auch im lademodus die Helligkeit dimmen um das display zu schützen.
