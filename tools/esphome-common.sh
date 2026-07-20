@@ -16,7 +16,19 @@ CONFIG_ROOT="${REPO_ROOT}${CONFIG_DIR_REL:+/${CONFIG_DIR_REL}}"
 BUILD_ROOT="${CONFIG_ROOT}/.esphome"
 PLATFORMIO_CACHE="${REPO_ROOT}/.esphome_cache/platformio"
 ESPHOME_IMAGE="${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.2.2}"
-SERIAL_PORT="${SERIAL_PORT:-/dev/cu.usbmodem14101}"
+detect_serial_port() {
+  local candidates=()
+  shopt -s nullglob
+  candidates=(/dev/cu.usbmodem* /dev/cu.wchusbserial* /dev/cu.SLAB_USBtoUART*)
+  shopt -u nullglob
+  if [[ ${#candidates[@]} -gt 0 ]]; then
+    printf '%s\n' "${candidates[0]}"
+  else
+    printf '%s\n' "/dev/cu.usbmodem14101"
+  fi
+}
+
+SERIAL_PORT="${SERIAL_PORT:-$(detect_serial_port)}"
 BAUD_RATE="${BAUD_RATE:-460800}"
 CONFIG_BUILD_PATH="$(awk '/^[[:space:]]*build_path:[[:space:]]*/ {
   sub(/^[[:space:]]*build_path:[[:space:]]*/, "", $0);

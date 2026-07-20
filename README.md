@@ -41,7 +41,8 @@ cleared and the normal Home Assistant integration resumes.
 
 - `esphome/`: ESPHome firmware and required local include files.
 - `home_assistant/blueprints/`: optional Home Assistant automation blueprints.
-- `home_assistant/packages/`: optional rain radar package.
+- `home_assistant/packages/`: optional Home Assistant packages for rain radar
+  and raw-mV light calibration.
 - `docs/`: installation and integration documentation.
 - `tools/`: local build and flash helpers.
 
@@ -80,8 +81,12 @@ See [docs/installation.md](docs/installation.md) for the complete setup and
 customer-facing browser install concept.
 The touch and rotary safety audit is documented in
 [docs/ux-assurance-report.md](docs/ux-assurance-report.md).
+The direct GPIO rotary recognition model is documented in
+[docs/rotary-recognition.md](docs/rotary-recognition.md).
 Crash and media-selection diagnostics are documented in
 [docs/debugging.md](docs/debugging.md).
+Raw light-sensor mV calibration is documented in
+[docs/light-mv-calibration.md](docs/light-mv-calibration.md).
 
 ## Current Blueprint Scope
 

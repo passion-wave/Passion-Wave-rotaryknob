@@ -64,7 +64,6 @@ esphome:
     - <esp_system.h>
     - <vector>
     - scrollwheel_dynamic_targets.h
-    - encoder_pulse_decoder.h
     - squareline_font_bridge.h
     - round_Temp/fonts/ui_font_Number.c
   platformio_options:
@@ -79,8 +78,6 @@ esphome:
   on_boot:
     priority: -100
     then:
-      - lambda: |-
-          rotary_encoder_tune::setup(GPIO_NUM_7, GPIO_NUM_8, 500);
       - lambda: |-
           auto reset_reason_to_text = [](esp_reset_reason_t reason) -> const char * {
             switch (reason) {
@@ -177,6 +174,10 @@ api:
         - switch.turn_on: media_latency_debug_enabled
         - delay: 100ms
         - script.execute: media_debug_dump_state
+    - service: radar_refresh
+      then:
+        - lambda: 'id(rain_radar_force_refresh) = true;'
+        - script.execute: refresh_rain_radar_image
 
 mqtt:
   id: mqtt_client
@@ -792,10 +793,38 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: rain_radar_loading
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: rain_radar_image_path_cache
     type: std::string
     restore_value: no
     initial_value: '""'
+  - id: rain_radar_active_url
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: rain_radar_loaded_url
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: rain_radar_status_text
+    type: std::string
+    restore_value: no
+    initial_value: '"Lade Radar"'
+  - id: rain_radar_last_attempt_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: rain_radar_loading_started_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: rain_radar_force_refresh
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: photo_slideshow_ready
     type: bool
     restore_value: no
@@ -911,6 +940,10 @@ globals:
   - id: ui_last_activity_ms
     type: uint32_t
     restore_value: no
+    initial_value: '0'
+  - id: knob_delta
+    type: int
+    restore_value: false
     initial_value: '0'
   - id: screensaver_return_page
     type: int
@@ -1141,6 +1174,10 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: display_charge_dimmed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: touch_swipe_start_x
     type: int
     restore_value: no
@@ -1195,6 +1232,9 @@ touchscreen:
         id(touch_swipe_direction) = 0;
         id(touch_swipe_handled) = false;
         id(touch_swipe_started_sleeping) = id(display_sleeping);
+        if (id(display_charge_dimmed)) {
+          id(restore_display_from_charge_dim).execute();
+        }
   on_update:
     - lambda: |-
         if (touches.empty() || id(touch_swipe_handled) || id(touch_swipe_start_ms) == 0) {
@@ -1568,14 +1608,31 @@ online_image:
     url: "${rain_radar_image_url}"
     format: JPEG
     type: RGB565
-    resize: 360x360
+    resize: 320x320
     buffer_size: 65536
     update_interval: never
     on_download_finished:
-      - lambda: 'id(rain_radar_ready) = true;'
+      - lambda: |-
+          id(rain_radar_ready) = true;
+          id(rain_radar_loading) = false;
+          id(rain_radar_loading_started_ms) = 0;
+          id(rain_radar_loaded_url) = id(rain_radar_active_url);
+          id(rain_radar_status_text) = "Lokaler Fokus";
+          id(rain_radar_debug_status_text).publish_state(
+            std::string("loaded width=") + std::to_string(id(rain_radar_image).get_width()) +
+            " height=" + std::to_string(id(rain_radar_image).get_height()));
+          ESP_LOGW("rain_radar", "radar image loaded width=%d height=%d", id(rain_radar_image).get_width(), id(rain_radar_image).get_height());
       - script.execute: refresh_rain_radar_ui
     on_error:
-      - lambda: 'id(rain_radar_ready) = false;'
+      - lambda: |-
+          id(rain_radar_loading) = false;
+          id(rain_radar_loading_started_ms) = 0;
+          id(rain_radar_status_text) = id(rain_radar_ready) ? "Letztes Radar" : "Radar Fehler";
+          if (id(rain_radar_loaded_url).empty()) {
+            id(rain_radar_ready) = false;
+          }
+          id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text));
+          ESP_LOGW("rain_radar", "radar image download failed");
       - script.execute: refresh_rain_radar_ui
   - id: photo_slideshow_image
     url: "${photo_image_url_0}"
@@ -1886,6 +1943,43 @@ display:
       - [0x11, 0x00]
       - delay 120ms
       - [0x29, 0x00]
+binary_sensor:
+  - platform: gpio
+    name: "Knob left"
+    id: knob_left
+    internal: true
+    pin:
+      number: GPIO7
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_press:
+      - lambda: |-
+          id(knob_delta)--;
+          id(ui_last_activity_ms) = millis();
+          if (id(display_charge_dimmed)) {
+            id(restore_display_from_charge_dim).execute();
+          }
+
+  - platform: gpio
+    name: "Knob right"
+    id: knob_right
+    internal: true
+    pin:
+      number: GPIO8
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_press:
+      - lambda: |-
+          id(knob_delta)++;
+          id(ui_last_activity_ms) = millis();
+          if (id(display_charge_dimmed)) {
+            id(restore_display_from_charge_dim).execute();
+          }
+
 script:
   - id: refresh_media_target_runtime
     mode: restart
@@ -3015,11 +3109,20 @@ script:
           then:
             - lambda: |-
                 id(rain_radar_ready) = false;
+                id(rain_radar_loading) = false;
+                id(rain_radar_loading_started_ms) = 0;
+                id(rain_radar_status_text) = id(demo_mode_active) ? "Demo ohne WLAN" : "WLAN offline";
+                id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text));
             - script.execute: refresh_rain_radar_ui
             - script.stop: refresh_rain_radar_image
       - lambda: |-
-          id(rain_radar_ready) = false;
+          const uint32_t now = millis();
+          const bool force = id(rain_radar_force_refresh);
+          id(rain_radar_force_refresh) = false;
+
           std::string url = id(rain_radar_image_path_cache);
+          while (!url.empty() && isspace(static_cast<unsigned char>(url.front()))) url.erase(url.begin());
+          while (!url.empty() && isspace(static_cast<unsigned char>(url.back()))) url.pop_back();
           if (!url.empty() && url[0] == '/') {
             std::string base = "${ha_base_url}";
             while (!base.empty() && base.back() == '/') base.pop_back();
@@ -3028,11 +3131,63 @@ script:
           if (url.empty() || url == "unknown" || url == "unavailable") {
             url = "${rain_radar_image_url}";
           }
-          const char sep = url.find('?') == std::string::npos ? '?' : '&';
-          url += sep;
-          url += "v=";
-          url += std::to_string(millis());
-          id(rain_radar_image).set_url(url);
+          while (!url.empty() && isspace(static_cast<unsigned char>(url.front()))) url.erase(url.begin());
+          while (!url.empty() && isspace(static_cast<unsigned char>(url.back()))) url.pop_back();
+
+          if (url.empty() || url == "unknown" || url == "unavailable" ||
+              (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0)) {
+            id(rain_radar_ready) = false;
+            id(rain_radar_loading) = false;
+            id(rain_radar_loading_started_ms) = 0;
+            id(rain_radar_status_text) = "Radar URL fehlt";
+            id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text));
+            ESP_LOGW("rain_radar", "invalid radar url");
+            return;
+          }
+          if (url.size() > 512) {
+            id(rain_radar_ready) = false;
+            id(rain_radar_loading) = false;
+            id(rain_radar_loading_started_ms) = 0;
+            id(rain_radar_status_text) = "Radar URL zu lang";
+            id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text));
+            ESP_LOGW("rain_radar", "radar url too long: %u", static_cast<unsigned>(url.size()));
+            return;
+          }
+          if (id(rain_radar_loading)) {
+            id(rain_radar_status_text) = id(rain_radar_ready) ? "Aktualisiere" : "Lade Radar";
+            id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text));
+            ESP_LOGW("rain_radar", "radar update skipped: already loading age_ms=%u", static_cast<unsigned>(now - id(rain_radar_loading_started_ms)));
+            return;
+          }
+          if (!force && id(rain_radar_ready) && id(rain_radar_loaded_url) == url) {
+            id(rain_radar_status_text) = "Lokaler Fokus";
+            id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text));
+            return;
+          }
+          if (id(rain_radar_last_attempt_ms) != 0 && now - id(rain_radar_last_attempt_ms) < 5000) {
+            id(rain_radar_status_text) = id(rain_radar_ready) ? "Letztes Radar" : "Warte Radar";
+            id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text));
+            ESP_LOGW("rain_radar", "radar update skipped: throttle age_ms=%u", static_cast<unsigned>(now - id(rain_radar_last_attempt_ms)));
+            return;
+          }
+
+          std::string download_url = url;
+          if (force) {
+            const char sep = download_url.find('?') == std::string::npos ? '?' : '&';
+            download_url += sep;
+            download_url += "force=";
+            download_url += std::to_string(now);
+          }
+
+          id(rain_radar_active_url) = url;
+          id(rain_radar_loading) = true;
+          id(rain_radar_last_attempt_ms) = now;
+          id(rain_radar_loading_started_ms) = now;
+          id(rain_radar_status_text) = id(rain_radar_ready) ? "Aktualisiere" : "Lade Radar";
+          id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text) + " " + url);
+          ESP_LOGW("rain_radar", "radar image update start heap=%u url=%s",
+                   static_cast<unsigned>(esp_get_free_heap_size()), download_url.c_str());
+          id(rain_radar_image).set_url(download_url);
           id(rain_radar_image).update();
       - script.execute: refresh_rain_radar_ui
   - id: refresh_rain_radar_ui
@@ -3043,7 +3198,26 @@ script:
             lambda: 'return id(current_page) == 8 || (id(current_page) == 4 && weather_radar_popup != nullptr && !lv_obj_has_flag(weather_radar_popup, LV_OBJ_FLAG_HIDDEN));'
           then:
             - lambda: |-
-                lv_label_set_text(rain_radar_status_label, id(demo_mode_active) ? "Demo ohne WLAN" : (id(rain_radar_ready) ? "Lokaler Fokus" : "Lade Radar"));
+                const uint32_t now = millis();
+                const int image_width = id(rain_radar_image).get_width();
+                const int image_height = id(rain_radar_image).get_height();
+                if (image_width > 0 && image_height > 0 && !id(rain_radar_ready)) {
+                  id(rain_radar_ready) = true;
+                  id(rain_radar_loading) = false;
+                  id(rain_radar_loading_started_ms) = 0;
+                  id(rain_radar_status_text) = "Lokaler Fokus";
+                  id(rain_radar_debug_status_text).publish_state("ready via image dimensions");
+                  ESP_LOGW("rain_radar", "radar ready via image dimensions width=%d height=%d", image_width, image_height);
+                }
+                if (id(rain_radar_loading) && id(rain_radar_loading_started_ms) != 0 &&
+                    now - id(rain_radar_loading_started_ms) > 15000) {
+                  id(rain_radar_loading) = false;
+                  id(rain_radar_loading_started_ms) = 0;
+                  id(rain_radar_status_text) = id(rain_radar_ready) ? "Letztes Radar" : "Radar Timeout";
+                  id(rain_radar_debug_status_text).publish_state(id(rain_radar_status_text));
+                  ESP_LOGW("rain_radar", "radar image update timeout width=%d height=%d", image_width, image_height);
+                }
+                lv_label_set_text(rain_radar_status_label, id(rain_radar_status_text).c_str());
                 if (id(rain_radar_ready)) {
                   lv_img_set_src(rain_radar_image_widget, id(rain_radar_image));
                   lv_obj_clear_flag(rain_radar_image_widget, LV_OBJ_FLAG_HIDDEN);
@@ -3515,17 +3689,44 @@ script:
           then:
             - lambda: |-
                 id(display_sleeping) = true;
+                id(display_charge_dimmed) = false;
                 id(media_cover_fullscreen_due_ms) = 0;
                 id(light_ui_dirty) = true;
                 id(media_ui_dirty) = true;
                 id(weather_ui_dirty) = true;
             - light.turn_off: display_backlight
             - lvgl.pause:
+  - id: dim_display_on_external_power
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return id(external_power_detected) && !id(display_sleeping) && !id(display_charge_dimmed);'
+          then:
+            - lambda: |-
+                id(display_charge_dimmed) = true;
+            - light.turn_on:
+                id: display_backlight
+                brightness: 18%
+  - id: restore_display_from_charge_dim
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return id(display_charge_dimmed);'
+          then:
+            - lambda: |-
+                id(display_charge_dimmed) = false;
+                id(ui_last_activity_ms) = millis();
+            - light.turn_on:
+                id: display_backlight
+                brightness: 70%
   - id: wake_display_from_touch
     mode: restart
     then:
       - lambda: |-
           id(display_sleeping) = false;
+          id(display_charge_dimmed) = false;
           id(ui_last_activity_ms) = millis();
           id(media_last_activity_ms) = millis();
           id(light_ui_dirty) = true;
@@ -7305,6 +7506,11 @@ interval:
             - script.execute: refresh_weather_time
       - if:
           condition:
+            lambda: 'return !id(display_sleeping) && (id(current_page) == 8 || id(rain_radar_loading));'
+          then:
+            - script.execute: refresh_rain_radar_ui
+      - if:
+          condition:
             lambda: 'return !id(display_sleeping) && id(current_page) == 7;'
           then:
             - script.execute: refresh_weather_screensaver
@@ -7378,6 +7584,17 @@ interval:
                      (millis() - id(ui_last_activity_ms)) >= 12000;
           then:
             - script.execute: sleep_display_on_battery
+      - if:
+          condition:
+            lambda: |-
+              return id(external_power_detected) &&
+                     !id(display_sleeping) &&
+                     !id(display_charge_dimmed) &&
+                     !id(timer_running) &&
+                     !id(alarm_alert_active) &&
+                     (millis() - id(ui_last_activity_ms)) >= 900000;
+          then:
+            - script.execute: dim_display_on_external_power
   - interval: 500ms
     then:
       - script.execute: process_media_cover_update
@@ -7461,54 +7678,10 @@ interval:
   - interval: 20ms
     then:
       - lambda: |-
-          const uint32_t left_count = rotary_encoder_tune::consume_left();
-          const uint32_t right_count = rotary_encoder_tune::consume_right();
-          const uint32_t total_count = left_count + right_count;
+          int steps = id(knob_delta);
+          id(knob_delta) = 0;
           if (id(display_sleeping)) {
             return;
-          }
-          static int pulse_balance = 0;
-          static uint32_t last_pulse_ms = 0;
-          static constexpr int PULSES_PER_STEP = 10;
-          static constexpr int MIN_FINALIZE_PULSES = 4;
-          static constexpr uint32_t BURST_FINALIZE_MS = 45;
-          static constexpr uint32_t BURST_IDLE_RESET_MS = 260;
-          int steps = 0;
-          if (total_count == 0) {
-            const uint32_t idle_ms = last_pulse_ms == 0 ? 0 : millis() - last_pulse_ms;
-            if (pulse_balance != 0 && idle_ms > BURST_FINALIZE_MS) {
-              if (pulse_balance >= MIN_FINALIZE_PULSES) {
-                steps = 1;
-              } else if (pulse_balance <= -MIN_FINALIZE_PULSES) {
-                steps = -1;
-              }
-              pulse_balance = 0;
-              last_pulse_ms = 0;
-            } else if (last_pulse_ms != 0 && idle_ms > BURST_IDLE_RESET_MS) {
-              pulse_balance = 0;
-              last_pulse_ms = 0;
-            }
-            if (steps == 0) {
-              return;
-            }
-          }
-
-          if (total_count > 0) {
-            id(ui_last_activity_ms) = millis();
-            const int pulse_delta = static_cast<int>(left_count) - static_cast<int>(right_count);
-            if ((pulse_balance > 0 && pulse_delta < 0) || (pulse_balance < 0 && pulse_delta > 0)) {
-              pulse_balance = 0;
-            }
-            pulse_balance += pulse_delta;
-            last_pulse_ms = millis();
-
-            if (pulse_balance >= PULSES_PER_STEP) {
-              steps = pulse_balance / PULSES_PER_STEP;
-              pulse_balance = pulse_balance % PULSES_PER_STEP;
-            } else if (pulse_balance <= -PULSES_PER_STEP) {
-              steps = pulse_balance / PULSES_PER_STEP;
-              pulse_balance = pulse_balance % PULSES_PER_STEP;
-            }
           }
           if (steps == 0) {
             return;
@@ -8492,6 +8665,12 @@ text_sensor:
     id: media_debug_reset_reason_text
     entity_category: diagnostic
     icon: mdi:restart-alert
+    update_interval: never
+  - platform: template
+    name: "scrollwheel Radar Debug Status"
+    id: rain_radar_debug_status_text
+    entity_category: diagnostic
+    icon: mdi:radar
     update_interval: never
   - platform: wifi_info
     ip_address:
@@ -12648,8 +12827,8 @@ lvgl:
             widgets:
               - image:
                   id: weather_radar_popup_image
-                  x: -36
-                  y: -36
+                  x: -16
+                  y: -16
                   src: rain_radar_image
               - label:
                   id: weather_radar_popup_fallback_label
@@ -12724,8 +12903,8 @@ lvgl:
             pad_all: 0
         - image:
             id: rain_radar_image_widget
-            x: 0
-            y: 0
+            x: 20
+            y: 20
             src: rain_radar_image
         - label:
             id: rain_radar_fallback_label
@@ -12774,6 +12953,7 @@ lvgl:
             border_width: 0
             pad_all: 0
             on_click:
+              - lambda: 'id(rain_radar_force_refresh) = true;'
               - script.execute: refresh_rain_radar_image
             widgets:
               - label:

@@ -86,6 +86,14 @@ The Settings page contains a `Demo` entry and Home Assistant exposes
 offline promo demo will not start. When it is on, the device can start the demo
 only while Wi-Fi is missing; with Wi-Fi connected the demo remains inactive.
 
+## Display Protection
+
+On battery, the display can enter the existing full sleep path and LVGL is
+paused. On external power, the device does not fully sleep; after 15 minutes
+without touch or rotary activity it dims the backlight to a low protection
+level. The UI stays alive, and the next touch or rotary step restores normal
+brightness.
+
 ## Weather Source
 
 The weather page uses the compile-time secret `ha_weather_entity`. Set it to an
@@ -96,6 +104,24 @@ no state or `weather.get_forecasts` response for the configured source.
 
 `weather_location_fallback` is only used until the weather entity's
 `friendly_name` is received from Home Assistant.
+
+## Raw Light mV Calibration
+
+The optional package
+`home_assistant/packages/light_mv_calibration.yaml` converts a raw
+millivolt-like brightness sensor into an estimated lux value and a coarse
+daylight class. It is intended for sensors such as
+`sensor.outdoor_regenlichtsensor_illuminance_raw`, where the vendor exposes an
+undocumented raw light channel instead of calibrated illuminance.
+
+The conversion is deliberately local and calibration-based. There is no
+universal mV-to-lux table for arbitrary light sensors because the voltage
+depends on the sensor electronics, lens, orientation, dirt and mounting
+position. Configure the source entity in `input_text.light_mv_source_entity`,
+then adjust the dark, dim, overcast-daylight and direct-sun mV anchors. The
+package can slowly recalibrate the dark, overcast and sun anchors from recent
+history, sun elevation and weather condition, but the result remains an
+estimate unless validated with a reference lux meter.
 
 ## Media Library Lists
 

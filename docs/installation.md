@@ -67,7 +67,6 @@ Keep this structure:
 
 - `esphome/passion-wave-rotaryknob.yaml`
 - `esphome/scrollwheel_dynamic_targets.h`
-- `esphome/encoder_pulse_decoder.h`
 - `esphome/squareline_font_bridge.h`
 - `esphome/round_Temp/fonts/ui_font_Number.c`
 
@@ -224,10 +223,38 @@ homeassistant:
 ```
 
 The package requires `ffmpeg` on the Home Assistant host.
-It creates `/local/scrollwheel/rain_radar.jpg`; use that path for
-`rain_radar_image_url`. If `sensor.scrollwheel_rain_radar_image_path` exists,
-the firmware prefers that dynamic Home Assistant path and only falls back to the
-compile-time URL.
+It creates `/local/scrollwheel/rain_radar.jpg` as a compact `320 x 320`
+baseline-compatible JPEG using `yuvj420p`; use that path for
+`rain_radar_image_url`. If
+`sensor.scrollwheel_rain_radar_image_path` exists, the firmware prefers that
+dynamic Home Assistant path and only falls back to the compile-time URL.
+
+After updating this package, reload Home Assistant packages or restart Home
+Assistant once so the lighter radar capture command is active.
+
+## 7. Optional Light mV Calibration Package
+
+If a Zigbee rain/light sensor exposes brightness only as a raw millivolt-like
+value, copy:
+
+```text
+home_assistant/packages/light_mv_calibration.yaml
+```
+
+to your Home Assistant `packages/` directory.
+
+The package defaults to the detected raw sensor:
+
+```text
+sensor.outdoor_regenlichtsensor_illuminance_raw
+```
+
+It creates estimated lux, daylight class and calibration-helper entities. Open
+`Settings` -> `Devices & services` -> `Helpers` and adjust the four anchor
+values after observing the raw mV value in darkness, dim light, overcast
+daylight and direct sun. See
+[`docs/light-mv-calibration.md`](light-mv-calibration.md) for the model and the
+limits of automatic recalibration.
 
 ## Known Limits
 

@@ -1,0 +1,310 @@
+# Generic raw-mV-to-illuminance calibration framework.
+#
+# Use this when a Zigbee, MQTT or custom sensor exposes a light reading only as
+# raw millivolts or an undocumented raw value. The output is an estimated lux
+# value and a coarse daylight class. Absolute lux accuracy still requires local
+# calibration with a known reference sensor or real-world anchor points.
+
+input_text:
+  light_mv_source_entity:
+    name: Light raw mV source entity
+    icon: mdi:lightbulb-on-10
+    initial: sensor.outdoor_regenlichtsensor_illuminance_raw
+  light_mv_weather_entity:
+    name: Light calibration weather entity
+    icon: mdi:weather-partly-cloudy
+    initial: weather.forecast_home
+
+input_boolean:
+  light_mv_auto_calibration:
+    name: Light mV auto calibration
+    icon: mdi:tune-variant
+    initial: true
+
+input_number:
+  light_mv_dark_reference_mv:
+    name: Light mV dark reference
+    icon: mdi:weather-night
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+    unit_of_measurement: mV
+    initial: 0
+  light_mv_dim_reference_mv:
+    name: Light mV dim indoor reference
+    icon: mdi:lightbulb-night
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+    unit_of_measurement: mV
+    initial: 80
+  light_mv_daylight_reference_mv:
+    name: Light mV overcast daylight reference
+    icon: mdi:weather-cloudy
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+    unit_of_measurement: mV
+    initial: 700
+  light_mv_direct_sun_reference_mv:
+    name: Light mV direct sun reference
+    icon: mdi:white-balance-sunny
+    min: 0
+    max: 10000
+    step: 1
+    mode: box
+    unit_of_measurement: mV
+    initial: 2500
+
+template:
+  - sensor:
+      - name: Light Raw mV
+        unique_id: passion_wave_light_raw_mv
+        icon: mdi:current-dc
+        unit_of_measurement: mV
+        state_class: measurement
+        availability: >-
+          {% set source = states('input_text.light_mv_source_entity') %}
+          {{ source not in ['', 'unknown', 'unavailable', 'none'] and
+             states(source) not in ['unknown', 'unavailable', 'none', ''] }}
+        state: >-
+          {{ states(states('input_text.light_mv_source_entity')) | float(0) | round(0) }}
+        attributes:
+          source_entity: "{{ states('input_text.light_mv_source_entity') }}"
+
+      - name: Light Estimated Illuminance
+        unique_id: passion_wave_light_estimated_illuminance
+        icon: mdi:brightness-5
+        unit_of_measurement: lx
+        device_class: illuminance
+        state_class: measurement
+        availability: "{{ states('sensor.light_raw_mv') not in ['unknown', 'unavailable', 'none', ''] }}"
+        state: >-
+          {% set mv = states('sensor.light_raw_mv') | float(0) %}
+          {% set dark_mv = states('input_number.light_mv_dark_reference_mv') | float(0) %}
+          {% set dim_mv = states('input_number.light_mv_dim_reference_mv') | float(80) %}
+          {% set day_mv = states('input_number.light_mv_daylight_reference_mv') | float(700) %}
+          {% set sun_mv = states('input_number.light_mv_direct_sun_reference_mv') | float(2500) %}
+          {% if dim_mv <= dark_mv %}{% set dim_mv = dark_mv + 1 %}{% endif %}
+          {% if day_mv <= dim_mv %}{% set day_mv = dim_mv + 1 %}{% endif %}
+          {% if sun_mv <= day_mv %}{% set sun_mv = day_mv + 1 %}{% endif %}
+          {% if mv <= dark_mv %}
+            0.2
+          {% elif mv <= dim_mv %}
+            {% set ratio = (mv - dark_mv) / (dim_mv - dark_mv) %}
+            {{ (0.2 + ratio * 99.8) | round(1) }}
+          {% elif mv <= day_mv %}
+            {% set ratio = (mv - dim_mv) / (day_mv - dim_mv) %}
+            {{ (100 + ratio * 1900) | round(0) }}
+          {% elif mv <= sun_mv %}
+            {% set ratio = (mv - day_mv) / (sun_mv - day_mv) %}
+            {{ (2000 + ratio * 48000) | round(0) }}
+          {% else %}
+            {% set ratio = [((mv - sun_mv) / ([sun_mv, 1] | max)), 1] | min %}
+            {{ (50000 + ratio * 50000) | round(0) }}
+          {% endif %}
+        attributes:
+          calibration: "piecewise local estimate"
+          dark_reference_mv: "{{ states('input_number.light_mv_dark_reference_mv') }}"
+          dim_reference_mv: "{{ states('input_number.light_mv_dim_reference_mv') }}"
+          daylight_reference_mv: "{{ states('input_number.light_mv_daylight_reference_mv') }}"
+          direct_sun_reference_mv: "{{ states('input_number.light_mv_direct_sun_reference_mv') }}"
+
+      - name: Light Solar Expected Illuminance
+        unique_id: passion_wave_light_solar_expected_illuminance
+        icon: mdi:weather-sunny-alert
+        unit_of_measurement: lx
+        device_class: illuminance
+        state_class: measurement
+        state: >-
+          {% set weather_entity = states('input_text.light_mv_weather_entity') %}
+          {% set condition = states(weather_entity) %}
+          {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
+          {% if elevation <= -6 %}
+            {% set base = 0.2 %}
+          {% elif elevation <= 0 %}
+            {% set base = 20 %}
+          {% elif elevation <= 10 %}
+            {% set base = 2500 %}
+          {% elif elevation <= 25 %}
+            {% set base = 15000 %}
+          {% elif elevation <= 50 %}
+            {% set base = 50000 %}
+          {% else %}
+            {% set base = 80000 %}
+          {% endif %}
+          {% set factor = {
+            'sunny': 1.0,
+            'clear-night': 0.05,
+            'partlycloudy': 0.55,
+            'cloudy': 0.25,
+            'rainy': 0.12,
+            'pouring': 0.08,
+            'lightning': 0.08,
+            'lightning-rainy': 0.06,
+            'fog': 0.05,
+            'snowy': 0.18,
+            'snowy-rainy': 0.12,
+            'hail': 0.12
+          }.get(condition, 0.35) %}
+          {{ (base * factor) | round(0) }}
+        attributes:
+          weather_entity: "{{ states('input_text.light_mv_weather_entity') }}"
+          weather_condition: "{{ states(states('input_text.light_mv_weather_entity')) }}"
+          sun_elevation: "{{ state_attr('sun.sun', 'elevation') | float(-90) | round(1) }}"
+
+      - name: Light Daylight Class
+        unique_id: passion_wave_light_daylight_class
+        icon: mdi:theme-light-dark
+        state: >-
+          {% set lux = states('sensor.light_estimated_illuminance') | float(0) %}
+          {% if lux < 1 %}
+            night
+          {% elif lux < 10 %}
+            very_dark
+          {% elif lux < 100 %}
+            dim_indoor
+          {% elif lux < 500 %}
+            indoor
+          {% elif lux < 2000 %}
+            low_daylight
+          {% elif lux < 10000 %}
+            overcast_daylight
+          {% elif lux < 30000 %}
+            bright_daylight
+          {% else %}
+            direct_sun
+          {% endif %}
+        attributes:
+          estimated_lux: "{{ states('sensor.light_estimated_illuminance') }}"
+          expected_lux_from_sun_weather: "{{ states('sensor.light_solar_expected_illuminance') }}"
+
+      - name: Light mV Calibration Status
+        unique_id: passion_wave_light_mv_calibration_status
+        icon: mdi:clipboard-pulse
+        state: >-
+          {% set source = states('input_text.light_mv_source_entity') %}
+          {% set raw = states('sensor.light_raw_mv') %}
+          {% set dim = states('input_number.light_mv_dim_reference_mv') | float(0) %}
+          {% set day = states('input_number.light_mv_daylight_reference_mv') | float(0) %}
+          {% set sun = states('input_number.light_mv_direct_sun_reference_mv') | float(0) %}
+          {% if source in ['', 'unknown', 'unavailable'] or raw in ['unknown', 'unavailable', 'none', ''] %}
+            source_missing
+          {% elif not (dim < day and day < sun) %}
+            anchors_invalid
+          {% else %}
+            ok
+          {% endif %}
+        attributes:
+          source_entity: "{{ states('input_text.light_mv_source_entity') }}"
+          auto_calibration: "{{ states('input_boolean.light_mv_auto_calibration') }}"
+          raw_mv_24h_minimum: "{{ states('sensor.light_raw_mv_24h_minimum') }}"
+          raw_mv_24h_maximum: "{{ states('sensor.light_raw_mv_24h_maximum') }}"
+
+sensor:
+  - platform: statistics
+    name: Light Raw mV 24h Minimum
+    entity_id: sensor.light_raw_mv
+    state_characteristic: value_min
+    max_age:
+      hours: 24
+    sampling_size: 5000
+  - platform: statistics
+    name: Light Raw mV 24h Maximum
+    entity_id: sensor.light_raw_mv
+    state_characteristic: value_max
+    max_age:
+      hours: 24
+    sampling_size: 5000
+  - platform: statistics
+    name: Light Raw mV 7d Maximum
+    entity_id: sensor.light_raw_mv
+    state_characteristic: value_max
+    max_age:
+      days: 7
+    sampling_size: 20000
+
+automation:
+  - id: passion_wave_light_mv_auto_dark_baseline
+    alias: Light mV auto calibrate dark baseline
+    mode: single
+    trigger:
+      - platform: time
+        at: "03:30:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.light_mv_auto_calibration
+        state: "on"
+      - condition: template
+        value_template: "{{ states('sensor.light_raw_mv_24h_minimum') | float(-1) >= 0 }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.light_mv_dark_reference_mv
+        data:
+          value: >-
+            {% set old = states('input_number.light_mv_dark_reference_mv') | float(0) %}
+            {% set new = states('sensor.light_raw_mv_24h_minimum') | float(old) %}
+            {{ ((old * 0.7) + (new * 0.3)) | round(0) }}
+
+  - id: passion_wave_light_mv_auto_sun_anchor
+    alias: Light mV auto calibrate direct sun anchor
+    mode: single
+    trigger:
+      - platform: time
+        at: "13:15:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.light_mv_auto_calibration
+        state: "on"
+      - condition: template
+        value_template: "{{ state_attr('sun.sun', 'elevation') | float(0) > 20 }}"
+      - condition: template
+        value_template: >-
+          {{ states(states('input_text.light_mv_weather_entity')) in
+             ['sunny', 'partlycloudy'] }}
+      - condition: template
+        value_template: "{{ states('sensor.light_raw_mv_24h_maximum') | float(0) > 0 }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.light_mv_direct_sun_reference_mv
+        data:
+          value: >-
+            {% set old = states('input_number.light_mv_direct_sun_reference_mv') | float(2500) %}
+            {% set new = states('sensor.light_raw_mv_24h_maximum') | float(old) %}
+            {{ ((old * 0.85) + (new * 0.15)) | round(0) }}
+
+  - id: passion_wave_light_mv_auto_daylight_anchor
+    alias: Light mV auto calibrate overcast daylight anchor
+    mode: single
+    trigger:
+      - platform: time_pattern
+        hours: "/2"
+    condition:
+      - condition: state
+        entity_id: input_boolean.light_mv_auto_calibration
+        state: "on"
+      - condition: template
+        value_template: "{{ state_attr('sun.sun', 'elevation') | float(0) > 10 }}"
+      - condition: template
+        value_template: >-
+          {{ states(states('input_text.light_mv_weather_entity')) in
+             ['cloudy', 'rainy', 'pouring', 'fog'] }}
+      - condition: template
+        value_template: "{{ states('sensor.light_raw_mv') | float(0) > 0 }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.light_mv_daylight_reference_mv
+        data:
+          value: >-
+            {% set old = states('input_number.light_mv_daylight_reference_mv') | float(700) %}
+            {% set raw = states('sensor.light_raw_mv') | float(old) %}
+            {% set dim = states('input_number.light_mv_dim_reference_mv') | float(80) %}
+            {% set sun = states('input_number.light_mv_direct_sun_reference_mv') | float(2500) %}
+            {% set bounded = [dim + 1, [raw, sun - 1] | min] | max %}
+            {{ ((old * 0.9) + (bounded * 0.1)) | round(0) }}

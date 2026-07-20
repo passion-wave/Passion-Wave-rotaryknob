@@ -23,7 +23,8 @@ shell_command:
     ffmpeg -y -hide_banner -loglevel error
     -i "https://www.dwd.de/DWD/wetter/radar/radfilm_bay_akt.gif"
     -frames:v 1
-    -vf "crop=320:320:166:180,scale=360:360:flags=lanczos"
+    -vf "crop=320:320:166:180,scale=320:320:flags=lanczos,format=yuvj420p"
+    -q:v 7
     /config/www/scrollwheel/rain_radar.jpg
 
 template:
