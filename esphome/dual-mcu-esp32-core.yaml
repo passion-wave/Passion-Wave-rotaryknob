@@ -1,0 +1,2572 @@
+substitutions:
+  name: "passion-wave-rotary-test-esp32"
+  friendly_name: "Passion Wave Rotaryknob Test ESP32"
+  # Native Music Assistant counterpart of the Sonos entity
+  # media_player.unnamed_room (same RINCON unique ID).
+  ha_player: "media_player.roam_2"
+  light_1_entity: "light.buero_monitor_wled"
+  wled_preset_entity: "select.buero_monitor_wled_preset"
+  light_2_entity: "light.passion_wave_light_2"
+  light_3_entity: "light.passion_wave_light_3"
+  light_4_entity: "light.passion_wave_light_4"
+  light_4_preset_select: "select.passion_wave_wled_preset"
+  ha_weather: "weather.forecast_home"
+  ha_base_url: "http://homeassistant.local:8123"
+  rain_radar_image_url: "http://homeassistant.local:8123/local/passion-wave/radar.jpg"
+  photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
+  photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
+  photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
+  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
+  playlist_json_sensor: "passion_wave/media/playlists"
+  radio_json_sensor: "passion_wave/media/radios"
+  podcast_json_sensor: "passion_wave/media/podcasts"
+  playlist_page_json_sensor: "passion_wave/media/playlists/state"
+  playlist_tracks_json_sensor: "passion_wave/media/playlist_tracks/state"
+  playlist_request_topic: "passion_wave/media/playlists/request"
+  playlist_tracks_request_topic: "passion_wave/media/playlist_tracks/request"
+  floorplan_revision_topic: "passion_wave/floorplan/revision"
+  s3_device_name: "passion-wave-rotary-test-s3"
+  latency_request_entity: "input_button.passion_wave_latency_request"
+
+esphome:
+  name: "${name}"
+  friendly_name: "${friendly_name}"
+  min_version: 2026.7.0
+  includes:
+    - dual_mcu_link.h
+    - dual_mcu_encoder.h
+    - dual_mcu_radar_proxy.h
+    - dual_mcu_library_proxy.h
+  project:
+    name: "passion-wave.rotaryknob-test-esp32"
+    version: "2.0.0"
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          dual_mcu::link.setup(id(inter_mcu_uart));
+          dual_mcu::radar_server.setup();
+          const bool encoder_ready = dual_mcu::encoder.setup(GPIO_NUM_22, GPIO_NUM_19);
+          id(coprocessor_status).publish_state(encoder_ready ? "Warte auf S3" : "Encoder-Setup fehlgeschlagen");
+          id(bridge_action_count_sensor).publish_state(0);
+          id(bridge_last_action_text).publish_state("keine");
+          const uint8_t role[] = {'E', '3', '2'};
+          dual_mcu::link.send(dual_mcu::MessageType::HELLO, role, sizeof(role));
+
+esp32:
+  board: esp32dev
+  flash_size: 4MB
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+
+mqtt:
+  id: bridge_mqtt_client
+  broker: "homeassistant.local"
+  username: ""
+  password: ""
+  discovery: false
+  reboot_timeout: 0s
+  log_topic: null
+
+api:
+  id: esp32_api
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+wifi:
+  power_save_mode: none
+  reboot_timeout: 0s
+  ap:
+    ssid: "Passion Wave Dual MCU Fallback"
+    password: "passion-wave"
+
+captive_portal:
+
+safe_mode:
+  num_attempts: 10
+  boot_is_good_after: 60s
+  reboot_timeout: 10min
+
+uart:
+  id: inter_mcu_uart
+  tx_pin: GPIO23
+  rx_pin: GPIO18
+  baud_rate: 2000000
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+  rx_buffer_size: 512
+
+time:
+  - platform: homeassistant
+    id: bridge_time
+    timezone: Europe/Berlin
+
+globals:
+  - id: esp32_ec2_count
+    type: int32_t
+    restore_value: false
+    initial_value: '0'
+  - id: received_s3_ec1_count
+    type: int32_t
+    restore_value: false
+    initial_value: '0'
+  - id: s3_reported_ec2_count
+    type: int32_t
+    restore_value: false
+    initial_value: '0'
+  - id: last_s3_heartbeat_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: received_s3_uptime_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: last_ping_token
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: last_stats_publish_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_api_connected
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_last_snapshot_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_last_time_sent_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_last_time_epoch
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_last_time_ack_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_s3_battery_pct
+    type: int
+    restore_value: false
+    initial_value: '-1'
+  - id: bridge_s3_external_power
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_action_count
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_media_state
+    type: int
+    restore_value: false
+    initial_value: '1'
+  - id: bridge_media_volume_pct
+    type: int
+    restore_value: false
+    initial_value: '50'
+  - id: bridge_media_position_seconds
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_media_duration_seconds
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_media_shuffle
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_media_repeat_one
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_media_title
+    type: std::string
+    restore_value: false
+  - id: bridge_media_artist
+    type: std::string
+    restore_value: false
+  - id: bridge_media_friendly_name
+    type: std::string
+    restore_value: false
+  - id: bridge_media_album_artist
+    type: std::string
+    restore_value: false
+  - id: bridge_media_entity_picture
+    type: std::string
+    restore_value: false
+  - id: bridge_media_entity_picture_local
+    type: std::string
+    restore_value: false
+  - id: bridge_media_image_url
+    type: std::string
+    restore_value: false
+  - id: bridge_media_cover_url
+    type: std::string
+    restore_value: false
+  - id: bridge_pending_track_request_id
+    type: std::string
+    restore_value: false
+  - id: bridge_pending_track_generation
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_weather_temperature_tenths
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_weather_humidity_pct
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_weather_wind_tenths
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_weather_temperature_valid
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_weather_humidity_valid
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_weather_wind_valid
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_weather_precipitation_pct
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_weather_precipitation_valid
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_weather_condition
+    type: std::string
+    restore_value: false
+  - id: bridge_weather_location
+    type: std::string
+    restore_value: false
+  - id: bridge_radar_image_path
+    type: std::string
+    restore_value: false
+  - id: bridge_radar_eta_minutes
+    type: int
+    restore_value: false
+    initial_value: '-1'
+  - id: bridge_radar_eta_valid
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_radar_motion_dr
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: bridge_radar_motion_dc
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: bridge_radar_motion_speed
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: bridge_radar_motion_valid
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_radar_raining
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_forecast_requested
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_light_1_on
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_light_2_on
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_light_3_on
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_light_4_on
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_light_1_brightness
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_light_2_brightness
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_light_3_brightness
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_light_4_brightness
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_light_1_color_temp
+    type: int
+    restore_value: false
+    initial_value: '3200'
+  - id: bridge_light_4_rgb_red
+    type: int
+    restore_value: false
+    initial_value: '255'
+  - id: bridge_light_4_rgb_green
+    type: int
+    restore_value: false
+    initial_value: '255'
+  - id: bridge_light_4_rgb_blue
+    type: int
+    restore_value: false
+    initial_value: '255'
+  - id: bridge_light_4_preset_name
+    type: std::string
+    restore_value: false
+  - id: bridge_wled_preset_options
+    type: std::vector<std::string>
+    restore_value: false
+  - id: bridge_wled_preset_selected_name
+    type: std::string
+    restore_value: false
+  - id: bridge_wled_preset_generation
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_probe_sequence
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_probe_started_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_probe_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: volume_command_sequence
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_command_started_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_command_target_pct
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_command_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_play_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_play_started_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_play_pending_kind
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_play_pending_index
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_play_expected_uri
+    type: std::string
+    restore_value: false
+
+binary_sensor:
+  - platform: template
+    id: dual_mcu_link_connected
+    name: "S3 Link Connected"
+    device_class: connectivity
+    entity_category: diagnostic
+
+  - platform: template
+    id: bridge_s3_external_power_sensor
+    name: "S3 External Power via Bridge"
+    device_class: plug
+
+  - platform: template
+    id: bridge_s3_time_acknowledged
+    name: "S3 Time Sync Acknowledged"
+    device_class: connectivity
+    entity_category: diagnostic
+
+  - platform: homeassistant
+    id: bridge_radar_raining_state
+    entity_id: binary_sensor.rain_warner_raining
+    internal: true
+    on_state:
+      then:
+        - lambda: |-
+            id(bridge_radar_raining) = x;
+            id(send_bridge_radar_meta).execute();
+
+sensor:
+  - platform: template
+    id: bridge_s3_battery_percentage_sensor
+    name: "S3 Battery Percentage via Bridge"
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: never
+
+  - platform: template
+    id: bridge_s3_battery_voltage_sensor
+    name: "S3 Battery Voltage via Bridge"
+    unit_of_measurement: V
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+
+  - platform: template
+    id: bridge_s3_time_ack_age_sensor
+    name: "S3 Time Sync Acknowledgement Age"
+    unit_of_measurement: s
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: bridge_action_count_sensor
+    name: "ESP32 HA Bridge Actions"
+    accuracy_decimals: 0
+    state_class: total_increasing
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: esp32_encoder_count_sensor
+    name: "ESP32 EC2 Encoder Count"
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: s3_encoder_count_sensor
+    name: "S3 EC1 Encoder Count"
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: encoder_difference_sensor
+    name: "Encoder Count Difference"
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: s3_uptime_sensor
+    name: "S3 Uptime"
+    unit_of_measurement: s
+    device_class: duration
+    state_class: total_increasing
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: link_ping_sensor
+    name: "S3 Link Ping"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: protocol_error_sensor
+    name: "UART Protocol Errors"
+    accuracy_decimals: 0
+    state_class: total_increasing
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: encoder_overflow_sensor
+    name: "Encoder Queue Overflows"
+    accuracy_decimals: 0
+    state_class: total_increasing
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: wifi_signal
+    name: "ESP32 WiFi Signal"
+    update_interval: 30s
+    entity_category: diagnostic
+
+  - platform: uptime
+    name: "ESP32 Uptime"
+    update_interval: 30s
+    entity_category: diagnostic
+
+  - platform: template
+    id: bridge_latency_ha_roundtrip_sensor
+    name: "ESP32 HA Latency Round Trip"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: bridge_ma_service_latency_sensor
+    name: "Music Assistant Service Completion"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: bridge_ma_player_ready_latency_sensor
+    name: "Music Assistant Player Ready"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: homeassistant
+    id: bridge_ha_volume
+    entity_id: ${ha_player}
+    attribute: volume_level
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            const int confirmed_pct =
+              std::clamp(static_cast<int>(lroundf(x * 100.0f)), 0, 100);
+            id(bridge_media_volume_pct) = confirmed_pct;
+            if (id(volume_command_pending) &&
+                confirmed_pct == id(volume_command_target_pct)) {
+              const uint32_t sequence = id(volume_command_sequence);
+              const uint32_t elapsed_us =
+                micros() - id(volume_command_started_us);
+              id(volume_command_pending) = false;
+              dual_mcu::link.send_pair_u32(
+                dual_mcu::MessageType::VOLUME_RESULT,
+                sequence, elapsed_us, 0);
+            }
+            id(send_bridge_media_state).execute();
+
+  - platform: homeassistant
+    id: bridge_ha_media_position
+    entity_id: ${ha_player}
+    attribute: media_position
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_media_position_seconds) = static_cast<uint32_t>(std::max(0.0f, roundf(x)));
+            id(send_bridge_media_state).execute();
+
+  - platform: homeassistant
+    id: bridge_ha_media_duration
+    entity_id: ${ha_player}
+    attribute: media_duration
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_media_duration_seconds) = static_cast<uint32_t>(std::max(0.0f, roundf(x)));
+            id(send_bridge_media_state).execute();
+
+  - platform: homeassistant
+    id: bridge_weather_temperature
+    entity_id: ${ha_weather}
+    attribute: temperature
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_weather_temperature_tenths) = std::clamp(static_cast<int>(lroundf(x * 10.0f)), -32768, 32767);
+            id(bridge_weather_temperature_valid) = true;
+            id(send_bridge_weather_state).execute();
+
+  - platform: homeassistant
+    id: bridge_weather_humidity
+    entity_id: ${ha_weather}
+    attribute: humidity
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_weather_humidity_pct) = std::clamp(static_cast<int>(lroundf(x)), 0, 100);
+            id(bridge_weather_humidity_valid) = true;
+            id(send_bridge_weather_state).execute();
+
+  - platform: homeassistant
+    id: bridge_weather_wind
+    entity_id: ${ha_weather}
+    attribute: wind_speed
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_weather_wind_tenths) = std::clamp(static_cast<int>(lroundf(x * 10.0f)), 0, 65535);
+            id(bridge_weather_wind_valid) = true;
+            id(send_bridge_weather_state).execute();
+
+  - platform: homeassistant
+    id: bridge_weather_precipitation
+    entity_id: ${ha_weather}
+    attribute: precipitation_probability
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_weather_precipitation_pct) =
+              std::clamp(static_cast<int>(lroundf(x)), 0, 100);
+            id(bridge_weather_precipitation_valid) = true;
+            id(send_bridge_weather_state).execute();
+
+  - platform: homeassistant
+    id: bridge_radar_eta
+    entity_id: sensor.rain_warner_rain_starts_in
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) {
+              id(bridge_radar_eta_valid) = false;
+              id(send_bridge_radar_meta).execute();
+              return;
+            }
+            id(bridge_radar_eta_minutes) =
+              std::clamp(static_cast<int>(lroundf(x)), 0, 32767);
+            id(bridge_radar_eta_valid) = true;
+            id(send_bridge_radar_meta).execute();
+
+  - platform: homeassistant
+    id: bridge_radar_motion_dr_state
+    entity_id: camera.radar_image
+    attribute: motion_dr_per_min
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) {
+              id(bridge_radar_motion_valid) = false;
+              id(send_bridge_radar_meta).execute();
+              return;
+            }
+            id(bridge_radar_motion_dr) = x;
+            id(bridge_radar_motion_valid) = true;
+            id(send_bridge_radar_meta).execute();
+
+  - platform: homeassistant
+    id: bridge_radar_motion_dc_state
+    entity_id: camera.radar_image
+    attribute: motion_dc_per_min
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) {
+              id(bridge_radar_motion_valid) = false;
+              id(send_bridge_radar_meta).execute();
+              return;
+            }
+            id(bridge_radar_motion_dc) = x;
+            id(bridge_radar_motion_valid) = true;
+            id(send_bridge_radar_meta).execute();
+
+  - platform: homeassistant
+    id: bridge_radar_motion_speed_state
+    entity_id: camera.radar_image
+    attribute: motion_speed_kmh
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) {
+              id(bridge_radar_motion_speed) = 0.0f;
+              id(bridge_radar_motion_valid) = false;
+              id(send_bridge_radar_meta).execute();
+              return;
+            }
+            id(bridge_radar_motion_speed) = std::max(0.0f, x);
+            id(send_bridge_radar_meta).execute();
+
+  - platform: homeassistant
+    id: bridge_light_1_brightness_state
+    entity_id: ${light_1_entity}
+    attribute: brightness
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_light_1_brightness) = std::clamp(static_cast<int>(lroundf(x * 100.0f / 255.0f)), 0, 100);
+            const uint8_t payload[] = {0, static_cast<uint8_t>(id(bridge_light_1_on)), static_cast<uint8_t>(id(bridge_light_1_brightness))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_1_color_temp_state
+    entity_id: ${light_1_entity}
+    attribute: color_temp_kelvin
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_light_1_color_temp) =
+              std::clamp(static_cast<int>(lroundf(x)), 1000, 10000);
+            const uint16_t kelvin = static_cast<uint16_t>(id(bridge_light_1_color_temp));
+            const uint8_t payload[] = {
+              0, 0x01, static_cast<uint8_t>(kelvin & 0xFF),
+              static_cast<uint8_t>((kelvin >> 8) & 0xFF), 0, 0, 0};
+            dual_mcu::link.send(
+              dual_mcu::MessageType::LIGHT_DETAIL_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_2_brightness_state
+    entity_id: ${light_2_entity}
+    attribute: brightness
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_light_2_brightness) = std::clamp(static_cast<int>(lroundf(x * 100.0f / 255.0f)), 0, 100);
+            const uint8_t payload[] = {1, static_cast<uint8_t>(id(bridge_light_2_on)), static_cast<uint8_t>(id(bridge_light_2_brightness))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_3_brightness_state
+    entity_id: ${light_3_entity}
+    attribute: brightness
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_light_3_brightness) = std::clamp(static_cast<int>(lroundf(x * 100.0f / 255.0f)), 0, 100);
+            const uint8_t payload[] = {2, static_cast<uint8_t>(id(bridge_light_3_on)), static_cast<uint8_t>(id(bridge_light_3_brightness))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_4_brightness_state
+    entity_id: ${light_4_entity}
+    attribute: brightness
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (isnan(x)) return;
+            id(bridge_light_4_brightness) = std::clamp(static_cast<int>(lroundf(x * 100.0f / 255.0f)), 0, 100);
+            const uint8_t payload[] = {3, static_cast<uint8_t>(id(bridge_light_4_on)), static_cast<uint8_t>(id(bridge_light_4_brightness))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
+
+text_sensor:
+  - platform: template
+    id: coprocessor_status
+    name: "Dual MCU Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: bridge_last_action_text
+    name: "ESP32 HA Bridge Last Action"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: bridge_daily_forecast_text
+    name: "ESP32 Daily Forecast Conditions"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: bridge_radar_proxy_status
+    name: "ESP32 Radar Proxy Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: bridge_library_proxy_status
+    name: "ESP32 Library Proxy Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: bridge_media_cover_proxy_status
+    name: "ESP32 Media Cover Proxy Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: bridge_wled_preset_status
+    name: "ESP32 WLED Preset Status"
+    update_interval: never
+    entity_category: diagnostic
+
+  # The production actions already use this direct HA service -> subscribed
+  # state path. Measuring the request button itself avoids adding an
+  # automation that the real light/media path does not contain.
+  - platform: homeassistant
+    id: latency_request_state
+    entity_id: ${latency_request_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (!id(latency_probe_pending)) return;
+            const uint32_t elapsed_us =
+              micros() - id(latency_probe_started_us);
+            const uint32_t sequence = id(latency_probe_sequence);
+            id(latency_probe_pending) = false;
+            dual_mcu::link.send_pair_u32(
+              dual_mcu::MessageType::LATENCY_RESULT, sequence, elapsed_us, 0);
+            id(bridge_latency_ha_roundtrip_sensor).publish_state(
+              elapsed_us / 1000.0f);
+
+  - platform: mqtt_subscribe
+    id: bridge_playlists_json_raw
+    topic: ${playlist_json_sensor}
+    internal: true
+    on_value:
+      then:
+        - script.execute:
+            id: cache_bridge_library
+            kind: '1'
+            payload: !lambda 'return x;'
+
+  - platform: mqtt_subscribe
+    id: bridge_radios_json_raw
+    topic: ${radio_json_sensor}
+    internal: true
+    on_value:
+      then:
+        - script.execute:
+            id: cache_bridge_library
+            kind: '2'
+            payload: !lambda 'return x;'
+
+  - platform: mqtt_subscribe
+    id: bridge_podcasts_json_raw
+    topic: ${podcast_json_sensor}
+    internal: true
+    on_value:
+      then:
+        - script.execute:
+            id: cache_bridge_library
+            kind: '3'
+            payload: !lambda 'return x;'
+
+  - platform: mqtt_subscribe
+    id: bridge_playlist_page_json_raw
+    topic: ${playlist_page_json_sensor}
+    internal: true
+    on_value:
+      then:
+        - script.execute:
+            id: cache_bridge_library_page
+            kind: '4'
+            payload: !lambda 'return x;'
+
+  - platform: mqtt_subscribe
+    id: bridge_playlist_tracks_json_raw
+    topic: ${playlist_tracks_json_sensor}
+    internal: true
+    on_value:
+      then:
+        - script.execute:
+            id: cache_bridge_library_page
+            kind: '5'
+            payload: !lambda 'return x;'
+
+  - platform: mqtt_subscribe
+    id: bridge_floorplan_revision
+    topic: ${floorplan_revision_topic}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            // Home Assistant already debounces related state changes. The
+            // coprocessor only forwards the invalidation; rendering and image
+            // decoding remain outside the encoder/UI hot path.
+            dual_mcu::link.send(
+              dual_mcu::MessageType::FLOORPLAN_INVALIDATED);
+            id(bridge_radar_proxy_status).publish_state(
+              std::string("Floorplan geändert: ") + x);
+
+  - platform: homeassistant
+    id: bridge_media_state_text
+    entity_id: ${ha_player}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_media_state) = x == "playing" ? 3 : x == "paused" ? 2 : x == "off" ? 4 : 1;
+            id(send_bridge_media_state).execute();
+            if (x == "playing" && id(bridge_play_pending))
+              id(confirm_bridge_play_ready).execute();
+
+  - platform: homeassistant
+    id: bridge_media_content_id_text
+    entity_id: ${ha_player}
+    attribute: media_content_id
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (id(bridge_play_pending) &&
+                !id(bridge_play_expected_uri).empty() &&
+                x == id(bridge_play_expected_uri))
+              id(confirm_bridge_play_ready).execute();
+
+  - platform: homeassistant
+    id: bridge_media_shuffle_text
+    entity_id: ${ha_player}
+    attribute: shuffle
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_media_shuffle) = x == "true" || x == "on" || x == "1";
+            id(send_bridge_media_state).execute();
+
+  - platform: homeassistant
+    id: bridge_media_repeat_text
+    entity_id: ${ha_player}
+    attribute: repeat
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_media_repeat_one) = x == "one" || x == "repeat_one";
+            id(send_bridge_media_state).execute();
+
+  - platform: homeassistant
+    id: bridge_media_title_text
+    entity_id: ${ha_player}
+    attribute: media_title
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_media_title) = x;
+            dual_mcu::link.send_media_text(dual_mcu::MediaTextField::TITLE, x);
+
+  - platform: homeassistant
+    id: bridge_media_artist_text
+    entity_id: ${ha_player}
+    attribute: media_artist
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_media_artist) = x;
+            dual_mcu::link.send_media_text(dual_mcu::MediaTextField::ARTIST, x);
+
+  - platform: homeassistant
+    id: bridge_media_friendly_name_text
+    entity_id: ${ha_player}
+    attribute: friendly_name
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_media_friendly_name) = x;
+            dual_mcu::link.send_media_text(
+              dual_mcu::MediaTextField::FRIENDLY_NAME, x);
+
+  - platform: homeassistant
+    id: bridge_media_album_artist_text
+    entity_id: ${ha_player}
+    attribute: media_album_artist
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_media_album_artist) = x;
+            dual_mcu::link.send_media_text(
+              dual_mcu::MediaTextField::ALBUM_ARTIST, x);
+
+  - platform: homeassistant
+    id: bridge_media_entity_picture_text
+    entity_id: ${ha_player}
+    attribute: entity_picture
+    internal: true
+    on_value:
+      then:
+        - lambda: 'id(bridge_media_entity_picture) = x;'
+        - script.execute: resolve_bridge_media_cover_url
+
+  - platform: homeassistant
+    id: bridge_media_entity_picture_local_text
+    entity_id: ${ha_player}
+    attribute: entity_picture_local
+    internal: true
+    on_value:
+      then:
+        - lambda: 'id(bridge_media_entity_picture_local) = x;'
+        - script.execute: resolve_bridge_media_cover_url
+
+  - platform: homeassistant
+    id: bridge_media_image_url_text
+    entity_id: ${ha_player}
+    attribute: media_image_url
+    internal: true
+    on_value:
+      then:
+        - lambda: 'id(bridge_media_image_url) = x;'
+        - script.execute: resolve_bridge_media_cover_url
+
+  - platform: homeassistant
+    id: bridge_weather_condition_text
+    entity_id: ${ha_weather}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_weather_condition) = x;
+            dual_mcu::link.send_weather_text(dual_mcu::WeatherTextField::CONDITION, x);
+
+  - platform: homeassistant
+    id: bridge_weather_location_text
+    entity_id: ${ha_weather}
+    attribute: friendly_name
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_weather_location) = x;
+            dual_mcu::link.send_weather_text(dual_mcu::WeatherTextField::LOCATION, x);
+
+  - platform: homeassistant
+    id: bridge_radar_image_path_text
+    entity_id: sensor.scrollwheel_rain_radar_image_path
+    internal: true
+    on_value:
+      then:
+        - lambda: 'id(bridge_radar_image_path) = x;'
+
+  - platform: homeassistant
+    id: bridge_light_1_state_text
+    entity_id: ${light_1_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_light_1_on) = x == "on";
+            const uint8_t payload[] = {0, static_cast<uint8_t>(id(bridge_light_1_on)), static_cast<uint8_t>(id(bridge_light_1_brightness))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_2_state_text
+    entity_id: ${light_2_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_light_2_on) = x == "on";
+            const uint8_t payload[] = {1, static_cast<uint8_t>(id(bridge_light_2_on)), static_cast<uint8_t>(id(bridge_light_2_brightness))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_3_state_text
+    entity_id: ${light_3_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_light_3_on) = x == "on";
+            const uint8_t payload[] = {2, static_cast<uint8_t>(id(bridge_light_3_on)), static_cast<uint8_t>(id(bridge_light_3_brightness))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_4_state_text
+    entity_id: ${light_4_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_light_4_on) = x == "on";
+            const uint8_t payload[] = {3, static_cast<uint8_t>(id(bridge_light_4_on)), static_cast<uint8_t>(id(bridge_light_4_brightness))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_4_rgb_state_text
+    entity_id: ${light_4_entity}
+    attribute: rgb_color
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            int red = 0, green = 0, blue = 0;
+            if (sscanf(x.c_str(), "[%d, %d, %d]", &red, &green, &blue) != 3 &&
+                sscanf(x.c_str(), "(%d, %d, %d)", &red, &green, &blue) != 3) return;
+            id(bridge_light_4_rgb_red) = std::clamp(red, 0, 255);
+            id(bridge_light_4_rgb_green) = std::clamp(green, 0, 255);
+            id(bridge_light_4_rgb_blue) = std::clamp(blue, 0, 255);
+            const uint8_t payload[] = {
+              3, 0x02, 0, 0,
+              static_cast<uint8_t>(id(bridge_light_4_rgb_red)),
+              static_cast<uint8_t>(id(bridge_light_4_rgb_green)),
+              static_cast<uint8_t>(id(bridge_light_4_rgb_blue))};
+            dual_mcu::link.send(
+              dual_mcu::MessageType::LIGHT_DETAIL_STATE, payload, sizeof(payload));
+
+  - platform: homeassistant
+    id: bridge_light_4_preset_state_text
+    entity_id: ${light_4_preset_select}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_light_4_preset_name) =
+              (x.empty() || x == "unknown" || x == "unavailable") ? "Police" : x;
+            const size_t length = std::min(
+              id(bridge_light_4_preset_name).size(), dual_mcu::MAX_PAYLOAD - 1);
+            uint8_t payload[dual_mcu::MAX_PAYLOAD]{};
+            payload[0] = 3;
+            if (length > 0)
+              memcpy(&payload[1], id(bridge_light_4_preset_name).data(), length);
+            dual_mcu::link.send(
+              dual_mcu::MessageType::LIGHT_PRESET_TEXT, payload,
+              static_cast<uint8_t>(length + 1));
+
+  - platform: homeassistant
+    id: bridge_wled_preset_state_text
+    entity_id: ${wled_preset_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_wled_preset_selected_name) =
+              (x == "unknown" || x == "unavailable") ? "" : x;
+        - script.execute: send_bridge_wled_presets
+
+  - platform: homeassistant
+    id: bridge_wled_preset_options_text
+    entity_id: ${wled_preset_entity}
+    attribute: options
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_wled_preset_options) =
+              dual_mcu::parse_home_assistant_string_list(x);
+            id(bridge_wled_preset_status).publish_state(
+              id(bridge_wled_preset_options).empty()
+                ? "Keine WLED-Presets gespeichert"
+                : std::to_string(id(bridge_wled_preset_options).size()) +
+                    " Presets via Home Assistant");
+        - script.execute: send_bridge_wled_presets
+
+button:
+  - platform: template
+    name: "Ping S3"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          id(last_ping_token) = millis();
+          dual_mcu::link.send_u32(dual_mcu::MessageType::PING, id(last_ping_token));
+
+  - platform: template
+    name: "Reset Encoder Counters"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          id(esp32_ec2_count) = 0;
+          id(received_s3_ec1_count) = 0;
+          id(s3_reported_ec2_count) = 0;
+          dual_mcu::link.reset_stats();
+          id(esp32_encoder_count_sensor).publish_state(0);
+          id(s3_encoder_count_sensor).publish_state(0);
+          id(encoder_difference_sensor).publish_state(0);
+          dual_mcu::link.send(dual_mcu::MessageType::RESET_COUNTERS);
+
+script:
+  - id: confirm_bridge_play_ready
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(bridge_play_pending)) return;
+          const uint32_t elapsed_us =
+            micros() - id(bridge_play_started_us);
+          const uint8_t response[] = {
+            id(bridge_play_pending_kind),
+            static_cast<uint8_t>(id(bridge_play_pending_index) & 0xFF),
+            static_cast<uint8_t>((id(bridge_play_pending_index) >> 8) & 0xFF),
+            0,
+          };
+          id(bridge_play_pending) = false;
+          dual_mcu::link.send(
+            dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT,
+            response, sizeof(response));
+          id(bridge_ma_player_ready_latency_sensor).publish_state(
+            elapsed_us / 1000.0f);
+
+  - id: run_latency_ha_probe
+    mode: single
+    then:
+      - homeassistant.service:
+          service: input_button.press
+          data:
+            entity_id: ${latency_request_entity}
+
+  - id: send_bridge_wled_presets
+    mode: restart
+    then:
+      - lambda: |-
+          id(bridge_wled_preset_generation)++;
+          const uint8_t generation = id(bridge_wled_preset_generation);
+          const auto &options = id(bridge_wled_preset_options);
+          const size_t count = std::min(
+            options.size(), static_cast<size_t>(dual_mcu::WLED_PRESET_MAX_ITEMS));
+          uint8_t selected = 0xFF;
+          for (size_t index = 0; index < count; index++) {
+            dual_mcu::link.send_wled_preset_item(
+              0, generation, static_cast<uint8_t>(index), options[index]);
+            if (options[index] == id(bridge_wled_preset_selected_name))
+              selected = static_cast<uint8_t>(index);
+          }
+          dual_mcu::link.send_wled_preset_meta(
+            0, generation, static_cast<uint8_t>(count), selected);
+
+  - id: cache_bridge_library
+    mode: queued
+    parameters:
+      kind: int
+      payload: string
+    then:
+      - lambda: |-
+          if (kind < 1 || kind > 3 || payload.size() > 12288) return;
+          DynamicJsonDocument doc(12288);
+          if (deserializeJson(doc, payload)) {
+            id(bridge_library_proxy_status).publish_state("JSON-Fehler");
+            return;
+          }
+          JsonArray items = doc.as<JsonArray>();
+          if (items.isNull()) items = doc["items"].as<JsonArray>();
+          if (items.isNull()) items = doc["playlists"].as<JsonArray>();
+          if (items.isNull()) {
+            id(bridge_library_proxy_status).publish_state("Liste fehlt");
+            return;
+          }
+          std::vector<dual_mcu::LibraryEntry> entries;
+          entries.reserve(std::min<size_t>(items.size(), dual_mcu::LIBRARY_MAX_ENTRIES));
+          const char *fallback_type = kind == 1 ? "playlist" : kind == 2 ? "radio" : "podcast";
+          int fallback_index = 1;
+          for (JsonObject item : items) {
+            if (entries.size() >= dual_mcu::LIBRARY_MAX_ENTRIES) break;
+            dual_mcu::LibraryEntry entry;
+            const char *name = item["name"] | item["title"] | "";
+            const char *uri = item["uri"] | item["id"] | item["url"] | "";
+            const char *item_id = item["item_id"] | item["playlist_item_id"] | "";
+            const char *media_type = item["media_type"] | item["type"] | fallback_type;
+            entry.name = name == nullptr || name[0] == '\0'
+              ? std::string("Eintrag ") + std::to_string(fallback_index) : name;
+            entry.uri = uri == nullptr ? "" : uri;
+            entry.item_id = item_id == nullptr ? "" : item_id;
+            entry.media_type = media_type == nullptr || media_type[0] == '\0'
+              ? fallback_type : media_type;
+            entries.push_back(std::move(entry));
+            fallback_index++;
+          }
+          const auto library_kind = static_cast<dual_mcu::LibraryKind>(kind);
+          if (!dual_mcu::library_server.set(library_kind, entries)) {
+            id(bridge_library_proxy_status).publish_state("Cache zu groß");
+            return;
+          }
+          if (kind == static_cast<int>(dual_mcu::LibraryKind::PLAYLISTS)) {
+            // The retained compact list is available immediately after a
+            // cold boot. Expose it as a complete page as well, so the S3 does
+            // not need to wait for a fresh HA service call before showing the
+            // playlist picker.
+            dual_mcu::library_server.set_page(
+              dual_mcu::LibraryKind::PLAYLIST_PAGE, entries, 0,
+              static_cast<uint16_t>(entries.size()), false);
+          }
+          id(bridge_library_proxy_status).publish_state(
+            std::string("Cache ") + std::to_string(kind) + ": " +
+            std::to_string(entries.size()) + " Einträge");
+          const uint8_t changed[] = {static_cast<uint8_t>(kind)};
+          dual_mcu::link.send(dual_mcu::MessageType::LIBRARY_CHANGED,
+                              changed, sizeof(changed));
+          if (kind == static_cast<int>(dual_mcu::LibraryKind::PLAYLISTS)) {
+            const uint8_t page_changed[] = {
+              static_cast<uint8_t>(dual_mcu::LibraryKind::PLAYLIST_PAGE)};
+            dual_mcu::link.send(dual_mcu::MessageType::LIBRARY_CHANGED,
+                                page_changed, sizeof(page_changed));
+          }
+
+  - id: cache_bridge_library_page
+    mode: queued
+    parameters:
+      kind: int
+      payload: string
+    then:
+      - lambda: |-
+          if ((kind != 4 && kind != 5) || payload.size() > 12288) return;
+          DynamicJsonDocument doc(12288);
+          if (deserializeJson(doc, payload) || !doc.is<JsonObject>()) {
+            id(bridge_library_proxy_status).publish_state("Paging JSON-Fehler");
+            return;
+          }
+          const std::string request_id = doc["request_id"] | "";
+          if (request_id.empty()) return;
+          if (kind == 5) {
+            if (id(bridge_pending_track_request_id).empty() ||
+                request_id != id(bridge_pending_track_request_id)) {
+              id(bridge_library_proxy_status).publish_state(
+                "Veraltete Titelliste verworfen");
+              return;
+            }
+          } else if (request_id.rfind("${s3_device_name}", 0) != 0) {
+            return;
+          }
+          JsonArray items = kind == 4 ? doc["items"].as<JsonArray>()
+                                      : doc["tracks"].as<JsonArray>();
+          if (items.isNull() && kind == 4) items = doc["playlists"].as<JsonArray>();
+          if (items.isNull() && kind == 5) items = doc["items"].as<JsonArray>();
+          if (items.isNull()) {
+            id(bridge_library_proxy_status).publish_state("Paging Liste fehlt");
+            return;
+          }
+          const int raw_offset = doc["offset"] | 0;
+          const int raw_total = doc["total"] | 0;
+          if (raw_offset < 0 || raw_offset > 65535 || raw_total < 0) return;
+          std::vector<dual_mcu::LibraryEntry> entries;
+          entries.reserve(std::min<size_t>(items.size(), dual_mcu::LIBRARY_MAX_ENTRIES));
+          int fallback_index = raw_offset + 1;
+          for (JsonObject item : items) {
+            if (entries.size() >= dual_mcu::LIBRARY_MAX_ENTRIES) break;
+            dual_mcu::LibraryEntry entry;
+            const char *name = item["name"] | item["title"] | "";
+            const char *uri = item["uri"] | item["id"] | item["url"] | "";
+            entry.name = name == nullptr || name[0] == '\0'
+              ? std::string(kind == 4 ? "Eintrag " : "Titel ") +
+                  std::to_string(fallback_index) : name;
+            entry.uri = uri == nullptr ? "" : uri;
+            if (kind == 4) {
+              const char *item_id = item["item_id"] | item["playlist_item_id"] | "";
+              const char *media_type = item["media_type"] | item["type"] | "playlist";
+              entry.item_id = item_id == nullptr ? "" : item_id;
+              entry.media_type = media_type == nullptr || media_type[0] == '\0'
+                ? "playlist" : media_type;
+            } else {
+              const char *artist = item["artist"] | "";
+              entry.item_id = artist == nullptr ? "" : artist;
+              entry.media_type = "track";
+            }
+            entries.push_back(std::move(entry));
+            fallback_index++;
+          }
+          const bool has_more = doc["has_more"] | false;
+          const uint16_t total = static_cast<uint16_t>(
+            std::min(raw_total, 65535));
+          const auto library_kind = static_cast<dual_mcu::LibraryKind>(kind);
+          if (!dual_mcu::library_server.set_page(
+                library_kind, entries, static_cast<uint16_t>(raw_offset),
+                total, has_more,
+                kind == 5 ? id(bridge_pending_track_generation) : 0)) {
+            id(bridge_library_proxy_status).publish_state("Paging Reihenfolge ungültig");
+            return;
+          }
+          if (kind == 5) id(bridge_pending_track_request_id).clear();
+          // The S3 asks for the compact legacy playlist list first during
+          // boot. Music Assistant now supplies the same data as page kind 4.
+          // Mirror page zero into kind 1 so the initial request cannot starve
+          // the newer paged request indefinitely.
+          if (kind == 4 && raw_offset == 0) {
+            if (!dual_mcu::library_server.set(
+                  dual_mcu::LibraryKind::PLAYLISTS, entries)) {
+              id(bridge_library_proxy_status).publish_state(
+                "Playlist-Bootstrap zu groß");
+              return;
+            }
+          }
+          id(bridge_library_proxy_status).publish_state(
+            std::string(kind == 4 ? "Playlist-Seite " : "Track-Seite ") +
+            std::to_string(raw_offset) + ": " +
+            std::to_string(entries.size()) + " Einträge");
+          const uint8_t changed[] = {static_cast<uint8_t>(kind)};
+          dual_mcu::link.send(dual_mcu::MessageType::LIBRARY_CHANGED,
+                              changed, sizeof(changed));
+          if (kind == 4 && raw_offset == 0) {
+            const uint8_t bootstrap_changed[] = {
+              static_cast<uint8_t>(dual_mcu::LibraryKind::PLAYLISTS)};
+            dual_mcu::link.send(dual_mcu::MessageType::LIBRARY_CHANGED,
+                                bootstrap_changed,
+                                sizeof(bootstrap_changed));
+          }
+
+  - id: resolve_bridge_media_cover_url
+    mode: restart
+    then:
+      - lambda: |-
+          auto tune_proxy = [](std::string url) -> std::string {
+            if (url.find("/imageproxy") == std::string::npos) return url;
+            auto set_query_value = [](std::string &target,
+                                      const std::string &key,
+                                      const std::string &value) {
+              const std::string needle = key + "=";
+              const size_t query = target.find('?');
+              size_t pos = query == std::string::npos
+                ? std::string::npos : target.find(needle, query + 1);
+              if (pos == std::string::npos) {
+                target += target.find('?') == std::string::npos ? "?" : "&";
+                target += needle + value;
+                return;
+              }
+              const size_t start = pos + needle.size();
+              size_t end = target.find('&', start);
+              if (end == std::string::npos) end = target.size();
+              target.replace(start, end - start, value);
+            };
+            set_query_value(url, "size", "256");
+            set_query_value(url, "fmt", "jpg");
+            return url;
+          };
+          auto normalize = [&](const std::string &picture) -> std::string {
+            if (picture.empty() || picture == "unknown" ||
+                picture == "unavailable") return "";
+            std::string url;
+            if (picture.rfind("http://", 0) == 0 ||
+                picture.rfind("https://", 0) == 0) {
+              url = picture;
+            } else if (picture[0] == '/') {
+              url = std::string("${ha_base_url}") + picture;
+            } else {
+              url = std::string("${ha_base_url}/") + picture;
+            }
+            url = tune_proxy(url);
+            return url.size() <= dual_mcu::MEDIA_COVER_URL_MAX_LENGTH
+              ? url : "";
+          };
+
+          std::string source = id(bridge_media_entity_picture);
+          if (source.empty()) source = id(bridge_media_entity_picture_local);
+          if (source.empty()) source = id(bridge_media_image_url);
+          const std::string resolved = normalize(source);
+          if (resolved == id(bridge_media_cover_url)) return;
+          id(bridge_media_cover_url) = resolved;
+          if (dual_mcu::cover_url_sender.queue(resolved)) {
+            id(bridge_media_cover_proxy_status).publish_state(
+              resolved.empty() ? "Sende leeres Cover" : "Übertragung läuft");
+          } else {
+            id(bridge_media_cover_proxy_status).publish_state("URL zu lang");
+          }
+
+  - id: fetch_bridge_forecast
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(bridge_api_connected);'
+          then:
+            - script.stop: fetch_bridge_forecast
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: ${ha_weather}
+            type: daily
+          capture_response: true
+          on_success:
+            - lambda: |-
+                JsonObjectConst root = response["response"].as<JsonObjectConst>();
+                if (root.isNull()) root = response["service_response"].as<JsonObjectConst>();
+                if (root.isNull()) root = response;
+                JsonObjectConst weather = root["${ha_weather}"].as<JsonObjectConst>();
+                if (weather.isNull() && root.containsKey("forecast")) weather = root;
+                JsonArrayConst forecasts = weather["forecast"].as<JsonArrayConst>();
+                if (forecasts.isNull() || forecasts.size() == 0) return;
+
+                auto read_float = [](JsonVariantConst value, float fallback) -> float {
+                  if (value.isNull()) return fallback;
+                  if (value.is<float>() || value.is<double>() || value.is<int>()) return value.as<float>();
+                  const char *text = value.as<const char *>();
+                  if (text == nullptr || text[0] == '\0') return fallback;
+                  char *end = nullptr;
+                  const float parsed = strtof(text, &end);
+                  return end != text ? parsed : fallback;
+                };
+
+                auto &state = dual_mcu::bridge_forecast_cache;
+                state.daily_valid_mask = 0;
+                std::string condition_diagnostics;
+                const size_t count = std::min<size_t>(5, forecasts.size());
+                for (size_t index = 0; index < count; index++) {
+                  JsonObjectConst forecast = forecasts[index].as<JsonObjectConst>();
+                  const float minimum = read_float(forecast["templow"], -10.0f);
+                  const float maximum = read_float(forecast["temperature"], 40.0f);
+                  const char *condition = forecast["condition"].as<const char *>();
+                  state.daily_min_tenths[index] = static_cast<int16_t>(
+                    std::clamp(static_cast<int>(lroundf(minimum * 10.0f)), -32768, 32767));
+                  state.daily_max_tenths[index] = static_cast<int16_t>(
+                    std::clamp(static_cast<int>(lroundf(maximum * 10.0f)), -32768, 32767));
+                  const std::string condition_value = condition == nullptr ? "" : condition;
+                  state.daily_condition[index] = dual_mcu::weather_condition_code(condition_value);
+                  if (state.daily_condition[index] ==
+                      static_cast<uint8_t>(dual_mcu::WeatherCondition::UNKNOWN)) {
+                    ESP_LOGW("dual_mcu_forecast", "Unbekannter Tages-Forecast[%u]: '%s'",
+                             static_cast<unsigned>(index), condition_value.c_str());
+                  }
+                  if (!condition_diagnostics.empty()) condition_diagnostics += " | ";
+                  condition_diagnostics += std::to_string(index);
+                  condition_diagnostics += ":";
+                  condition_diagnostics += condition_value.empty() ? "unknown" : condition_value;
+                  state.daily_valid_mask |= static_cast<uint8_t>(1U << index);
+                  if (index == 0) {
+                    float probability = read_float(forecast["precipitation_probability"], -1.0f);
+                    if (probability < 0.0f) {
+                      probability = read_float(forecast["precipitation"], 0.0f) > 0.01f ? 80.0f : 0.0f;
+                    }
+                    state.precipitation_probability = static_cast<uint8_t>(
+                      std::clamp(static_cast<int>(lroundf(probability)), 0, 100));
+                  }
+                }
+                id(bridge_daily_forecast_text).publish_state(condition_diagnostics);
+                ESP_LOGI("dual_mcu_forecast", "Tageszustände: %s", condition_diagnostics.c_str());
+                dual_mcu::link.send_weather_forecast(state);
+            - script.execute: fetch_bridge_hourly_forecast
+          on_error:
+            - script.execute: fetch_bridge_hourly_forecast
+
+  - id: fetch_bridge_hourly_forecast
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(bridge_api_connected);'
+          then:
+            - script.stop: fetch_bridge_hourly_forecast
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: ${ha_weather}
+            type: hourly
+          capture_response: true
+          on_success:
+            - lambda: |-
+                auto now = id(bridge_time).now();
+                if (!now.is_valid()) return;
+                JsonObjectConst root = response["response"].as<JsonObjectConst>();
+                if (root.isNull()) root = response["service_response"].as<JsonObjectConst>();
+                if (root.isNull()) root = response;
+                JsonObjectConst weather = root["${ha_weather}"].as<JsonObjectConst>();
+                if (weather.isNull() && root.containsKey("forecast")) weather = root;
+                JsonArrayConst forecasts = weather["forecast"].as<JsonArrayConst>();
+                if (forecasts.isNull() || forecasts.size() == 0) return;
+
+                auto read_float = [](JsonVariantConst value, float fallback) -> float {
+                  if (value.isNull()) return fallback;
+                  if (value.is<float>() || value.is<double>() || value.is<int>()) return value.as<float>();
+                  const char *text = value.as<const char *>();
+                  if (text == nullptr || text[0] == '\0') return fallback;
+                  char *end = nullptr;
+                  const float parsed = strtof(text, &end);
+                  return end != text ? parsed : fallback;
+                };
+                auto forecast_epoch = [](const char *datetime) -> time_t {
+                  if (datetime == nullptr || datetime[0] == '\0') return static_cast<time_t>(0);
+                  int year = 0, month = 0, day = 0, hour = 0, minute = 0;
+                  if (sscanf(datetime, "%d-%d-%dT%d:%d", &year, &month, &day, &hour, &minute) != 5) {
+                    return static_cast<time_t>(0);
+                  }
+                  struct tm value = {};
+                  value.tm_year = year - 1900;
+                  value.tm_mon = month - 1;
+                  value.tm_mday = day;
+                  value.tm_hour = hour;
+                  value.tm_min = minute;
+                  value.tm_isdst = -1;
+                  return mktime(&value);
+                };
+                auto normalized_condition = [](const std::string &condition, float probability,
+                                               float precipitation) -> std::string {
+                  if (condition == "lightning" || condition == "lightning-rainy" ||
+                      condition == "exceptional") return condition;
+                  if (condition == "rainy" || condition == "pouring" || condition == "hail" ||
+                      condition == "snowy-rainy" || precipitation > 0.01f || probability >= 55.0f) {
+                    return "rainy";
+                  }
+                  return condition.empty() ? "partlycloudy" : condition;
+                };
+
+                auto &state = dual_mcu::bridge_forecast_cache;
+                state.hourly_valid_mask = 0;
+                const time_t now_epoch = static_cast<time_t>(now.timestamp);
+                const time_t day_start = now_epoch - now.hour * 3600 - now.minute * 60 - now.second;
+                const time_t targets[4] = {day_start + 8 * 3600, day_start + 13 * 3600,
+                                           day_start + 19 * 3600, day_start + 23 * 3600};
+                int best_distance[4] = {86400, 86400, 86400, 86400};
+                const bool raining_now = id(bridge_weather_condition) == "rainy" ||
+                                         id(bridge_weather_condition) == "pouring" ||
+                                         id(bridge_weather_condition) == "lightning-rainy" ||
+                                         id(bridge_weather_condition) == "hail";
+                int eta_minutes = raining_now ? 0 : -1;
+
+                for (JsonObjectConst forecast : forecasts) {
+                  const time_t entry_epoch = forecast_epoch(forecast["datetime"].as<const char *>());
+                  if (entry_epoch == static_cast<time_t>(0)) continue;
+                  const float probability = read_float(forecast["precipitation_probability"], -1.0f);
+                  const float precipitation = read_float(forecast["precipitation"], 0.0f);
+                  const char *condition_text = forecast["condition"].as<const char *>();
+                  const std::string condition = normalized_condition(
+                    condition_text == nullptr ? "" : condition_text, probability, precipitation);
+                  const float temperature = read_float(forecast["temperature"], 0.0f);
+                  for (size_t slot = 0; slot < 4; slot++) {
+                    const int distance = static_cast<int>(labs(static_cast<long>(
+                      difftime(entry_epoch, targets[slot]))));
+                    if (distance < best_distance[slot]) {
+                      best_distance[slot] = distance;
+                      state.hourly_temperature_tenths[slot] = static_cast<int16_t>(
+                        std::clamp(static_cast<int>(lroundf(temperature * 10.0f)), -32768, 32767));
+                      state.hourly_condition[slot] = dual_mcu::weather_condition_code(condition);
+                      state.hourly_valid_mask |= static_cast<uint8_t>(1U << slot);
+                    }
+                  }
+                  if (!raining_now && eta_minutes < 0) {
+                    int minutes = static_cast<int>(lroundf(difftime(entry_epoch, now_epoch) / 60.0f));
+                    if (minutes >= -15) {
+                      if (minutes < 0) minutes = 0;
+                      const bool wet = condition == "rainy" || condition == "pouring" ||
+                                       condition == "lightning-rainy" || condition == "hail" ||
+                                       precipitation > 0.01f || probability >= 30.0f;
+                      if (wet) {
+                        eta_minutes = minutes;
+                        if (probability >= 0.0f) {
+                          state.precipitation_probability = static_cast<uint8_t>(
+                            std::clamp(static_cast<int>(lroundf(probability)), 0, 100));
+                        }
+                      }
+                    }
+                  }
+                }
+                state.rain_minutes = static_cast<int16_t>(std::clamp(eta_minutes, -1, 32767));
+                dual_mcu::link.send_weather_forecast(state);
+
+  - id: send_bridge_weather_state
+    mode: restart
+    then:
+      - lambda: |-
+          dual_mcu::WeatherState weather;
+          weather.temperature_valid = id(bridge_weather_temperature_valid);
+          weather.humidity_valid = id(bridge_weather_humidity_valid);
+          weather.wind_valid = id(bridge_weather_wind_valid);
+          weather.precipitation_valid = id(bridge_weather_precipitation_valid);
+          weather.temperature_tenths = static_cast<int16_t>(id(bridge_weather_temperature_tenths));
+          weather.humidity_pct = static_cast<uint8_t>(id(bridge_weather_humidity_pct));
+          weather.wind_tenths = static_cast<uint16_t>(id(bridge_weather_wind_tenths));
+          weather.precipitation_probability =
+            static_cast<uint8_t>(id(bridge_weather_precipitation_pct));
+          dual_mcu::link.send_weather_state(weather);
+
+  - id: send_bridge_radar_meta
+    mode: restart
+    then:
+      - lambda: |-
+          dual_mcu::RadarMeta radar;
+          radar.eta_valid = id(bridge_radar_eta_valid);
+          radar.eta_minutes = static_cast<int16_t>(
+            std::clamp(id(bridge_radar_eta_minutes), 0, 32767));
+          radar.raining = id(bridge_radar_raining);
+          const float dr = id(bridge_radar_motion_dr);
+          const float dc = id(bridge_radar_motion_dc);
+          const float speed = id(bridge_radar_motion_speed);
+          const float vector_length = sqrtf(dr * dr + dc * dc);
+          radar.direction_valid =
+            id(bridge_radar_motion_valid) && speed >= 2.0f &&
+            vector_length > 0.0001f;
+          radar.speed_valid = radar.direction_valid;
+          if (radar.direction_valid) {
+            // Rain Warner reports the movement vector. Users need the
+            // opposite bearing: the direction the rain is coming from.
+            float bearing = atan2f(-dc, -dr) * 180.0f / static_cast<float>(M_PI);
+            if (bearing < 0.0f) bearing += 360.0f;
+            radar.direction_tenths = static_cast<uint16_t>(
+              std::clamp(static_cast<int>(lroundf(bearing * 10.0f)), 0, 3599));
+            radar.speed_tenths = static_cast<uint16_t>(
+              std::clamp(static_cast<int>(lroundf(speed * 10.0f)), 0, 65535));
+          }
+          dual_mcu::link.send_radar_meta(radar);
+
+  - id: send_bridge_media_state
+    mode: restart
+    then:
+      - lambda: |-
+          dual_mcu::MediaState media;
+          media.state = static_cast<uint8_t>(std::clamp(id(bridge_media_state), 0, 4));
+          media.volume_pct = static_cast<uint8_t>(std::clamp(id(bridge_media_volume_pct), 0, 100));
+          media.shuffle = id(bridge_media_shuffle);
+          media.repeat_one = id(bridge_media_repeat_one);
+          media.position_seconds = id(bridge_media_position_seconds);
+          media.duration_seconds = id(bridge_media_duration_seconds);
+          dual_mcu::link.send_media_state(media);
+
+  - id: execute_bridge_volume
+    # Latest value wins: rapid encoder detents never queue obsolete volume.
+    mode: restart
+    parameters:
+      value: int
+    then:
+      - homeassistant.service:
+          service: media_player.volume_set
+          data:
+            # ESPHome's action currently has no target: field; retain a stable
+            # entity_id in service data rather than a volatile device_id.
+            entity_id: ${ha_player}
+            volume_level: !lambda 'return to_string(value / 100.0f);'
+
+  - id: send_bridge_snapshot
+    mode: restart
+    then:
+      - lambda: |-
+          if (dual_mcu::radar_server.busy()) return;
+          const uint8_t status[] = {
+            static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
+            static_cast<uint8_t>(id(bridge_mqtt_client).is_connected() ? 0x01 : 0x00),
+          };
+          dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS, status, sizeof(status));
+          dual_mcu::MediaState media;
+          media.state = static_cast<uint8_t>(std::clamp(id(bridge_media_state), 0, 4));
+          media.volume_pct = static_cast<uint8_t>(std::clamp(id(bridge_media_volume_pct), 0, 100));
+          media.shuffle = id(bridge_media_shuffle);
+          media.repeat_one = id(bridge_media_repeat_one);
+          media.position_seconds = id(bridge_media_position_seconds);
+          media.duration_seconds = id(bridge_media_duration_seconds);
+          dual_mcu::link.send_media_state(media);
+          dual_mcu::link.send_media_text(dual_mcu::MediaTextField::TITLE, id(bridge_media_title));
+          dual_mcu::link.send_media_text(dual_mcu::MediaTextField::ARTIST, id(bridge_media_artist));
+          dual_mcu::link.send_media_text(
+            dual_mcu::MediaTextField::FRIENDLY_NAME,
+            id(bridge_media_friendly_name));
+          dual_mcu::link.send_media_text(
+            dual_mcu::MediaTextField::ALBUM_ARTIST,
+            id(bridge_media_album_artist));
+          dual_mcu::cover_url_sender.queue(id(bridge_media_cover_url));
+          id(bridge_media_cover_proxy_status).publish_state(
+            id(bridge_media_cover_url).empty()
+              ? "Snapshot ohne Cover" : "Snapshot-Übertragung");
+          dual_mcu::WeatherState weather;
+          weather.temperature_valid = id(bridge_weather_temperature_valid);
+          weather.humidity_valid = id(bridge_weather_humidity_valid);
+          weather.wind_valid = id(bridge_weather_wind_valid);
+          weather.precipitation_valid = id(bridge_weather_precipitation_valid);
+          weather.temperature_tenths = static_cast<int16_t>(id(bridge_weather_temperature_tenths));
+          weather.humidity_pct = static_cast<uint8_t>(id(bridge_weather_humidity_pct));
+          weather.wind_tenths = static_cast<uint16_t>(id(bridge_weather_wind_tenths));
+          weather.precipitation_probability =
+            static_cast<uint8_t>(id(bridge_weather_precipitation_pct));
+          dual_mcu::link.send_weather_state(weather);
+          dual_mcu::link.send_weather_text(dual_mcu::WeatherTextField::CONDITION, id(bridge_weather_condition));
+          dual_mcu::link.send_weather_text(dual_mcu::WeatherTextField::LOCATION, id(bridge_weather_location));
+          if (dual_mcu::bridge_forecast_cache.daily_valid_mask != 0 ||
+              dual_mcu::bridge_forecast_cache.hourly_valid_mask != 0) {
+            dual_mcu::link.send_weather_forecast(dual_mcu::bridge_forecast_cache);
+          }
+          dual_mcu::RadarMeta radar;
+          radar.eta_valid = id(bridge_radar_eta_valid);
+          radar.eta_minutes = static_cast<int16_t>(
+            std::clamp(id(bridge_radar_eta_minutes), 0, 32767));
+          radar.raining = id(bridge_radar_raining);
+          const float dr = id(bridge_radar_motion_dr);
+          const float dc = id(bridge_radar_motion_dc);
+          const float speed = id(bridge_radar_motion_speed);
+          const float vector_length = sqrtf(dr * dr + dc * dc);
+          radar.direction_valid =
+            id(bridge_radar_motion_valid) && speed >= 2.0f &&
+            vector_length > 0.0001f;
+          radar.speed_valid = radar.direction_valid;
+          if (radar.direction_valid) {
+            float bearing = atan2f(-dc, -dr) * 180.0f / static_cast<float>(M_PI);
+            if (bearing < 0.0f) bearing += 360.0f;
+            radar.direction_tenths = static_cast<uint16_t>(
+              std::clamp(static_cast<int>(lroundf(bearing * 10.0f)), 0, 3599));
+            radar.speed_tenths = static_cast<uint16_t>(
+              std::clamp(static_cast<int>(lroundf(speed * 10.0f)), 0, 65535));
+          }
+          dual_mcu::link.send_radar_meta(radar);
+          const bool light_on[] = {id(bridge_light_1_on), id(bridge_light_2_on),
+                                   id(bridge_light_3_on), id(bridge_light_4_on)};
+          const int brightness[] = {id(bridge_light_1_brightness), id(bridge_light_2_brightness),
+                                    id(bridge_light_3_brightness), id(bridge_light_4_brightness)};
+          for (uint8_t slot = 0; slot < 4; slot++) {
+            const uint8_t light[] = {
+              slot, static_cast<uint8_t>(light_on[slot] ? 0x01 : 0x00),
+              static_cast<uint8_t>(std::clamp(brightness[slot], 0, 100))};
+            dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, light, sizeof(light));
+          }
+          const uint16_t light_1_kelvin =
+            static_cast<uint16_t>(std::clamp(id(bridge_light_1_color_temp), 1000, 10000));
+          const uint8_t light_1_detail[] = {
+            0, 0x01, static_cast<uint8_t>(light_1_kelvin & 0xFF),
+            static_cast<uint8_t>((light_1_kelvin >> 8) & 0xFF), 0, 0, 0};
+          dual_mcu::link.send(
+            dual_mcu::MessageType::LIGHT_DETAIL_STATE,
+            light_1_detail, sizeof(light_1_detail));
+          const uint8_t light_4_detail[] = {
+            3, 0x02, 0, 0,
+            static_cast<uint8_t>(std::clamp(id(bridge_light_4_rgb_red), 0, 255)),
+            static_cast<uint8_t>(std::clamp(id(bridge_light_4_rgb_green), 0, 255)),
+            static_cast<uint8_t>(std::clamp(id(bridge_light_4_rgb_blue), 0, 255))};
+          dual_mcu::link.send(
+            dual_mcu::MessageType::LIGHT_DETAIL_STATE,
+            light_4_detail, sizeof(light_4_detail));
+          const size_t legacy_preset_length = std::min(
+            id(bridge_light_4_preset_name).size(), dual_mcu::MAX_PAYLOAD - 1);
+          uint8_t legacy_preset[dual_mcu::MAX_PAYLOAD]{};
+          legacy_preset[0] = 3;
+          if (legacy_preset_length > 0)
+            memcpy(&legacy_preset[1], id(bridge_light_4_preset_name).data(),
+                   legacy_preset_length);
+          dual_mcu::link.send(
+            dual_mcu::MessageType::LIGHT_PRESET_TEXT, legacy_preset,
+            static_cast<uint8_t>(legacy_preset_length + 1));
+          id(bridge_wled_preset_generation)++;
+          const uint8_t preset_generation = id(bridge_wled_preset_generation);
+          const auto &preset_options = id(bridge_wled_preset_options);
+          const size_t preset_count = std::min(
+            preset_options.size(), static_cast<size_t>(dual_mcu::WLED_PRESET_MAX_ITEMS));
+          uint8_t selected_preset = 0xFF;
+          for (size_t index = 0; index < preset_count; index++) {
+            dual_mcu::link.send_wled_preset_item(
+              0, preset_generation, static_cast<uint8_t>(index), preset_options[index]);
+            if (preset_options[index] == id(bridge_wled_preset_selected_name))
+              selected_preset = static_cast<uint8_t>(index);
+          }
+          dual_mcu::link.send_wled_preset_meta(
+            0, preset_generation, static_cast<uint8_t>(preset_count), selected_preset);
+          id(bridge_last_snapshot_ms) = millis();
+
+  - id: execute_bridge_action
+    mode: queued
+    max_runs: 8
+    parameters:
+      kind: int
+      value: int
+      entity: std::string
+    then:
+      - if:
+          condition:
+            lambda: 'return kind == static_cast<int>(dual_mcu::HAAction::MEDIA_PREVIOUS);'
+          then:
+            - homeassistant.service:
+                service: media_player.media_previous_track
+                data_template:
+                  entity_id: !lambda 'return entity;'
+      - if:
+          condition:
+            lambda: 'return kind == static_cast<int>(dual_mcu::HAAction::MEDIA_PLAY_PAUSE);'
+          then:
+            - homeassistant.service:
+                service: media_player.media_play_pause
+                data_template:
+                  entity_id: !lambda 'return entity;'
+      - if:
+          condition:
+            lambda: 'return kind == static_cast<int>(dual_mcu::HAAction::MEDIA_NEXT);'
+          then:
+            - homeassistant.service:
+                service: media_player.media_next_track
+                data_template:
+                  entity_id: !lambda 'return entity;'
+      - if:
+          condition:
+            lambda: 'return kind == static_cast<int>(dual_mcu::HAAction::MEDIA_VOLUME);'
+          then:
+            - homeassistant.service:
+                service: media_player.volume_set
+                data_template:
+                  entity_id: !lambda 'return entity;'
+                  volume_level: !lambda 'return to_string(value / 100.0f);'
+      - if:
+          condition:
+            lambda: 'return kind == static_cast<int>(dual_mcu::HAAction::MEDIA_SHUFFLE);'
+          then:
+            - homeassistant.service:
+                service: media_player.shuffle_set
+                data_template:
+                  entity_id: !lambda 'return entity;'
+                  shuffle: !lambda 'return value != 0 ? "true" : "false";'
+      - if:
+          condition:
+            lambda: 'return kind == static_cast<int>(dual_mcu::HAAction::MEDIA_REPEAT_ONE);'
+          then:
+            - homeassistant.service:
+                service: media_player.repeat_set
+                data_template:
+                  entity_id: !lambda 'return entity;'
+                  repeat: !lambda 'return value != 0 ? "one" : "off";'
+      - if:
+          condition:
+            lambda: 'return kind == static_cast<int>(dual_mcu::HAAction::LIGHT_OFF);'
+          then:
+            - homeassistant.service:
+                service: light.turn_off
+                data_template:
+                  entity_id: !lambda 'return entity;'
+      - if:
+          condition:
+            lambda: 'return kind == static_cast<int>(dual_mcu::HAAction::LIGHT_ON) || kind == static_cast<int>(dual_mcu::HAAction::LIGHT_BRIGHTNESS);'
+          then:
+            - homeassistant.service:
+                service: light.turn_on
+                data:
+                  transition: "0.15"
+                data_template:
+                  entity_id: !lambda 'return entity;'
+                  brightness_pct: !lambda 'return to_string(std::clamp(value, 1, 100));'
+      - if:
+          condition:
+            lambda: |-
+              return kind == static_cast<int>(dual_mcu::HAAction::WLED_PRESET) &&
+                     entity == "${wled_preset_entity}" && value >= 0 &&
+                     value < static_cast<int>(id(bridge_wled_preset_options).size());
+          then:
+            - homeassistant.service:
+                service: select.select_option
+                data_template:
+                  entity_id: !lambda 'return entity;'
+                  option: !lambda 'return id(bridge_wled_preset_options)[value];'
+
+  - id: execute_bridge_play_media
+    # A new user choice supersedes an older unresolved choice. Queuing these
+    # actions made the latest tap wait behind obsolete Music Assistant calls.
+    mode: restart
+    parameters:
+      kind: int
+      index: int
+      uri: std::string
+      media_type: std::string
+      name: std::string
+    then:
+      - homeassistant.action:
+          action: music_assistant.play_media
+          data:
+            # ESPHome 2026.7 homeassistant.action has no target: schema.
+            # Keep the stable HA entity_id in action data for compatibility.
+            entity_id: '${ha_player}'
+          data_template:
+            media_id: !lambda 'return uri;'
+            media_type: !lambda 'return media_type;'
+            enqueue: !lambda |-
+              return (kind == static_cast<int>(dual_mcu::LibraryKind::PLAYLISTS) ||
+                      kind == static_cast<int>(dual_mcu::LibraryKind::PLAYLIST_PAGE))
+                ? "replace" : "play";
+          on_success:
+            - lambda: |-
+                id(bridge_ma_service_latency_sensor).publish_state(
+                  (micros() - id(bridge_play_started_us)) / 1000.0f);
+                id(bridge_last_action_text).publish_state(
+                  std::string("play_ok:") + std::to_string(kind) + ":" +
+                  std::to_string(index) + ":" + name);
+                // A playlist resolves to its first track, so the player's
+                // media_content_id can never equal the requested playlist
+                // URI. Successful completion of Music Assistant's awaited
+                // play_media action confirms that the replacement queue was
+                // built and avoids an otherwise guaranteed 8 s timeout.
+                if ((kind == static_cast<int>(dual_mcu::LibraryKind::PLAYLISTS) ||
+                     kind == static_cast<int>(dual_mcu::LibraryKind::PLAYLIST_PAGE)) &&
+                    id(bridge_play_pending) &&
+                    id(bridge_play_pending_kind) == kind &&
+                    id(bridge_play_pending_index) == index)
+                  id(confirm_bridge_play_ready).execute();
+          on_error:
+            - lambda: |-
+                id(bridge_play_pending) = false;
+                id(bridge_last_action_text).publish_state(
+                  std::string("play_error:") + std::to_string(kind) + ":" +
+                  std::to_string(index) + ":" + error);
+                const uint8_t response[] = {
+                  static_cast<uint8_t>(kind),
+                  static_cast<uint8_t>(index & 0xFF),
+                  static_cast<uint8_t>((index >> 8) & 0xFF),
+                  5,
+                };
+                dual_mcu::link.send(dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT,
+                                    response, sizeof(response));
+
+interval:
+  - interval: 1ms
+    then:
+      - lambda: |-
+          int8_t delta = 0;
+          int32_t accumulated = 0;
+          while (dual_mcu::encoder.pop(&delta)) accumulated += delta;
+          if (accumulated != 0) {
+            id(esp32_ec2_count) += accumulated;
+            dual_mcu::link.send_i32(dual_mcu::MessageType::ENCODER_DELTA, accumulated);
+          }
+
+          dual_mcu::link.poll();
+          dual_mcu::Frame frame;
+          while (dual_mcu::link.pop_priority(&frame)) {
+            switch (frame.type) {
+              case dual_mcu::MessageType::HELLO:
+                id(last_s3_heartbeat_ms) = millis();
+                // A rebooted peer cannot acknowledge a transfer ID from its
+                // previous session. Keep the caches, but abandon the frozen
+                // in-flight snapshot before accepting new requests.
+                dual_mcu::library_server.reset_transfer();
+                if (!id(dual_mcu_link_connected).state)
+                  id(dual_mcu_link_connected).publish_state(true);
+                if (id(coprocessor_status).state != "S3 verbunden")
+                  id(coprocessor_status).publish_state("S3 verbunden");
+                id(send_bridge_snapshot).execute();
+                break;
+              case dual_mcu::MessageType::HEARTBEAT:
+                if (!id(dual_mcu_link_connected).state)
+                  id(coprocessor_status).publish_state("S3 verbunden");
+                id(last_s3_heartbeat_ms) = millis();
+                if (!id(dual_mcu_link_connected).state)
+                  id(dual_mcu_link_connected).publish_state(true);
+                if (frame.length == 4) {
+                  id(received_s3_uptime_ms) = dual_mcu::Link::read_u32(frame.payload.data());
+                }
+                break;
+              case dual_mcu::MessageType::DEVICE_STATUS:
+                if (frame.length == 4 && frame.payload[0] <= 100) {
+                  id(bridge_s3_battery_pct) = frame.payload[0];
+                  id(bridge_s3_external_power) =
+                    (frame.payload[1] & 0x01) != 0;
+                  id(bridge_s3_battery_percentage_sensor).publish_state(
+                    id(bridge_s3_battery_pct));
+                  id(bridge_s3_external_power_sensor).publish_state(
+                    id(bridge_s3_external_power));
+                  const uint16_t millivolts =
+                    static_cast<uint16_t>(frame.payload[2]) |
+                    (static_cast<uint16_t>(frame.payload[3]) << 8);
+                  if (millivolts != 0xFFFF)
+                    id(bridge_s3_battery_voltage_sensor).publish_state(
+                      millivolts / 1000.0f);
+                }
+                break;
+              case dual_mcu::MessageType::TIME_STATE:
+                if (frame.length == 4 &&
+                    dual_mcu::Link::read_u32(frame.payload.data()) ==
+                      id(bridge_last_time_epoch)) {
+                  id(bridge_last_time_ack_ms) = millis();
+                  if (!id(bridge_s3_time_acknowledged).state)
+                    id(bridge_s3_time_acknowledged).publish_state(true);
+                  id(bridge_s3_time_ack_age_sensor).publish_state(0);
+                }
+                break;
+              case dual_mcu::MessageType::ENCODER_DIAG:
+                if (frame.length == 8) {
+                  id(received_s3_ec1_count) = dual_mcu::Link::read_i32(&frame.payload[0]);
+                  id(s3_reported_ec2_count) = dual_mcu::Link::read_i32(&frame.payload[4]);
+                }
+                break;
+              case dual_mcu::MessageType::PING:
+                dual_mcu::link.send(dual_mcu::MessageType::PONG,
+                                    frame.payload.data(), frame.length);
+                break;
+              case dual_mcu::MessageType::PONG:
+                if (frame.length == 4) {
+                  const uint32_t token = dual_mcu::Link::read_u32(frame.payload.data());
+                  id(link_ping_sensor).publish_state(static_cast<float>(millis() - token));
+                }
+                break;
+              case dual_mcu::MessageType::LATENCY_PROBE:
+                if (frame.length == 4) {
+                  const uint32_t sequence =
+                    dual_mcu::Link::read_u32(frame.payload.data());
+                  dual_mcu::link.send_u32(
+                    dual_mcu::MessageType::LATENCY_BRIDGE_ACK, sequence);
+                  if (!id(bridge_api_connected)) {
+                    dual_mcu::link.send_pair_u32(
+                      dual_mcu::MessageType::LATENCY_RESULT, sequence, 0, 1);
+                  } else if (id(latency_probe_pending)) {
+                    dual_mcu::link.send_pair_u32(
+                      dual_mcu::MessageType::LATENCY_RESULT, sequence, 0, 2);
+                  } else {
+                    id(latency_probe_sequence) = sequence;
+                    id(latency_probe_started_us) = micros();
+                    id(latency_probe_pending) = true;
+                    id(run_latency_ha_probe).execute();
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::VOLUME_SET:
+                if (frame.length == 5) {
+                  const uint32_t sequence =
+                    dual_mcu::Link::read_u32(&frame.payload[0]);
+                  const uint8_t target =
+                    std::min<uint8_t>(frame.payload[4], 100);
+                  // Receipt acknowledgement is emitted before HA work.
+                  dual_mcu::link.send_pair_u32(
+                    dual_mcu::MessageType::VOLUME_BRIDGE_ACK,
+                    sequence, 0, id(bridge_api_connected) ? 0 : 1);
+                  if (!id(bridge_api_connected)) {
+                    dual_mcu::link.send_pair_u32(
+                      dual_mcu::MessageType::VOLUME_RESULT,
+                      sequence, 0, 1);
+                    break;
+                  }
+                  id(volume_command_sequence) = sequence;
+                  id(volume_command_target_pct) = target;
+                  id(volume_command_started_us) = micros();
+                  id(volume_command_pending) = true;
+                  id(bridge_action_count)++;
+                  // Do not publish diagnostics on the same API connection
+                  // before volume_set. The 1 s stats block publishes the
+                  // aggregate counter without delaying user control.
+                  id(execute_bridge_volume).execute(target);
+                }
+                break;
+              case dual_mcu::MessageType::SNAPSHOT_REQUEST:
+                id(send_bridge_snapshot).execute();
+                break;
+              case dual_mcu::MessageType::HA_ACTION:
+                if (frame.length >= 3 && id(bridge_api_connected)) {
+                  const int kind = frame.payload[0];
+                  const int value = frame.payload[1];
+                  const std::string entity = dual_mcu::Link::read_string(
+                    &frame.payload[2], frame.length - 2);
+                  if (!entity.empty()) {
+                    id(bridge_action_count)++;
+                    id(bridge_action_count_sensor).publish_state(id(bridge_action_count));
+                    id(bridge_last_action_text).publish_state(
+                      std::to_string(kind) + ":" + entity + "=" + std::to_string(value));
+                    id(execute_bridge_action).execute(kind, value, entity);
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::MEDIA_LIBRARY_PLAY:
+                if (frame.length == 3) {
+                  const uint8_t kind = frame.payload[0];
+                  const uint16_t index = static_cast<uint16_t>(frame.payload[1]) |
+                                         (static_cast<uint16_t>(frame.payload[2]) << 8);
+                  uint8_t result = 1;
+                  dual_mcu::LibraryEntry entry;
+                  if (!id(bridge_api_connected)) {
+                    result = 2;
+                  } else if (!dual_mcu::library_server.entry(
+                               static_cast<dual_mcu::LibraryKind>(kind), index, &entry)) {
+                    result = 3;
+                  } else if (entry.uri.empty()) {
+                    result = 4;
+                  } else {
+                    std::string media_type = entry.media_type;
+                    if (kind == static_cast<uint8_t>(dual_mcu::LibraryKind::PLAYLIST_TRACKS))
+                      media_type = "track";
+                    if (media_type.empty())
+                      media_type = kind == static_cast<uint8_t>(dual_mcu::LibraryKind::RADIOS)
+                        ? "radio" : kind == static_cast<uint8_t>(dual_mcu::LibraryKind::PODCASTS)
+                        ? "podcast" : "track";
+                    id(bridge_action_count)++;
+                    id(bridge_action_count_sensor).publish_state(id(bridge_action_count));
+                    id(bridge_last_action_text).publish_state(
+                      std::string("play:") + std::to_string(kind) + ":" +
+                      std::to_string(index) + ":" + entry.name);
+                    // Acknowledge queue admission immediately. The S3 keeps
+                    // its modal progress state until the final HA callback
+                    // reports success (0) or failure (5).
+                    const uint8_t accepted[] = {
+                      kind,
+                      static_cast<uint8_t>(index & 0xFF),
+                      static_cast<uint8_t>((index >> 8) & 0xFF),
+                      0x7F,
+                    };
+                    dual_mcu::link.send(
+                      dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT,
+                      accepted, sizeof(accepted));
+                    id(bridge_play_pending) = true;
+                    id(bridge_play_started_us) = micros();
+                    id(bridge_play_pending_kind) = kind;
+                    id(bridge_play_pending_index) = index;
+                    id(bridge_play_expected_uri) = entry.uri;
+                    id(execute_bridge_play_media).execute(
+                      kind, index, entry.uri, media_type, entry.name);
+                    result = 0;
+                  }
+                  if (result != 0) {
+                    const uint8_t response[] = {
+                      kind,
+                      static_cast<uint8_t>(index & 0xFF),
+                      static_cast<uint8_t>((index >> 8) & 0xFF),
+                      result,
+                    };
+                    dual_mcu::link.send(dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT,
+                                        response, sizeof(response));
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::LIBRARY_PAGE_FETCH:
+                if (frame.length == 6 || frame.length == 8) {
+                  const uint8_t kind = frame.payload[0];
+                  const uint16_t offset = static_cast<uint16_t>(frame.payload[1]) |
+                                          (static_cast<uint16_t>(frame.payload[2]) << 8);
+                  const uint8_t limit = frame.payload[3];
+                  const uint16_t playlist_index =
+                    static_cast<uint16_t>(frame.payload[4]) |
+                    (static_cast<uint16_t>(frame.payload[5]) << 8);
+                  const uint16_t context = frame.length == 8
+                    ? static_cast<uint16_t>(frame.payload[6]) |
+                        (static_cast<uint16_t>(frame.payload[7]) << 8)
+                    : 0;
+                  uint8_t result = 1;
+                  std::string payload;
+                  std::string request_id;
+                  if ((kind == 4 || kind == 5) && limit > 0 && limit <= 64) {
+                    if (!id(bridge_mqtt_client).is_connected()) {
+                      result = 2;
+                    } else {
+                      DynamicJsonDocument doc(384);
+                      request_id = std::string("${s3_device_name}-uart-") +
+                                   std::to_string(kind) + "-" +
+                                   std::to_string(context) + "-" +
+                                   std::to_string(millis());
+                      doc["request_id"] = request_id;
+                      doc["device"] = "${s3_device_name}";
+                      doc["offset"] = offset;
+                      doc["limit"] = limit;
+                      if (kind == 4) {
+                        doc["media_type"] = "playlist";
+                        serializeJson(doc, payload);
+                        result = id(bridge_mqtt_client).publish(
+                          "${playlist_request_topic}", payload) ? 0 : 5;
+                      } else {
+                        dual_mcu::LibraryEntry playlist;
+                        bool found = dual_mcu::library_server.entry(
+                          dual_mcu::LibraryKind::PLAYLIST_PAGE,
+                          playlist_index, &playlist);
+                        if (!found) {
+                          found = dual_mcu::library_server.entry(
+                            dual_mcu::LibraryKind::PLAYLISTS,
+                            playlist_index, &playlist);
+                        }
+                        if (!found) {
+                          result = 3;
+                        } else if (playlist.uri.empty() && playlist.item_id.empty()) {
+                          result = 4;
+                        } else {
+                          id(bridge_pending_track_request_id) = request_id;
+                          id(bridge_pending_track_generation) = context;
+                          doc["playlist_id"] = playlist.uri;
+                          doc["playlist_item_id"] = playlist.item_id;
+                          doc["generation"] = context;
+                          serializeJson(doc, payload);
+                          result = id(bridge_mqtt_client).publish(
+                            "${playlist_tracks_request_topic}", payload) ? 0 : 5;
+                          if (result != 0)
+                            id(bridge_pending_track_request_id).clear();
+                        }
+                      }
+                    }
+                  }
+                  const uint8_t response[] = {kind, result};
+                  dual_mcu::link.send(
+                    dual_mcu::MessageType::LIBRARY_PAGE_FETCH_RESULT,
+                    response, sizeof(response));
+                  id(bridge_library_proxy_status).publish_state(
+                    result == 0
+                      ? std::string(kind == 4 ? "Playlist" : "Track") +
+                          "-Anfrage MQTT: offset=" + std::to_string(offset) +
+                          " gen=" + std::to_string(context) +
+                          " playlist=" + std::to_string(playlist_index)
+                      : std::string("Paging-Anfrage Fehler ") +
+                          std::to_string(result) + " kind=" + std::to_string(kind));
+                }
+                break;
+              case dual_mcu::MessageType::RADAR_REQUEST: {
+                const auto kind = frame.length >= 3
+                  ? static_cast<dual_mcu::AssetKind>(frame.payload[0])
+                  : dual_mcu::AssetKind::RADAR;
+                const bool force = frame.length >= 3
+                  ? (frame.payload[1] & 0x01) != 0
+                  : frame.length >= 1 && (frame.payload[0] & 0x01) != 0;
+                const uint8_t argument = frame.length >= 3
+                  ? frame.payload[2]
+                  : (frame.length >= 2 ? frame.payload[1] : 1);
+                std::string url;
+                if (kind == dual_mcu::AssetKind::RADAR) {
+                  const uint8_t zoom = std::min<uint8_t>(argument, 2);
+                  url = std::string("/local/scrollwheel/rain_radar_z") +
+                        std::to_string(zoom) + ".jpg";
+                } else if (kind == dual_mcu::AssetKind::MEDIA_COVER) {
+                  url = id(bridge_media_cover_url);
+                  // Music Assistant's image proxy rejects 128px for this
+                  // provider (HTTP 400); 256px is the smallest supported
+                  // source and cuts the original 512px payload by about 69%.
+                  if (url.find("/imageproxy") != std::string::npos) {
+                    const std::string needle = "size=";
+                    const size_t query = url.find('?');
+                    const size_t pos = query == std::string::npos
+                      ? std::string::npos : url.find(needle, query + 1);
+                    const std::string desired_size = "256";
+                    if (pos == std::string::npos) {
+                      url += url.find('?') == std::string::npos ? "?" : "&";
+                      url += needle + desired_size;
+                    } else {
+                      const size_t start = pos + needle.size();
+                      size_t end = url.find('&', start);
+                      if (end == std::string::npos) end = url.size();
+                      url.replace(start, end - start, desired_size);
+                    }
+                  }
+                } else if (kind == dual_mcu::AssetKind::PHOTO) {
+                  const char *photos[] = {
+                    "${photo_image_url_0}", "${photo_image_url_1}",
+                    "${photo_image_url_2}"};
+                  url = photos[std::min<uint8_t>(argument, 2)];
+                } else if (kind == dual_mcu::AssetKind::HOUSE) {
+                  url = "${house_floorplan_image_url}";
+                }
+                while (!url.empty() && isspace(static_cast<unsigned char>(url.front()))) url.erase(url.begin());
+                while (!url.empty() && isspace(static_cast<unsigned char>(url.back()))) url.pop_back();
+                if (!url.empty() && url[0] == '/') {
+                  std::string base = "${ha_base_url}";
+                  while (!base.empty() && base.back() == '/') base.pop_back();
+                  url = base + url;
+                }
+                if (kind == dual_mcu::AssetKind::RADAR &&
+                    (url.empty() || url == "unknown" || url == "unavailable"))
+                  url = id(bridge_radar_image_path);
+                if (force && !url.empty()) {
+                  const char separator = url.find('?') == std::string::npos ? '?' : '&';
+                  url += separator;
+                  url += "proxy_force=";
+                  url += std::to_string(millis());
+                }
+                if (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0) {
+                  id(bridge_radar_proxy_status).publish_state(
+                    std::string("Ungültige Asset-URL: ") +
+                    dual_mcu::asset_kind_name(kind));
+                  const uint8_t error[] = {0, 0, 11};
+                  dual_mcu::link.send(dual_mcu::MessageType::RADAR_ERROR, error, sizeof(error));
+                } else if (dual_mcu::radar_server.start(url)) {
+                  id(bridge_radar_proxy_status).publish_state(
+                    std::string("Übertragung: ") +
+                    dual_mcu::asset_kind_name(kind));
+                } else {
+                  id(bridge_radar_proxy_status).publish_state("Asset-Proxy beschäftigt");
+                  const uint8_t error[] = {0, 0, 12};
+                  dual_mcu::link.send(dual_mcu::MessageType::RADAR_ERROR, error, sizeof(error));
+                }
+                break;
+              }
+              case dual_mcu::MessageType::RADAR_ACK:
+                if (dual_mcu::radar_server.acknowledge(frame) &&
+                    !dual_mcu::radar_server.busy())
+                  id(bridge_radar_proxy_status).publish_state("Bereit");
+                break;
+              case dual_mcu::MessageType::LIBRARY_REQUEST:
+                if (dual_mcu::library_server.handle_request(dual_mcu::link, frame))
+                  id(bridge_library_proxy_status).publish_state("Übertragung läuft");
+                break;
+              case dual_mcu::MessageType::LIBRARY_ACK:
+                if (dual_mcu::library_server.acknowledge(frame) &&
+                    !dual_mcu::library_server.busy()) {
+                  const auto completed = dual_mcu::library_server.current_kind();
+                  if (completed == dual_mcu::LibraryKind::PLAYLIST_PAGE) {
+                    id(bridge_library_proxy_status).publish_state(
+                      std::string("Playlist-Seite übertragen: ") +
+                      std::to_string(dual_mcu::library_server.count(completed)));
+                  } else if (completed == dual_mcu::LibraryKind::PLAYLIST_TRACKS) {
+                    id(bridge_library_proxy_status).publish_state(
+                      std::string("Track-Seite übertragen: ") +
+                      std::to_string(dual_mcu::library_server.count(completed)));
+                  } else {
+                    id(bridge_library_proxy_status).publish_state(
+                      std::string("P ") + std::to_string(dual_mcu::library_server.count(dual_mcu::LibraryKind::PLAYLISTS)) +
+                      " · R " + std::to_string(dual_mcu::library_server.count(dual_mcu::LibraryKind::RADIOS)) +
+                      " · O " + std::to_string(dual_mcu::library_server.count(dual_mcu::LibraryKind::PODCASTS)));
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::LIBRARY_CLIENT_STATUS:
+                if (frame.length == 4) {
+                  const uint8_t kind = frame.payload[0];
+                  const uint16_t count =
+                    static_cast<uint16_t>(frame.payload[1]) |
+                    (static_cast<uint16_t>(frame.payload[2]) << 8);
+                  const uint8_t result = frame.payload[3];
+                  id(bridge_library_proxy_status).publish_state(
+                    result == 0
+                      ? std::string("S3 bestätigt Liste ") +
+                          std::to_string(kind) + ": " +
+                          std::to_string(count) + " Einträge"
+                      : std::string("S3 Listenfehler ") +
+                          std::to_string(kind) + ": " +
+                          std::to_string(result));
+                }
+                break;
+              case dual_mcu::MessageType::MEDIA_COVER_URL_ACK: {
+                uint8_t result = 0xFF;
+                if (dual_mcu::cover_url_sender.acknowledge(frame, &result)) {
+                  id(bridge_media_cover_proxy_status).publish_state(
+                    result == 0 ? "S3 hat Cover-URL übernommen"
+                                : "S3 meldet URL-Fehler");
+                }
+                break;
+              }
+              default:
+                break;
+            }
+          }
+
+          // One bulk frame every 4 ms caps radar traffic at roughly 10 kB/s.
+          // Encoder, action and state frames above always go first. Together
+          // with the receiver queue this also tolerates short LVGL stalls.
+          // Cover URLs use the same cooperative rule: at most one short frame
+          // after all latency-sensitive input and action frames.
+          dual_mcu::cover_url_sender.poll_send(dual_mcu::link);
+          static uint32_t last_radar_frame_ms = 0;
+          const bool radar_was_busy = dual_mcu::radar_server.busy();
+          if (millis() - last_radar_frame_ms >= 4 &&
+              dual_mcu::radar_server.poll_send(dual_mcu::link)) {
+            last_radar_frame_ms = millis();
+          }
+          if (radar_was_busy && !dual_mcu::radar_server.busy())
+            id(bridge_radar_proxy_status).publish_state("Bereit");
+          if (!dual_mcu::radar_server.busy())
+            dual_mcu::library_server.poll_send(dual_mcu::link);
+
+          if (id(latency_probe_pending) &&
+              micros() - id(latency_probe_started_us) > 1900000U) {
+            const uint32_t sequence = id(latency_probe_sequence);
+            const uint32_t elapsed_us =
+              micros() - id(latency_probe_started_us);
+            id(latency_probe_pending) = false;
+            dual_mcu::link.send_pair_u32(
+              dual_mcu::MessageType::LATENCY_RESULT, sequence, elapsed_us, 3);
+          }
+          if (id(volume_command_pending) &&
+              micros() - id(volume_command_started_us) > 2000000U) {
+            const uint32_t sequence = id(volume_command_sequence);
+            id(volume_command_pending) = false;
+            dual_mcu::link.send_pair_u32(
+              dual_mcu::MessageType::VOLUME_RESULT, sequence, 0, 2);
+          }
+          if (id(bridge_play_pending) &&
+              micros() - id(bridge_play_started_us) > 8000000U) {
+            const uint8_t response[] = {
+              id(bridge_play_pending_kind),
+              static_cast<uint8_t>(id(bridge_play_pending_index) & 0xFF),
+              static_cast<uint8_t>((id(bridge_play_pending_index) >> 8) & 0xFF),
+              6,
+            };
+            id(bridge_play_pending) = false;
+            dual_mcu::link.send(
+              dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT,
+              response, sizeof(response));
+          }
+
+          const bool link_up = id(last_s3_heartbeat_ms) != 0 &&
+                               millis() - id(last_s3_heartbeat_ms) < 1500;
+          if (!link_up && id(dual_mcu_link_connected).state) {
+            id(dual_mcu_link_connected).publish_state(false);
+            id(coprocessor_status).publish_state("S3 Link unterbrochen");
+          }
+
+          if (millis() - id(last_stats_publish_ms) >= 1000) {
+            id(last_stats_publish_ms) = millis();
+            const auto &stats = dual_mcu::link.stats();
+            id(protocol_error_sensor).publish_state(
+              stats.crc_errors + stats.decode_errors + stats.version_errors + stats.queue_overflows);
+            id(encoder_overflow_sensor).publish_state(dual_mcu::encoder.overflows());
+            id(esp32_encoder_count_sensor).publish_state(id(esp32_ec2_count));
+            id(s3_encoder_count_sensor).publish_state(id(received_s3_ec1_count));
+            id(encoder_difference_sensor).publish_state(
+              id(esp32_ec2_count) - id(received_s3_ec1_count));
+            id(s3_uptime_sensor).publish_state(id(received_s3_uptime_ms) / 1000.0f);
+            id(bridge_action_count_sensor).publish_state(
+              id(bridge_action_count));
+            const bool time_ack_fresh =
+              id(bridge_last_time_ack_ms) != 0 &&
+              millis() - id(bridge_last_time_ack_ms) < 30000UL;
+            if (id(bridge_s3_time_acknowledged).state != time_ack_fresh)
+              id(bridge_s3_time_acknowledged).publish_state(time_ack_fresh);
+            if (id(bridge_last_time_ack_ms) != 0)
+              id(bridge_s3_time_ack_age_sensor).publish_state(
+                (millis() - id(bridge_last_time_ack_ms)) / 1000.0f);
+          }
+
+  - interval: 500ms
+    then:
+      - if:
+          condition:
+            api.connected:
+          then:
+            - lambda: |-
+                id(bridge_api_connected) = true;
+                if (!id(bridge_forecast_requested)) {
+                  id(bridge_forecast_requested) = true;
+                  id(fetch_bridge_forecast).execute();
+                }
+          else:
+            - lambda: |-
+                id(bridge_api_connected) = false;
+                id(bridge_forecast_requested) = false;
+      - lambda: |-
+          dual_mcu::link.send_u32(dual_mcu::MessageType::HEARTBEAT, millis());
+          const auto bridge_now = id(bridge_time).now();
+          if (bridge_now.is_valid() &&
+              millis() - id(bridge_last_time_sent_ms) >= 10000UL) {
+            id(bridge_last_time_epoch) =
+              static_cast<uint32_t>(bridge_now.timestamp);
+            dual_mcu::link.send_u32(
+              dual_mcu::MessageType::TIME_STATE,
+              id(bridge_last_time_epoch));
+            id(bridge_last_time_sent_ms) = millis();
+          }
+          const uint8_t status[] = {
+            static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
+            static_cast<uint8_t>(id(bridge_mqtt_client).is_connected() ? 0x01 : 0x00),
+          };
+          dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS,
+                              status, sizeof(status));
+          // Individual Home Assistant callbacks already push changed state.
+          // The periodic snapshot is only a loss-recovery guard; keeping it
+          // infrequent avoids a burst of redundant redraws on the S3.
+          if (millis() - id(bridge_last_snapshot_ms) >= 60000) {
+            id(send_bridge_snapshot).execute();
+          }
+
+  - interval: 15min
+    then:
+      - if:
+          condition:
+            api.connected:
+          then:
+            - script.execute: fetch_bridge_forecast

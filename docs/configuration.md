@@ -1,6 +1,15 @@
 # Configuration Model
 
-The device is configured in two layers.
+The current development device is configured in two layers. The retail target
+replaces this model with a Home Assistant config flow; normal buyers must not
+edit YAML, enter entity IDs or configure MQTT.
+
+## Release distinction
+
+- Stable reference: single-profile firmware `1.2.0`.
+- Current two-processor test candidate: S3 `1.2.0-ui-next.98`, ESP32
+  `1.2.0-ha-bridge.50`.
+- Retail factory release: not yet available.
 
 ## Device Runtime Settings
 
@@ -40,6 +49,10 @@ The blueprint selects from:
 - all Home Assistant `media_player` entities for the media target; choose a
   Music Assistant capable player for playlist/radio/podcast playback.
 - all Home Assistant `light` entities for light slots 1 to 4.
+
+This blueprint is the compatibility setup for existing installations. The
+planned `passion_wave` integration will make media, weather, Music Assistant
+and zero to four lights selectable in one UI-only reconfiguration flow.
 
 When the blueprint runs, it writes the selected entity IDs and their friendly
 names into the ESPHome text entities with `text.set_value`. The Rotaryknob then

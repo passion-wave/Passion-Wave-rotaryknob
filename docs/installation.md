@@ -3,41 +3,45 @@
 This guide installs the Passion Wave Rotaryknob firmware in ESPHome and links it
 to Home Assistant.
 
-For the public no-expert customer path, use
-`https://www.passion-wave.com/install/`. That path uses ESP Web Tools in the
-browser and does not require the customer to install ESPHome, clone this
-repository, compile firmware or run a flash command locally.
+The intended public no-expert path is
+`https://www.passion-wave.com/install/`. As of 2026-07-24 this path is a
+prototype, not a retail-ready installer: the final device has two processors
+and the current public manifest covers only one image.
 
 The customer still needs a USB data cable and a supported browser because Web
-Serial talks directly to the ESP32-S3 over USB. Use Chrome or Edge on desktop.
+Serial talks directly to the selected ESP32 over USB. Use Chrome or Edge on desktop.
 iOS browsers cannot do this flow.
 
-## Public Browser Install
+## Planned Public Browser Install
 
 This is the intended after-purchase flow:
 
-1. Connect the Rotaryknob to the browser device with USB.
+1. Connect the Rotaryknob to the browser device with USB in the orientation
+   that exposes the ESP32-S3.
 2. Open `https://www.passion-wave.com/install/`.
 3. Press `Install Rotaryknob`.
-4. Select the connected ESP32-S3 USB device.
-5. Let the browser flash the public factory firmware.
-6. Enter Wi-Fi when ESP Web Tools asks through Improv Serial.
-7. Open Home Assistant and confirm the discovered ESPHome device.
-8. Import the Passion Wave device blueprint from the install page.
-9. Select the media player and four light slots from Home Assistant pickers.
+4. Let the installer verify that the connected chip is the ESP32-S3 and flash
+   the S3 factory image.
+5. Provision Wi-Fi and verify the S3.
+6. Unplug the cable, reverse the USB-C plug and reconnect it.
+7. Let the installer verify that the connected chip is the classic ESP32 and
+   flash the bridge factory image.
+8. Provision Wi-Fi and verify both processors.
+9. Open Home Assistant and complete the Passion Wave config flow.
 
 Wi-Fi credentials entered in this flow are sent over USB to the device. They are
 not sent to Passion Wave.
 
 This browser path is technically possible and the website repository already
-contains the installer page and firmware manifest. Before it can be advertised
-for real customers, the matching public factory binary must be published at:
+contains an installer page and a single firmware manifest. Before it can be
+advertised for real customers, two factory manifests must be published:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/passion-wave-rotaryknob.factory.bin
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest.json
 ```
 
-That binary must be built from a sanitized public factory configuration:
+Both binaries must be built from sanitized public factory configurations:
 
 - no private Wi-Fi credentials;
 - no private MQTT credentials;
@@ -47,6 +51,10 @@ That binary must be built from a sanitized public factory configuration:
 - `improv_serial` enabled for browser Wi-Fi setup;
 - `captive_portal` enabled as fallback provisioning path;
 - `dashboard_import` enabled for ESPHome adoption.
+
+The installer must identify the chip before writing and refuse the wrong image.
+The detailed target structure is documented in
+[Customer product architecture](customer-product-architecture.md).
 
 The current private development build must not be uploaded as the public
 website firmware.
@@ -59,7 +67,7 @@ or flash firmware themselves.
 ## 1. Prepare ESPHome
 
 Install the ESPHome add-on in Home Assistant or use the ESPHome Docker image.
-The firmware currently targets ESPHome `2026.2.2`.
+The dual-MCU candidate currently targets ESPHome `2026.7.0`.
 
 Copy the repository `esphome/` folder into your ESPHome configuration
 directory, so the YAML is available as `esphome/passion-wave-rotaryknob.yaml`.

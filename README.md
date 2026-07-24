@@ -1,105 +1,76 @@
 # Passion Wave Rotaryknob
 
-Passion Wave Rotaryknob is an ESPHome/LVGL firmware blueprint for a round
-ESP32-S3 touch display with rotary encoder and haptic feedback. It turns the
-device into a compact Home Assistant controller for media, lights, weather,
-timer, alarm, rain radar and visual screensavers.
+Firmware and Home Assistant integration for the round JC3636K518C controller
+with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-The firmware exposes the important runtime choices directly as persistent Home
-Assistant device configuration entities:
+Current coordinated release: **2.0.0 — `responsiveness,nextUI`**.
 
-- Media entity ID and label
-- Light slot 1 entity ID and label
-- Light slot 2 entity ID and label
-- Light slot 3 entity ID and label
-- Light slot 4 entity ID and label
-- Rotary haptic effect
-- Timer done haptic effect
-- Screensaver timeout
-- Offline demo mode
+Version 2.0.0 preserves the 1.2.0 functional baseline while promoting the
+two-processor performance architecture, NextUI and the ungeflashed-device
+factory pipeline. Historical migration revisions remain documented for
+traceability.
 
-The recommended Home Assistant blueprint shows normal entity pickers for all
-available `media_player` and `light` entities, writes the selected targets into
-the device and mirrors the selected media player's runtime state, title, artist
-and cover URL so the Play/Pause icon and cover screensaver work with dynamic
-media targets.
+## Current architecture
 
-Without the blueprint, the firmware still supports dynamic media targets stored
-in the device text entity. It polls Home Assistant through `homeassistant.action`
-and a `response_template` to read Play/Pause state, title, artist, volume,
-progress and cover URL for the selected `media_player`. The blueprint is only a
-convenient entity-picker helper.
+- ESP32-S3: EC1 encoder, touch, LVGL rendering, haptics, local optimistic UI and
+  a compatibility network path.
+- ESP32: Home Assistant API actions/state, weather, Music Assistant library,
+  radar/floorplan/network assets and EC2 diagnostics.
+- Inter-processor link: 2 Mbit/s framed UART with COBS, CRC, priorities,
+  acknowledgements and bounded payloads.
+- Home Assistant: optional automation blueprints for device targets and Music
+  Assistant library paging.
 
-If the device starts without Wi-Fi, it automatically switches into an offline
-promo demo mode after a short timeout. The UI then uses local demo values for
-weather, lights and media browsing, while Home Assistant, MQTT and network image
-requests stay inactive. The `scrollwheel Demo` setting controls whether this
-offline demo is allowed. As soon as Wi-Fi is available again, demo mode is
-cleared and the normal Home Assistant integration resumes.
+Both processors retain independent OTA update paths. The S3 compatibility path
+must remain enabled until the final recovery and endurance gates are passed.
 
-## Repository Layout
+## Repository layout
 
-- `esphome/`: ESPHome firmware and required local include files.
-- `home_assistant/blueprints/`: optional Home Assistant automation blueprints.
-- `home_assistant/packages/`: optional Home Assistant packages for rain radar
-  and raw-mV light calibration.
-- `docs/`: installation and integration documentation.
-- `tools/`: local build and flash helpers.
+- `esphome/`: firmware profiles, local C++ components and assets.
+- `home_assistant/blueprints/`: Home Assistant automation blueprints.
+- `home_assistant/packages/`: advanced optional YAML packages.
+- `home-assistant/pyscript/`: advanced floorplan renderer; this legacy
+  directory name is scheduled for consolidation.
+- `docs/`: architecture, installation, migration, validation and product plan.
+- `tools/`: developer diagnostics and flash helpers.
 
-## Hardware Target
+## Installation status
 
-- ESP32-S3 board with 16 MB flash and PSRAM.
-- JC3636K518C round 360 x 360 QSPI display.
-- CST816 touch controller.
-- DRV2605 haptic driver with LRA motor.
-- Rotary encoder connected to `GPIO7` and `GPIO8`.
-- Backlight PWM on `GPIO47`.
-- Battery measurement on `GPIO1`.
+The repository now supplies separate credential-free S3 and ESP32 factory
+profiles, reproducible release artifacts and independent OTA paths. The public
+browser flow lives in `Passion-Wave-web`; private test credentials remain only
+in the development wrappers. Maintainers should follow
+[Installation](docs/installation.md) and
+[Unflashed customer onboarding](docs/unflashed-customer-onboarding.md).
 
-## Quick Install
+## Home Assistant
 
-1. Copy the files from `esphome/` into your ESPHome configuration directory.
-2. Add your Wi-Fi, MQTT and API secrets.
-3. Compile and flash `passion-wave-rotaryknob.yaml`.
-4. Import the Home Assistant blueprint from
-   `home_assistant/blueprints/automation/passion_wave/rotaryknob_device_defaults.yaml`
-   and create one automation from it.
-5. Select the ESPHome Rotaryknob device, one media player and four light slots.
-   Home Assistant automatically lists the compatible entities.
-6. For playlist, radio and podcast rows, publish Music Assistant library data to
-   the documented MQTT topics, or import
-   `home_assistant/blueprints/automation/passion_wave/rotaryknob_music_assistant_library.yaml`.
-   The bridge keeps retained bootstrap payloads small and serves larger
-   playlist/track lists through paged MQTT requests.
+The current blueprints use typed Home Assistant selectors:
 
-For showrooms, events or travel, the device can be powered without Wi-Fi. It
-will enter promo demo mode and remain locally usable until a known network is
-found.
+- [Dynamic targets](home_assistant/blueprints/automation/passion_wave/rotaryknob_device_defaults.yaml)
+  selects one media player and four light entities.
+- [Music Assistant library bridge](home_assistant/blueprints/automation/passion_wave/rotaryknob_music_assistant_library.yaml)
+  provides bounded, paged playlist, radio, podcast and track data.
 
-See [docs/installation.md](docs/installation.md) for the complete setup and
-[docs/automated-installation.md](docs/automated-installation.md) for the
-customer-facing browser install concept.
-The touch and rotary safety audit is documented in
-[docs/ux-assurance-report.md](docs/ux-assurance-report.md).
-The direct GPIO rotary recognition model is documented in
-[docs/rotary-recognition.md](docs/rotary-recognition.md).
-Crash and media-selection diagnostics are documented in
-[docs/debugging.md](docs/debugging.md).
-Raw light-sensor mV calibration is documented in
-[docs/light-mv-calibration.md](docs/light-mv-calibration.md).
+These blueprints are useful for development, but the final customer product
+should use a Home Assistant integration with a config flow so buyers never
+copy entity IDs, MQTT credentials or YAML.
 
-## Current Blueprint Scope
+## Documentation
 
-This repository provides an ESPHome firmware blueprint and an optional Home
-Assistant automation blueprint. ESPHome owns the runtime UI and service calls;
-Home Assistant exposes the device configuration through generated entities.
-
-The public defaults are anonymized. Runtime target routing is stored in device
-text entities and can be populated by the Home Assistant blueprint from real
-`media_player` and `light` entity selectors.
-
-Version `1.2.0` improves touch target sizing, the light and weather layouts,
-dynamic media status mirroring and the public guided installation path.
+- [Version 2.0 release](RELEASE.md)
+- [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
+- [Project review](docs/project-review.md)
+- [Customer product architecture](docs/customer-product-architecture.md)
+- [Dual-MCU performance framework](docs/dual-mcu-performance-framework.md)
+- [Dual-MCU Home Assistant bridge](docs/dual-mcu-ha-bridge.md)
+- [UI Next framework](docs/ui-next-framework.md)
+- [Migration roadmap](docs/final-migration-roadmap.md)
+- [Test installation](docs/dual-mcu-test-installation.md)
+- [Responsiveness test catalog](docs/stage1-responsiveness-test-catalog.md)
+- [End-to-end latency benchmark](docs/end-to-end-latency-benchmark.md)
+- [UX assurance report](docs/ux-assurance-report.md)
+- [Debugging](docs/debugging.md)
 
 ## License
 

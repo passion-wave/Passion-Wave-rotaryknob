@@ -9,14 +9,12 @@ The public wording should stay as short as possible:
 
 1. Connect the Rotaryknob by USB.
 2. Open `https://www.passion-wave.com/install`.
-3. Press `Install`.
-4. Choose Wi-Fi when the browser asks.
-5. Press `Open ESPHome in Home Assistant`.
-6. Confirm the discovered device.
-7. Press `Import device blueprint`.
-8. Select one media player and four lights from Home Assistant pickers.
-9. Optional: import the Music Assistant library blueprint for playlist, radio
-   and podcast lists.
+3. Flash and provision the detected S3.
+4. Unplug, reverse USB-C and reconnect.
+5. Flash and provision the detected ESP32.
+6. Press `Open Home Assistant`.
+7. Approve the discovered Passion Wave product.
+8. Select media, weather and optional lights from Home Assistant pickers.
 
 The customer should never copy entity IDs. Home Assistant owns entity discovery,
 so the blueprint selectors list the compatible `media_player` and `light`
@@ -39,8 +37,8 @@ entities directly.
 - Browser flashing through ESP Web Tools.
 - Wi-Fi provisioning over Improv Serial.
 - ESPHome discovery in Home Assistant.
-- Blueprint import through My Home Assistant links.
-- Media player and light selection through Home Assistant selectors.
+- Home Assistant integration setup through a My link.
+- Media player, weather and light selection through a config flow.
 - Persistent storage of the chosen targets on the ESPHome device.
 
 ## What Still Requires Confirmation
@@ -52,13 +50,14 @@ without user approval.
 
 ## Public Factory Firmware Requirements
 
-The website installer expects a sanitized factory binary:
+The website installer must consume two sanitized factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/passion-wave-rotaryknob.factory.bin
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest.json
 ```
 
-That binary must be built from a public factory configuration with:
+Each image must be built from a public factory configuration with:
 
 - no private Wi-Fi credentials;
 - no private API encryption key;
@@ -80,5 +79,11 @@ as website installer assets.
   all `media_player` and `light` entities.
 - The firmware stores selected media and light targets persistently and shows
   Wi-Fi, Home Assistant and IP status in settings.
-- The public factory binary is not committed. It must be produced and attached
-  to the website only after the sanitized factory configuration is verified.
+- The current manifest models only one processor.
+- Neither production factory binary is published.
+- Chip verification, plug-reversal guidance, pairing and the no-code Home
+  Assistant config flow are not implemented.
+
+The installer therefore remains a development prototype. See
+[Customer product architecture](customer-product-architecture.md) for the
+release design and acceptance stages.

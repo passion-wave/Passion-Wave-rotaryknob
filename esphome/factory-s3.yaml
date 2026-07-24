@@ -1,0 +1,66 @@
+packages:
+  application: !include dual-mcu-s3-core.yaml
+  public_defaults:
+    substitutions:
+      mqtt_host: "homeassistant.local"
+      mqtt_username: ""
+      mqtt_password: ""
+      ha_weather: "weather.forecast_home"
+      weather_location: "Home"
+      ha_base_url: "http://homeassistant.local:8123"
+      rain_radar_image_url: "http://homeassistant.local:8123/local/passion-wave/radar.jpg"
+      photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
+      photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
+      photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
+      house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
+
+substitutions:
+  name: "passion-wave-rotary-s3"
+  friendly_name: "Passion Wave Rotaryknob"
+  project_name: "passion-wave.rotaryknob-s3"
+  project_version: "2.0.0"
+  mqtt_host: "homeassistant.local"
+  mqtt_username: ""
+  mqtt_password: ""
+  ha_weather: "weather.forecast_home"
+  weather_location: "Home"
+  ha_base_url: "http://homeassistant.local:8123"
+  rain_radar_image_url: "http://homeassistant.local:8123/local/passion-wave/radar.jpg"
+  photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
+  photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
+  photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
+  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
+  ha_player: "media_player.passion_wave_media"
+  light_1_entity: "light.passion_wave_light_1"
+  light_1_preset_select: "select.passion_wave_wled_preset_1"
+
+esphome:
+  name: "${name}"
+  friendly_name: "${friendly_name}"
+  name_add_mac_suffix: true
+  build_path: build/passion_wave_factory_s3
+  project:
+    name: "${project_name}"
+    version: "${project_version}"
+
+dashboard_import:
+  package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-s3.yaml@main
+  import_full_config: false
+
+wifi:
+  ssid: !remove
+  password: !remove
+  ap:
+    ssid: "Passion Wave Setup S3"
+    password: "passion-wave"
+
+captive_portal:
+
+improv_serial:
+  next_url: https://www.passion-wave.com/install/?stage=s3-done&ip={{ip_address}}&name={{device_name}}&version={{esphome_version}}
+
+mqtt:
+  broker: "homeassistant.local"
+  username: ""
+  password: ""
+  enable_on_boot: false

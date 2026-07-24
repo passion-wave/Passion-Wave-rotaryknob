@@ -1,119 +1,112 @@
 # Rotary Recognition
 
-The JC3636K518C knob used by Passion Wave Rotaryknob is not handled as a
-classic quadrature encoder. Practical testing against the guition
-JC3636K718C implementation showed that the hardware emits one clean active-low
-pulse per detent, while the direction is encoded by the pin that pulses.
+The JC3636K518C knob is not a quadrature encoder. It provides one active-low
+pulse output per direction, duplicated as EC1 and EC2 for the two processors.
+One falling edge represents one mechanical detent; the wire identifies the
+direction.
 
-## Hardware Mapping
+## Hardware mapping and authority
 
-| Pin | Direction | Step |
-| --- | --- | --- |
-| `GPIO7` | counter-clockwise / left | `-1` |
-| `GPIO8` | clockwise / right | `+1` |
+| Path | Pin | Signal | Direction | Step | Role |
+| --- | --- | --- | --- | --- | --- |
+| EC1 / ESP32-S3 | `GPIO7` | `EC1_B` | counter-clockwise / left | `-1` | authoritative UI input |
+| EC1 / ESP32-S3 | `GPIO8` | `EC1_A` | clockwise / right | `+1` | authoritative UI input |
+| EC2 / ESP32 | `GPIO22` | `EC2_B` | counter-clockwise / left | `-1` | diagnostic only |
+| EC2 / ESP32 | `GPIO19` | `EC2_A` | clockwise / right | `+1` | diagnostic only |
 
-Both pins are configured as internal GPIO binary sensors with pull-ups and
-`inverted: true`. Every `on_press` updates the shared `knob_delta` counter.
+The measured EC1 log produced exclusively unit increments, whereas EC2 had
+large jumps. EC1 therefore remains authoritative. Never add EC1 and EC2: both
+describe the same physical movement and would duplicate detents.
 
-## Current Implementation
+## Why the 1.2.0 reader became sluggish
 
-The firmware uses this direct pulse model:
+The original implementation represented GPIO7 and GPIO8 as ESPHome GPIO binary
+sensors. Their `on_press` callbacks modified one shared `knob_delta`, and a
+20 ms application interval read and cleared it.
 
-```yaml
-binary_sensor:
-  - platform: gpio
-    id: knob_left
-    internal: true
-    pin:
-      number: GPIO7
-      inverted: true
-      mode:
-        input: true
-        pullup: true
-    on_press:
-      - lambda: |-
-          id(knob_delta)--;
-          id(ui_last_activity_ms) = millis();
+That design had three loss mechanisms under fast input or S3 load:
 
-  - platform: gpio
-    id: knob_right
-    internal: true
-    pin:
-      number: GPIO8
-      inverted: true
-      mode:
-        input: true
-        pullup: true
-    on_press:
-      - lambda: |-
-          id(knob_delta)++;
-          id(ui_last_activity_ms) = millis();
-```
+- pulse recognition depended on the application loop observing the GPIO
+  component's latest state;
+- a complete short pulse could occur while LVGL, image decode or networking
+  occupied that loop;
+- `knob_delta` was cleared before sleep and page checks, permanently discarding
+  already detected movement.
 
-The 20 ms interval consumes the accumulated delta and keeps the existing
-page-specific action logic unchanged:
+Polling that design faster would reduce average latency but would not make
+acquisition independent of application-loop stalls.
+
+## Implemented PCNT acquisition
+
+[`ec1_pcnt_encoder.h`](../esphome/ec1_pcnt_encoder.h) configures two independent
+ESP32-S3 hardware pulse-counter units:
+
+- GPIO7 and GPIO8 each own one PCNT unit;
+- both active-low inputs explicitly retain their internal pull-ups after the
+  PCNT GPIO matrix claims them;
+- only the falling edge increments the corresponding counter;
+- a 10 microsecond hardware glitch filter rejects very short electrical
+  spikes;
+- high and low watch points enable the ESP-IDF overflow accumulator;
+- runtime reads never clear the hardware counters.
+
+Using separate left and right counters prevents opposite pulses from hiding
+acquisition statistics. The UI obtains a batch every 10 ms and calculates:
 
 ```cpp
-int steps = id(knob_delta);
-id(knob_delta) = 0;
-if (id(display_sleeping)) {
-  return;
-}
-if (steps == 0) {
-  return;
-}
+const auto batch = ec1_pcnt::encoder.take();
+const int steps = batch.right - batch.left;
 ```
 
-All pages continue to use the same `steps` variable:
+PCNT keeps counting while the application loop is busy. A delayed UI cycle
+therefore receives the complete accumulated batch instead of losing pulses.
+The existing page-specific logic consumes the same signed `steps` value, so
+all 1.2.0 behavior remains intact:
 
-- Page 1: brightness or scene selection.
-- Page 2 and 6: volume or media selection.
-- Page 11: timer adjustment.
-- Page 12: alarm hour/minute adjustment.
+- page 1: brightness or scene selection;
+- pages 2 and 6: volume or media selection;
+- page 11: timer adjustment;
+- page 12: alarm hour/minute adjustment.
 
-Rotary haptics are still only played when the current page consumes the rotary
-step.
+Haptics still run only when the active page consumes a rotary action.
 
-## Removed Legacy Decoder
+## Sleep and reporting behavior
 
-The older implementation used a custom ISR accumulation decoder in
-`encoder_pulse_decoder.h` with pulse balancing, thresholds and burst
-finalization. That model treated the knob like a noisy multi-pulse encoder and
-introduced latency, swallowed steps, duplicate steps and occasional direction
-errors.
+Any encoder pulse updates UI activity and restores an externally powered,
+dimmed display. The first batch received during full display sleep wakes the
+display and is not applied to a setting; subsequent detents operate normally.
 
-The legacy header is intentionally no longer part of the ESPHome include list.
-The installation structure must not reference it.
+Home Assistant diagnostics are deliberately decoupled from the realtime path
+and published once per second:
 
-## Sleep And Dimming Behavior
+- `EC1 Encoder Ready`;
+- `EC1 Encoder Net Count`;
+- `EC1 Encoder Left Pulses` and `EC1 Encoder Right Pulses`;
+- `EC1 Encoder Read Errors`;
+- `EC1 Encoder Maximum Batch`.
 
-When the display is fully sleeping on battery, rotary input is ignored after
-the delta is consumed. This prevents a knob bump from waking a battery-powered
-device.
-
-When the device is externally powered and only dimmed for display protection,
-touch or rotary activity restores the normal backlight level without changing
-the page-specific rotary semantics.
+The dual-MCU test forwards a 10 Hz EC1 snapshot over UART for comparison with
+EC2. Network publishing and UART transmission never occur in an encoder ISR.
 
 ## Verification
 
-Run:
+Build the S3 profile and then test on the dedicated test device:
 
 ```sh
-./tools/config.sh esphome/passion-wave-rotaryknob.yaml
-./tools/build.sh esphome/passion-wave-rotaryknob.yaml
+./tools/config.sh esphome/dual-mcu-test-s3.yaml
+./tools/build.sh esphome/dual-mcu-test-s3.yaml
 ```
 
-Then flash and verify on device:
+Acceptance criteria:
 
-- One detent left creates exactly one negative step.
-- One detent right creates exactly one positive step.
-- Direction is correct on the light page.
-- No phantom steps happen while idle.
-- Fast rotation does not create delayed catch-up bursts.
-- Page behavior remains correct on pages 1, 2, 6, 11 and 12.
+- `EC1 Encoder Ready` is on and read errors remain zero;
+- each slow detent changes exactly one directional counter by one;
+- direction is correct on every rotary-enabled page;
+- fast spins produce the full expected movement without a delayed phantom
+  burst;
+- no counts change while idle;
+- a sleeping display wakes on the first detent and responds from the next;
+- EC2 mismatch is recorded but never changes UI behavior.
 
-If a future hardware revision loses pulses under heavy LVGL load, the fallback
-is an interrupt-based one-pulse-per-step decoder with no pulse thresholding and
-no burst finalization. Direction should still be determined only by whether
-`GPIO7` or `GPIO8` pulsed.
+The broader processor split, scheduling rules and staged migration are defined
+in [`dual-mcu-performance-framework.md`](dual-mcu-performance-framework.md).

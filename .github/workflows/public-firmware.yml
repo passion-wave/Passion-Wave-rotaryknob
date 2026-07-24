@@ -1,0 +1,35 @@
+name: Public dual-MCU firmware
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "factory-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/esphome/esphome:2026.7.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject tracked secrets
+        run: test ! -e esphome/secrets.yaml
+      - name: Compile S3 factory image
+        run: esphome compile esphome/factory-s3.yaml
+      - name: Compile ESP32 factory image
+        run: esphome compile esphome/factory-esp32.yaml
+      - name: Assemble release
+        run: |
+          mkdir -p release/s3 release/esp32
+          cp esphome/.esphome/build/passion_wave_factory_s3/build/firmware.factory.bin release/s3/passion-wave-rotaryknob-s3.factory.bin
+          cp esphome/.esphome/build/passion_wave_factory_esp32/build/firmware.factory.bin release/esp32/passion-wave-rotaryknob-esp32.factory.bin
+          cd release
+          sha256sum s3/*.bin esp32/*.bin > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: passion-wave-dual-mcu-factory
+          path: release/
+          if-no-files-found: error

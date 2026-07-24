@@ -2,6 +2,8 @@
 .esphome/
 .esphome_cache/
 secrets.yaml
+__pycache__/
+*.py[cod]
 *.bin
 *.elf
 *.map

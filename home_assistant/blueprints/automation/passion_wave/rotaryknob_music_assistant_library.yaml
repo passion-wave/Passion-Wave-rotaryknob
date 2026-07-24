@@ -7,6 +7,9 @@ blueprint:
     available, paged playlist-track requests from the device.
   domain: automation
   source_url: https://github.com/Passion-Wave/Passion-Wave-rotaryknob/blob/main/home_assistant/blueprints/automation/passion_wave/rotaryknob_music_assistant_library.yaml
+  author: Passion Wave
+  homeassistant:
+    min_version: "2024.10.0"
   input:
     music_assistant_instance:
       name: Music Assistant instance
@@ -27,7 +30,7 @@ blueprint:
           step: 5
           mode: slider
 
-mode: queued
+mode: parallel
 max: 10
 
 triggers:
@@ -50,8 +53,8 @@ triggers:
 actions:
   - choose:
       - conditions:
-          - condition: template
-            value_template: "{{ trigger.id == 'playlist_request' }}"
+          - condition: trigger
+            id: playlist_request
         sequence:
           - variables:
               payload: "{{ trigger.payload_json if trigger.payload_json is defined and trigger.payload_json is mapping else {} }}"
@@ -97,8 +100,8 @@ actions:
                 ) | to_json }}
 
       - conditions:
-          - condition: template
-            value_template: "{{ trigger.id == 'playlist_tracks_request' }}"
+          - condition: trigger
+            id: playlist_tracks_request
         sequence:
           - variables:
               payload: "{{ trigger.payload_json if trigger.payload_json is defined and trigger.payload_json is mapping else {} }}"
@@ -200,8 +203,8 @@ actions:
                     ) | to_json }}
 
       - conditions:
-          - condition: template
-            value_template: "{{ trigger.id == 'refresh_static' }}"
+          - condition: trigger
+            id: refresh_static
         sequence:
           - action: music_assistant.get_library
             data:

@@ -1,0 +1,31 @@
+packages:
+  application: !include dual-mcu-esp32-core.yaml
+  remove_public_ota:
+    ota: !remove
+  private_ota:
+    ota:
+      - platform: esphome
+        id: ota_esphome
+        password: !secret ota_password
+
+# Private test-device wrapper. Factory builds include the core directly.
+mqtt:
+  id: bridge_mqtt_client
+  broker: !secret mqtt_host
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+
+api:
+  id: esp32_api
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_encryption_key
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  reboot_timeout: 0s
+  ap:
+    ssid: "Passion Wave Dual MCU Fallback"
+    password: !secret fallback_ap_password

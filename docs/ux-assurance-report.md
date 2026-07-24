@@ -1,6 +1,6 @@
 # UX Assurance Report
 
-Stand: 2026-05-19
+Stand: 2026-07-24
 
 Dieser Bericht bewertet die Bedienbarkeit der Passion Wave Rotaryknob Firmware
 auf dem runden 360 x 360 Display. Grundlage ist eine statische Pruefung der
@@ -53,7 +53,7 @@ und der Scroll-/Listenlogik.
 | Media Previous/Next | 48 x 48 px. | OK | Umgesetzt. |
 | Media Liste oeffnen | 48 x 48 sichtbar plus 64 x 64 Overlay. | OK | Keine Aenderung notwendig. |
 | Media Shuffle/Repeat | 48 x 48 px. | OK | Keine Aenderung notwendig. |
-| Media Auswahl-Popup schliessen | Close 44 x 44 px. | OK | Umgesetzt. |
+| Media Auswahl-Popup schliessen | Haus-Hitbox 60 x 48 px; 12 px breiter als das sichtbare Symbol und vom runden Rand eingerueckt. | OK | Revision `.98`. |
 | Media Tabs Liste/Playlist/Radio/Podcast | Tabs 62 x 44 px. | OK | Umgesetzt. |
 | Media Popup Listeneintraege | Zeilen 248 x 44 px, Liste scrollbar, Rotary folgt Auswahl. | OK | Scrollziel auf 48-px-Zeilenschritt angepasst. |
 | Media Popup Scrollen | `LV_DIR_VER`, Scrollbar auto, Scroll-Chain aus, `lv_obj_scroll_to_y`. | OK | Keine Aenderung notwendig. |

@@ -9,6 +9,9 @@ blueprint:
     cover URL to the device so the UI can reflect dynamic media targets.
   domain: automation
   source_url: https://github.com/Passion-Wave/Passion-Wave-rotaryknob/blob/main/home_assistant/blueprints/automation/passion_wave/rotaryknob_device_defaults.yaml
+  author: Passion Wave
+  homeassistant:
+    min_version: "2024.10.0"
   input:
     knob_device:
       name: Rotaryknob device

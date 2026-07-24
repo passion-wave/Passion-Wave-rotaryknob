@@ -1,0 +1,2294 @@
+packages:
+  stable_1_2_0: !include passion-wave-rotaryknob-core.yaml
+
+# This test profile deliberately extends, rather than copies, the complete
+# 1.2.0 firmware. All display, touch, haptic, media, weather, light, timer,
+# alarm, MQTT and Home Assistant behavior therefore remains active on the S3.
+substitutions:
+  name: "passion-wave-rotary-test-s3"
+  friendly_name: "Passion Wave Rotaryknob Test S3"
+  project_name: "passion-wave.rotaryknob-test-s3"
+  project_version: "2.0.0"
+  ui_next_enabled: "true"
+  dual_mcu_ha_bridge_enabled: "true"
+  dual_mcu_stage1_performance_enabled: "true"
+  dual_mcu_stage2_library_offload_enabled: "true"
+  # Native Music Assistant counterpart of the Sonos entity
+  # media_player.unnamed_room (same RINCON unique ID).
+  ha_player: "media_player.roam_2"
+  light_1_entity: "light.buero_monitor_wled"
+  light_1_preset_select: "select.buero_monitor_wled_preset"
+  media_debug_topic: "passion_wave/rotaryknob_test_s3/media/debug"
+  mqtt_host: "homeassistant.local"
+  mqtt_username: ""
+  mqtt_password: ""
+  ha_weather: "weather.forecast_home"
+  weather_location: "Home"
+  ha_base_url: "http://homeassistant.local:8123"
+  rain_radar_image_url: "http://homeassistant.local:8123/local/passion-wave/radar.jpg"
+  photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
+  photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
+  photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
+  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
+
+esphome:
+  min_version: 2026.7.0
+  build_path: build/passion_wave_dual_mcu_s3_test
+  # ESPHome 2026.7 supplies ArduinoJson as an ESP-IDF component. Remove only
+  # the inherited PlatformIO duplicate; <ArduinoJson.h> remains available.
+  platformio_options:
+    lib_deps: !remove
+  includes:
+    - dual_mcu_link.h
+    - dual_mcu_radar_proxy.h
+    - dual_mcu_library_proxy.h
+
+# Do not offer to replace this diagnostic profile from the public dashboard
+# import. The inherited runtime functionality remains unchanged.
+dashboard_import: !remove
+
+uart:
+  id: inter_mcu_uart
+  tx_pin: GPIO38
+  rx_pin: GPIO48
+  baud_rate: 2000000
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+  rx_buffer_size: 512
+
+globals:
+  - id: dual_mcu_link_initialized
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_s3_ec1_count
+    type: int32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_remote_ec2_count
+    type: int32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_last_esp32_heartbeat_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_last_stats_publish_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_last_time_state_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_last_device_status_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_last_device_battery_pct
+    type: int
+    restore_value: false
+    initial_value: '-1'
+  - id: dual_mcu_last_device_external_power
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_last_encoder_publish_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_last_ping_token
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_last_snapshot_request_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_last_forecast_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_stage1_bridge_ready_since_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_stage1_fallback_network_active
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_stage1_fallback_started_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_stage1_fallback_refresh_sent
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_ui_slice_last_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_ui_slice_max_gap_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_ha_bridge_radar
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_ha_bridge_library
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_library_last_request_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_library_desired_mask
+    type: uint8_t
+    restore_value: false
+    initial_value: '15'
+  - id: dual_mcu_wled_preset_pending_names
+    type: std::vector<std::string>
+    restore_value: false
+  - id: dual_mcu_wled_preset_pending_mask
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_wled_preset_pending_generation
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_probe_sequence
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_probe_started_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_probe_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: latency_local_dispatch_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_uart_roundtrip_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_last_ha_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_last_total_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_benchmark_active
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: latency_benchmark_remaining
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_benchmark_next_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_timeout_count
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: latency_samples_us
+    type: std::vector<uint32_t>
+    restore_value: false
+  - id: music_latency_probe_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: music_latency_probe_started_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_probe_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: volume_probe_started_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_probe_expected_sequence
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_probe_local_render_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_probe_uart_us
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_probe_next_target_pct
+    type: uint8_t
+    restore_value: false
+    initial_value: '2'
+  - id: volume_benchmark_active
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: volume_benchmark_remaining
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_benchmark_next_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_probe_timeouts
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: volume_probe_samples_us
+    type: std::vector<uint32_t>
+    restore_value: false
+
+binary_sensor:
+  - platform: template
+    id: dual_mcu_esp32_link_connected
+    name: "ESP32 Coprocessor Link"
+    device_class: connectivity
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_ha_bridge_connected
+    name: "ESP32 Home Assistant Bridge"
+    device_class: connectivity
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_stage1_fallback_active_sensor
+    name: "S3 Compatibility Network Fallback"
+    device_class: running
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_bridge_time_synced
+    name: "ESP32 Bridge Time Synced"
+    device_class: connectivity
+    entity_category: diagnostic
+
+switch:
+  - platform: template
+    id: dual_mcu_s3_network_rescue
+    name: "S3 Network Rescue Mode"
+    icon: "mdi:lifebuoy"
+    entity_category: config
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    turn_on_action:
+      - lambda: |-
+          id(dual_mcu_s3_rescue_mode_enabled) = true;
+          id(dual_mcu_stage1_fallback_network_active) = true;
+          id(dual_mcu_s3_library_fallback_active) = true;
+          id(dual_mcu_stage1_fallback_started_ms) = millis();
+          id(dual_mcu_stage1_fallback_refresh_sent) = false;
+          id(dual_mcu_stage1_fallback_active_sensor).publish_state(true);
+          id(dual_mcu_library_proxy_status).publish_state(
+            "S3 Rescue bewusst aktiviert");
+      - mqtt.enable:
+          id: mqtt_client
+      - delay: 2s
+      - script.execute: fetch_weather
+      - script.execute: fetch_rain_eta
+    turn_off_action:
+      - mqtt.disable:
+          id: mqtt_client
+      - lambda: |-
+          id(dual_mcu_s3_rescue_mode_enabled) = false;
+          id(dual_mcu_stage1_fallback_network_active) = false;
+          id(dual_mcu_s3_library_fallback_active) = false;
+          id(dual_mcu_stage1_fallback_started_ms) = 0;
+          id(dual_mcu_stage1_fallback_refresh_sent) = false;
+          id(dual_mcu_stage1_fallback_active_sensor).publish_state(false);
+          id(dual_mcu_library_proxy_status).publish_state(
+            id(dual_mcu_ha_bridge_ready)
+              ? "ESP32 Bibliothek aktiv"
+              : "ESP32 Bridge fehlt · Rescue aus");
+
+sensor:
+  - platform: template
+    id: dual_mcu_s3_ec1_count_sensor
+    name: "S3 EC1 Diagnostic Count"
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: dual_mcu_esp32_ec2_count_sensor
+    name: "ESP32 EC2 Diagnostic Count"
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: dual_mcu_encoder_difference_sensor
+    name: "EC1 minus EC2 Count"
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: dual_mcu_protocol_error_sensor
+    name: "Inter-MCU Protocol Errors"
+    accuracy_decimals: 0
+    state_class: total_increasing
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: dual_mcu_link_ping_sensor
+    name: "ESP32 Coprocessor Ping"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_ui_scheduler_gap_sensor
+    name: "S3 UI Scheduler Gap"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: dual_mcu_bridge_time_age_sensor
+    name: "ESP32 Bridge Time Age"
+    unit_of_measurement: s
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: dual_mcu_radar_proxy_bytes
+    name: "S3 Radar Proxy Bytes"
+    accuracy_decimals: 0
+    unit_of_measurement: B
+    state_class: measurement
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_local_dispatch_sensor
+    name: "E2E Local Dispatch"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_uart_roundtrip_sensor
+    name: "E2E UART Round Trip"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_ha_roundtrip_sensor
+    name: "E2E Home Assistant Round Trip"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_total_sensor
+    name: "E2E Total Round Trip"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_p50_sensor
+    name: "E2E Benchmark P50"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_p95_sensor
+    name: "E2E Benchmark P95"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_max_sensor
+    name: "E2E Benchmark Maximum"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_probe_count_sensor
+    name: "E2E Successful Probes"
+    accuracy_decimals: 0
+    state_class: total
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: latency_timeout_count_sensor
+    name: "E2E Probe Timeouts"
+    accuracy_decimals: 0
+    state_class: total
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: music_latency_bridge_accept_sensor
+    name: "Music Assistant Bridge Accept"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: music_latency_total_sensor
+    name: "Music Assistant Player Ready"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: volume_local_render_sensor
+    name: "Volume SIL Local Render"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: volume_bridge_accept_sensor
+    name: "Volume SIL Bridge Accept"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: volume_ha_confirm_sensor
+    name: "Volume SIL HA Confirm"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: volume_total_sensor
+    name: "Volume SIL Total"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: volume_p50_sensor
+    name: "Volume SIL Benchmark P50"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: volume_p95_sensor
+    name: "Volume SIL Benchmark P95"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
+    id: volume_max_sensor
+    name: "Volume SIL Benchmark Maximum"
+    unit_of_measurement: ms
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 3
+    update_interval: never
+    entity_category: diagnostic
+
+text_sensor:
+  - platform: template
+    id: dual_mcu_s3_status
+    name: "Coprocessor Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_forecast_conditions_text
+    name: "S3 Forecast Conditions Received"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_radar_proxy_status
+    name: "S3 Radar Proxy Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_library_proxy_status
+    name: "S3 Library Proxy Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_wled_preset_status
+    name: "S3 WLED Preset Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: dual_mcu_media_selection_status
+    name: "S3 Media Selection Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: latency_probe_status
+    name: "E2E Latency Probe Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: music_latency_probe_status
+    name: "Music Assistant Latency Probe Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: volume_probe_status
+    name: "Volume SIL Status"
+    update_interval: never
+    entity_category: diagnostic
+
+button:
+  - platform: template
+    name: "Ping ESP32 Coprocessor"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          id(dual_mcu_last_ping_token) = millis();
+          dual_mcu::link.send_u32(dual_mcu::MessageType::PING,
+                                  id(dual_mcu_last_ping_token));
+
+  - platform: template
+    name: "Run E2E Latency Probe"
+    entity_category: diagnostic
+    on_press:
+      - script.execute: start_latency_probe
+
+  - platform: template
+    name: "Run E2E Latency Benchmark"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          if (id(latency_probe_pending)) return;
+          id(latency_samples_us).clear();
+          id(latency_timeout_count) = 0;
+          id(latency_benchmark_remaining) = 25;
+          id(latency_benchmark_active) = true;
+          // Let the three benchmark-start state publications leave the API
+          // queue before timing the first sample.
+          id(latency_benchmark_next_ms) = millis() + 250;
+          id(latency_probe_count_sensor).publish_state(0);
+          id(latency_timeout_count_sensor).publish_state(0);
+          id(latency_probe_status).publish_state("Benchmark läuft: 25 Messungen");
+
+  - platform: template
+    name: "Run Music Assistant Start Probe"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          if (id(music_latency_probe_pending) ||
+              !id(dual_mcu_esp32_link_connected).state ||
+              !id(dual_mcu_ha_bridge_media_selection)) {
+            id(music_latency_probe_status).publish_state(
+              id(music_latency_probe_pending) ? "Musikmessung läuft bereits" :
+              "Music-Assistant-Bridge nicht bereit");
+            return;
+          }
+          constexpr uint16_t probe_index = 9;
+          id(music_latency_probe_pending) = true;
+          id(music_latency_probe_started_us) = micros();
+          // Exercise the same UI acknowledgement state as a real selection,
+          // using a non-zero playlist index to guard against index-correlation
+          // regressions.
+          id(media_selection_loading) = true;
+          id(media_selection_started_ms) = millis();
+          id(media_selection_pending_kind) =
+            static_cast<int>(dual_mcu::LibraryKind::PLAYLIST_PAGE);
+          id(media_selection_pending_index) = probe_index;
+          id(media_selection_bridge_accepted) = false;
+          id(media_selection_loading_text) = "Playlist-Korrelationstest";
+          const bool sent = dual_mcu::link.send_media_library_play(
+            static_cast<uint8_t>(dual_mcu::LibraryKind::PLAYLIST_PAGE),
+            probe_index);
+          if (!sent) {
+            id(music_latency_probe_pending) = false;
+            id(media_selection_loading) = false;
+            id(media_selection_started_ms) = 0;
+            id(media_selection_pending_kind) = -1;
+            id(media_selection_pending_index) = -1;
+            id(music_latency_probe_status).publish_state("UART-Senden fehlgeschlagen");
+          } else {
+            id(music_latency_probe_status).publish_state(
+              "Teste Playlist-Index 9 auf ${ha_player}");
+          }
+
+  - platform: template
+    name: "Run Encoder Volume SIL Probe"
+    entity_category: diagnostic
+    on_press:
+      - script.execute:
+          id: start_volume_probe
+          target_pct: !lambda 'return id(volume_probe_next_target_pct);'
+
+  - platform: template
+    name: "Run Encoder Volume SIL Benchmark"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          if (id(volume_probe_pending) || id(volume_benchmark_active)) return;
+          id(volume_probe_samples_us).clear();
+          id(volume_probe_timeouts) = 0;
+          id(volume_benchmark_remaining) = 20;
+          id(volume_benchmark_active) = true;
+          id(volume_benchmark_next_ms) = millis() + 250;
+          id(volume_probe_next_target_pct) = 2;
+          id(volume_probe_status).publish_state(
+            "Benchmark läuft: 20 Änderungen zwischen 0 und 2 %");
+
+script:
+  - id: refresh_house_image_after_change
+    mode: restart
+    then:
+      # Multiple grouped lights often report within the same few hundred
+      # milliseconds. Collapse them into one Home Assistant render and one
+      # UART asset transfer without delaying the visible result unnecessarily.
+      - delay: 350ms
+      - if:
+          condition:
+            lambda: |-
+              return id(current_page) == 10 &&
+                     !id(display_sleeping) &&
+                     id(dual_mcu_ha_bridge_ready);
+          then:
+            - script.execute: refresh_house_image
+
+  - id: start_volume_probe
+    mode: single
+    parameters:
+      target_pct: int
+    then:
+      - lambda: |-
+          if (id(volume_probe_pending) ||
+              !id(dual_mcu_esp32_link_connected).state ||
+              !id(dual_mcu_ha_bridge_ready)) {
+            if (!id(volume_benchmark_active)) {
+              id(volume_probe_status).publish_state(
+                id(volume_probe_pending) ? "Volumenmessung läuft bereits" :
+                "ESP32/HA-Bridge nicht bereit");
+            }
+            return;
+          }
+          const int safe_target = std::clamp(target_pct, 0, 100);
+          id(volume_probe_pending) = true;
+          id(volume_probe_started_us) = micros();
+          id(volume_probe_expected_sequence) =
+            id(media_volume_command_sequence) + 1;
+
+          // Software-in-the-loop injection at the same semantic point as a
+          // decoded EC1 detent: optimistic state, minimal LVGL paint, then the
+          // productive media_sync_remote transport.
+          id(display_volume_level) = safe_target / 100.0f;
+          id(volume_override_active) = true;
+          id(volume_override_until_ms) = millis() + 350;
+          id(media_pending_volume_sync) = true;
+          id(media_volume_sync_deadline_ms) = millis();
+          id(media_ui_dirty) = true;
+          ui_next::framework.update_media_volume(safe_target);
+          if (id(media_ring_arc) != nullptr)
+            lv_arc_set_value(id(media_ring_arc), safe_target);
+          if (id(media_cover_volume_arc) != nullptr)
+            lv_arc_set_value(id(media_cover_volume_arc), safe_target);
+          id(volume_probe_local_render_us) =
+            micros() - id(volume_probe_started_us);
+          id(media_sync_remote).execute();
+          id(volume_probe_next_target_pct) = safe_target == 0 ? 2 : 0;
+
+  - id: start_latency_probe
+    mode: single
+    then:
+      - lambda: |-
+          if (id(latency_probe_pending) || !id(dual_mcu_esp32_link_connected).state) {
+            id(latency_probe_status).publish_state(
+              id(latency_probe_pending) ? "Messung läuft bereits" : "ESP32-Link fehlt");
+            return;
+          }
+          id(latency_probe_sequence)++;
+          id(latency_probe_pending) = true;
+          id(latency_probe_started_us) = micros();
+          const bool sent = dual_mcu::link.send_u32(
+            dual_mcu::MessageType::LATENCY_PROBE, id(latency_probe_sequence));
+          id(latency_local_dispatch_us) =
+            micros() - id(latency_probe_started_us);
+          if (!sent) {
+            id(latency_probe_pending) = false;
+            id(latency_probe_status).publish_state("UART-Senden fehlgeschlagen");
+          }
+
+  - id: finish_latency_benchmark
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(latency_benchmark_active) ||
+              id(latency_benchmark_remaining) != 0 ||
+              id(latency_probe_pending)) return;
+          id(latency_benchmark_active) = false;
+          auto sorted = id(latency_samples_us);
+          std::sort(sorted.begin(), sorted.end());
+          if (!sorted.empty()) {
+            const size_t p50 = (sorted.size() - 1) / 2;
+            const size_t p95 =
+              std::min(sorted.size() - 1,
+                       (sorted.size() * 95 + 99) / 100 - 1);
+            id(latency_local_dispatch_sensor).publish_state(
+              id(latency_local_dispatch_us) / 1000.0f);
+            id(latency_uart_roundtrip_sensor).publish_state(
+              id(latency_uart_roundtrip_us) / 1000.0f);
+            id(latency_ha_roundtrip_sensor).publish_state(
+              id(latency_last_ha_us) / 1000.0f);
+            id(latency_total_sensor).publish_state(
+              id(latency_last_total_us) / 1000.0f);
+            id(latency_p50_sensor).publish_state(sorted[p50] / 1000.0f);
+            id(latency_p95_sensor).publish_state(sorted[p95] / 1000.0f);
+            id(latency_max_sensor).publish_state(sorted.back() / 1000.0f);
+          }
+          id(latency_probe_count_sensor).publish_state(sorted.size());
+          id(latency_timeout_count_sensor).publish_state(id(latency_timeout_count));
+          id(latency_probe_status).publish_state(
+            std::string("Benchmark fertig: ") +
+            std::to_string(sorted.size()) + "/25 erfolgreich");
+
+  - id: finish_volume_benchmark
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(volume_benchmark_active) ||
+              id(volume_benchmark_remaining) != 0 ||
+              id(volume_probe_pending)) return;
+          id(volume_benchmark_active) = false;
+          auto sorted = id(volume_probe_samples_us);
+          std::sort(sorted.begin(), sorted.end());
+          if (!sorted.empty()) {
+            const size_t p50 = (sorted.size() - 1) / 2;
+            const size_t p95 = std::min(
+              sorted.size() - 1,
+              (sorted.size() * 95 + 99) / 100 - 1);
+            id(volume_p50_sensor).publish_state(sorted[p50] / 1000.0f);
+            id(volume_p95_sensor).publish_state(sorted[p95] / 1000.0f);
+            id(volume_max_sensor).publish_state(sorted.back() / 1000.0f);
+          }
+          id(volume_probe_status).publish_state(
+            std::string("Benchmark fertig: ") +
+            std::to_string(sorted.size()) +
+            "/20, Timeouts " + std::to_string(id(volume_probe_timeouts)));
+
+interval:
+  - interval: 1ms
+    then:
+      - lambda: |-
+          // Initialize as soon as normal interval scheduling begins. Keeping
+          // this out of the package overlay's on_boot prevents ESPHome from
+          // replacing the complete inherited 1.2.0 boot automation.
+          if (!id(dual_mcu_link_initialized)) {
+            // The inherited configuration field is intentionally restorable.
+            // Pin the test profile to the compiled MA target on every boot so
+            // an older stored Sonos entity cannot disable or misroute bridge
+            // actions after changing this profile's substitution.
+            id(media_target_entity_text).publish_state("${ha_player}");
+            dual_mcu::link.setup(id(inter_mcu_uart));
+            const uint8_t role[] = {'S', '3'};
+            dual_mcu::link.send(dual_mcu::MessageType::HELLO, role, sizeof(role));
+            id(dual_mcu_link_initialized) = true;
+            id(dual_mcu_s3_library_fallback_active) = false;
+            id(dual_mcu_stage1_fallback_active_sensor).publish_state(false);
+          }
+
+          const uint32_t slice_now = millis();
+          if (id(dual_mcu_ui_slice_last_ms) != 0) {
+            const uint32_t gap = slice_now - id(dual_mcu_ui_slice_last_ms);
+            if (gap > id(dual_mcu_ui_slice_max_gap_ms))
+              id(dual_mcu_ui_slice_max_gap_ms) = gap;
+          }
+          id(dual_mcu_ui_slice_last_ms) = slice_now;
+
+          dual_mcu::link.poll();
+          dual_mcu::Frame frame;
+          // Bound coprocessor work per LVGL scheduling slice. Control traffic
+          // is sent ahead of bulk frames by the ESP32, and the remaining
+          // frames stay queued for the next 2 ms slice.
+          uint8_t processed_frames = 0;
+          while (processed_frames < 8 && dual_mcu::link.pop_priority(&frame)) {
+            processed_frames++;
+            switch (frame.type) {
+              case dual_mcu::MessageType::HELLO:
+                id(dual_mcu_last_esp32_heartbeat_ms) = millis();
+                if (!id(dual_mcu_esp32_link_connected).state)
+                  id(dual_mcu_esp32_link_connected).publish_state(true);
+                if (id(dual_mcu_s3_status).state != "ESP32 verbunden; EC1 bleibt aktiv")
+                  id(dual_mcu_s3_status).publish_state("ESP32 verbunden; EC1 bleibt aktiv");
+                {
+                  const uint8_t role[] = {'S', '3'};
+                  dual_mcu::link.send(dual_mcu::MessageType::HELLO, role, sizeof(role));
+                }
+                dual_mcu::link.send(dual_mcu::MessageType::SNAPSHOT_REQUEST);
+                id(dual_mcu_last_snapshot_request_ms) = millis();
+                break;
+              case dual_mcu::MessageType::HEARTBEAT:
+                id(dual_mcu_last_esp32_heartbeat_ms) = millis();
+                if (!id(dual_mcu_esp32_link_connected).state)
+                  id(dual_mcu_esp32_link_connected).publish_state(true);
+                break;
+              case dual_mcu::MessageType::ENCODER_DELTA:
+                if (frame.length == 4) {
+                  id(dual_mcu_remote_ec2_count) +=
+                    dual_mcu::Link::read_i32(frame.payload.data());
+                }
+                break;
+              case dual_mcu::MessageType::PING:
+                dual_mcu::link.send(dual_mcu::MessageType::PONG,
+                                    frame.payload.data(), frame.length);
+                break;
+              case dual_mcu::MessageType::PONG:
+                if (frame.length == 4) {
+                  const uint32_t token = dual_mcu::Link::read_u32(frame.payload.data());
+                  id(dual_mcu_link_ping_sensor).publish_state(
+                    static_cast<float>(millis() - token));
+                }
+                break;
+              case dual_mcu::MessageType::LATENCY_BRIDGE_ACK:
+                if (frame.length == 4 && id(latency_probe_pending)) {
+                  const uint32_t sequence =
+                    dual_mcu::Link::read_u32(frame.payload.data());
+                  if (sequence == id(latency_probe_sequence)) {
+                    id(latency_uart_roundtrip_us) =
+                      micros() - id(latency_probe_started_us);
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::LATENCY_RESULT:
+                if (frame.length == 9 && id(latency_probe_pending)) {
+                  const uint32_t sequence =
+                    dual_mcu::Link::read_u32(&frame.payload[0]);
+                  if (sequence != id(latency_probe_sequence)) break;
+                  const uint32_t ha_us =
+                    dual_mcu::Link::read_u32(&frame.payload[4]);
+                  const uint8_t status = frame.payload[8];
+                  const uint32_t total_us =
+                    micros() - id(latency_probe_started_us);
+                  id(latency_probe_pending) = false;
+                  if (status == 0) {
+                    id(latency_last_ha_us) = ha_us;
+                    id(latency_last_total_us) = total_us;
+                    id(latency_samples_us).push_back(total_us);
+                    if (!id(latency_benchmark_active)) {
+                      id(latency_local_dispatch_sensor).publish_state(
+                        id(latency_local_dispatch_us) / 1000.0f);
+                      id(latency_uart_roundtrip_sensor).publish_state(
+                        id(latency_uart_roundtrip_us) / 1000.0f);
+                      id(latency_ha_roundtrip_sensor).publish_state(ha_us / 1000.0f);
+                      id(latency_total_sensor).publish_state(total_us / 1000.0f);
+                      id(latency_probe_count_sensor).publish_state(
+                        id(latency_samples_us).size());
+                      id(latency_probe_status).publish_state(
+                        std::string("OK #") + std::to_string(sequence) + ": " +
+                        to_string(total_us / 1000.0f) + " ms");
+                    }
+                  } else {
+                    id(latency_timeout_count)++;
+                    if (!id(latency_benchmark_active)) {
+                      id(latency_timeout_count_sensor).publish_state(
+                        id(latency_timeout_count));
+                      id(latency_probe_status).publish_state(
+                        std::string("Fehler #") + std::to_string(sequence) +
+                        " Status " + std::to_string(status));
+                    }
+                  }
+                  id(latency_benchmark_next_ms) = millis() + 120;
+                  id(finish_latency_benchmark).execute();
+                }
+                break;
+              case dual_mcu::MessageType::VOLUME_BRIDGE_ACK:
+                if (frame.length == 9 && id(volume_probe_pending)) {
+                  const uint32_t sequence =
+                    dual_mcu::Link::read_u32(&frame.payload[0]);
+                  if (sequence == id(volume_probe_expected_sequence)) {
+                    id(volume_probe_uart_us) =
+                      micros() - id(volume_probe_started_us);
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::VOLUME_RESULT:
+                if (frame.length == 9) {
+                  const uint32_t sequence =
+                    dual_mcu::Link::read_u32(&frame.payload[0]);
+                  const uint32_t ha_us =
+                    dual_mcu::Link::read_u32(&frame.payload[4]);
+                  const uint8_t status = frame.payload[8];
+                  // Confirmation completes telemetry, but it must not release
+                  // the local display accumulator during an active turn.
+                  if (!id(volume_probe_pending) ||
+                      sequence != id(volume_probe_expected_sequence)) break;
+                  const uint32_t total_us =
+                    micros() - id(volume_probe_started_us);
+                  id(volume_probe_pending) = false;
+                  id(volume_local_render_sensor).publish_state(
+                    id(volume_probe_local_render_us) / 1000.0f);
+                  id(volume_bridge_accept_sensor).publish_state(
+                    id(volume_probe_uart_us) / 1000.0f);
+                  id(volume_ha_confirm_sensor).publish_state(ha_us / 1000.0f);
+                  id(volume_total_sensor).publish_state(total_us / 1000.0f);
+                  if (status == 0) {
+                    id(volume_probe_samples_us).push_back(total_us);
+                    if (!id(volume_benchmark_active)) {
+                      id(volume_probe_status).publish_state(
+                        std::string("OK #") + std::to_string(sequence) +
+                        ": " + to_string(total_us / 1000.0f) + " ms");
+                    }
+                  } else {
+                    id(volume_probe_timeouts)++;
+                    if (!id(volume_benchmark_active)) {
+                      id(volume_probe_status).publish_state(
+                        std::string("Fehler #") + std::to_string(sequence) +
+                        " Status " + std::to_string(status));
+                    }
+                  }
+                  id(volume_benchmark_next_ms) = millis() + 150;
+                  id(finish_volume_benchmark).execute();
+                }
+                break;
+              case dual_mcu::MessageType::RESET_COUNTERS:
+                ec1_pcnt::encoder.reset_diagnostics();
+                dual_mcu::link.reset_stats();
+                id(dual_mcu_s3_ec1_count) = 0;
+                id(dual_mcu_remote_ec2_count) = 0;
+                id(dual_mcu_s3_ec1_count_sensor).publish_state(0);
+                id(dual_mcu_esp32_ec2_count_sensor).publish_state(0);
+                id(dual_mcu_encoder_difference_sensor).publish_state(0);
+                id(dual_mcu_ui_slice_max_gap_ms) = 0;
+                break;
+              case dual_mcu::MessageType::BRIDGE_STATUS:
+                if (frame.length >= 1) {
+                  const bool targets_match =
+                    id(media_target_entity_text).state == "${ha_player}" &&
+                    id(light_slot_1_entity_text).state == "${light_1_entity}" &&
+                    id(light_slot_2_entity_text).state == "${light_2_entity}" &&
+                    id(light_slot_3_entity_text).state == "${light_3_entity}" &&
+                    id(light_slot_4_entity_text).state == "${light_4_entity}";
+                  const bool was_ready = id(dual_mcu_ha_bridge_ready);
+                  const bool ready = (frame.payload[0] & 0x01) != 0 && targets_match;
+                  id(dual_mcu_ha_bridge_ready) = ready;
+                  id(dual_mcu_ha_bridge_extended_media) =
+                    ready && (frame.payload[0] & 0x02) != 0;
+                  id(dual_mcu_ha_bridge_media_selection) =
+                    ready && (frame.payload[0] & 0x80) != 0;
+                  id(dual_mcu_ha_bridge_weather) =
+                    ready && (frame.payload[0] & 0x04) != 0;
+                  id(dual_mcu_ha_bridge_radar) = (frame.payload[0] & 0x10) != 0;
+                  dual_mcu::radar_client.set_available(id(dual_mcu_ha_bridge_radar));
+                  id(dual_mcu_ha_bridge_library) = (frame.payload[0] & 0x20) != 0;
+                  dual_mcu::library_client.set_available(id(dual_mcu_ha_bridge_library));
+                  id(dual_mcu_library_response_proxy_available) =
+                    id(dual_mcu_ha_bridge_library);
+                  id(dual_mcu_library_request_proxy_available) =
+                    ready && frame.length >= 2 && (frame.payload[1] & 0x01) != 0;
+                  id(dual_mcu_ha_bridge_wled_presets) =
+                    ready && (frame.payload[0] & 0x40) != 0;
+                  if (!ready || (frame.payload[0] & 0x08) == 0) {
+                    id(dual_mcu_ha_bridge_forecast) = false;
+                  }
+                  id(dual_mcu_ha_bridge_last_state_ms) = millis();
+                  if (was_ready != ready)
+                    id(dual_mcu_ha_bridge_connected).publish_state(ready);
+                  const std::string status =
+                    ready ? (id(dual_mcu_ha_bridge_forecast) ?
+                               "ESP32 HA-Bridge + Forecast aktiv" :
+                               "ESP32 HA-Bridge aktiv") :
+                    (targets_match ? "ESP32 wartet auf Home Assistant" :
+                                     "HA-Bridge Zielkonfiguration abweichend");
+                  if (id(dual_mcu_s3_status).state != status)
+                    id(dual_mcu_s3_status).publish_state(status);
+                  // Warm the radar cache as soon as the coprocessor bridge is
+                  // ready. Opening Radar then paints immediately and merely
+                  // refreshes the already visible frame in the background.
+                  if (ready && !was_ready &&
+                      id(dual_mcu_ha_bridge_radar) &&
+                      !id(rain_radar_ready) &&
+                      !id(rain_radar_loading)) {
+                    id(dual_mcu_asset_pending_kind) =
+                      static_cast<uint8_t>(dual_mcu::AssetKind::RADAR);
+                    id(dual_mcu_asset_pending_argument) =
+                      static_cast<uint8_t>(
+                        std::clamp(id(rain_radar_zoom_level), 0, 2));
+                    id(dual_mcu_asset_pending_force) = true;
+                    id(rain_radar_loading) = true;
+                    id(rain_radar_loading_started_ms) = millis();
+                    id(rain_radar_status_text) = "Radar wird vorbereitet";
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::FLOORPLAN_INVALIDATED:
+                if (id(current_page) == 10 && !id(display_sleeping)) {
+                  id(house_floorplan_ready) = false;
+                  id(house_floorplan_error) = false;
+                  id(refresh_house_ui).execute();
+                  id(refresh_house_image_after_change).execute();
+                }
+                break;
+              case dual_mcu::MessageType::MEDIA_STATE:
+                if (id(dual_mcu_ha_bridge_ready)) {
+                  dual_mcu::MediaState media;
+                  if (!dual_mcu::Link::decode_media_state(frame, &media)) break;
+                  id(dual_mcu_ha_bridge_last_state_ms) = millis();
+                  const int optimistic_pct = std::clamp(
+                    static_cast<int>(lroundf(id(display_volume_level) * 100.0f)),
+                    0, 100);
+                  const bool override_valid =
+                    id(volume_override_active) &&
+                    millis() < id(volume_override_until_ms);
+                  if (!override_valid) {
+                    id(display_volume_level) = media.volume_pct / 100.0f;
+                    id(volume_override_active) = false;
+                  } else if (media.volume_pct == optimistic_pct) {
+                    // Matching feedback is acknowledged without releasing
+                    // the hold. A following detent must still start from the
+                    // locally displayed value, not from an older HA callback.
+                    id(display_volume_level) = optimistic_pct / 100.0f;
+                  }
+                  const uint8_t state = media.state;
+                  id(music_state_cache) = state == 3 ? "playing" :
+                                          state == 2 ? "paused" :
+                                          state == 4 ? "off" : "idle";
+                  id(media_is_playing) = state == 3;
+                  if (frame.length >= 11) {
+                    id(media_shuffle_enabled) = media.shuffle;
+                    id(media_repeat_single_enabled) = media.repeat_one;
+                    const bool position_hold =
+                      id(media_track_change_position_hold_until_ms) != 0 &&
+                      static_cast<int32_t>(
+                        millis() - id(media_track_change_position_hold_until_ms)) < 0;
+                    if (!position_hold || media.position_seconds <= 2) {
+                      id(media_position_seconds) = media.position_seconds;
+                      if (media.position_seconds <= 2)
+                        id(media_track_change_position_hold_until_ms) = 0;
+                    }
+                    id(media_duration_seconds) = media.duration_seconds;
+                  }
+                  id(media_ui_dirty) = true;
+                  id(refresh_media_ui_if_needed).execute();
+                }
+                break;
+              case dual_mcu::MessageType::MEDIA_TEXT:
+                if (frame.length >= 1 && id(dual_mcu_ha_bridge_ready)) {
+                  const std::string value = dual_mcu::Link::read_string(
+                    &frame.payload[1], frame.length - 1);
+                  if (frame.payload[0] == static_cast<uint8_t>(dual_mcu::MediaTextField::TITLE)) {
+                    id(media_title_cache) = value;
+                    if (!value.empty()) id(current_media_label) = value;
+                  } else if (frame.payload[0] == static_cast<uint8_t>(dual_mcu::MediaTextField::ARTIST)) {
+                    id(media_artist_cache) = value;
+                  } else if (frame.payload[0] == static_cast<uint8_t>(
+                               dual_mcu::MediaTextField::FRIENDLY_NAME)) {
+                    const std::string configured_label =
+                      id(media_target_label_text).state;
+                    if (!value.empty() &&
+                        (configured_label.empty() ||
+                         configured_label == "Media Player"))
+                      id(media_effective_label) = value;
+                  } else if (frame.payload[0] == static_cast<uint8_t>(
+                               dual_mcu::MediaTextField::ALBUM_ARTIST)) {
+                    if (id(media_artist_cache).empty())
+                      id(media_artist_cache) = value;
+                  }
+                  id(dual_mcu_ha_bridge_last_state_ms) = millis();
+                  id(media_ui_dirty) = true;
+                  id(refresh_media_ui_if_needed).execute();
+                }
+                break;
+              case dual_mcu::MessageType::MEDIA_COVER_URL_BEGIN:
+                dual_mcu::cover_url_receiver.begin(frame);
+                break;
+              case dual_mcu::MessageType::MEDIA_COVER_URL_CHUNK:
+                dual_mcu::cover_url_receiver.append(frame);
+                break;
+              case dual_mcu::MessageType::MEDIA_COVER_URL_END: {
+                std::string resolved_cover_url;
+                if (dual_mcu::cover_url_receiver.finish(
+                      frame, &resolved_cover_url, dual_mcu::link)) {
+                  // Source selection and URL normalization now belong to the
+                  // ESP32. Reuse the proven S3 image-pipeline state machine
+                  // with the already resolved absolute URL.
+                  id(media_entity_picture_cache) = resolved_cover_url;
+                  id(media_entity_picture_local_cache).clear();
+                  id(media_image_url_cache).clear();
+                  id(refresh_media_cover_url).execute();
+                }
+                break;
+              }
+              case dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT:
+                if (frame.length == 4) {
+                  const uint8_t kind = frame.payload[0];
+                  const uint16_t index = static_cast<uint16_t>(frame.payload[1]) |
+                                         (static_cast<uint16_t>(frame.payload[2]) << 8);
+                  const uint8_t result = frame.payload[3];
+                  if (id(music_latency_probe_pending) &&
+                      (kind == static_cast<uint8_t>(
+                         dual_mcu::LibraryKind::PLAYLISTS) ||
+                       kind == static_cast<uint8_t>(
+                         dual_mcu::LibraryKind::PLAYLIST_PAGE)) &&
+                      index == 9) {
+                    const uint32_t elapsed_us =
+                      micros() - id(music_latency_probe_started_us);
+                    if (result == 0x7F) {
+                      id(music_latency_bridge_accept_sensor).publish_state(
+                        elapsed_us / 1000.0f);
+                    } else {
+                      id(music_latency_probe_pending) = false;
+                      if (result == 0) {
+                        id(music_latency_total_sensor).publish_state(
+                          elapsed_us / 1000.0f);
+                        id(music_latency_probe_status).publish_state(
+                          std::string("Player bereit nach ") +
+                          to_string(elapsed_us / 1000.0f) + " ms");
+                      } else {
+                        id(music_latency_probe_status).publish_state(
+                          std::string("Musikstart Fehler ") +
+                          std::to_string(result));
+                      }
+                    }
+                  }
+                  const bool matches_pending =
+                    id(media_selection_loading) &&
+                    id(media_selection_pending_kind) == kind &&
+                    id(media_selection_pending_index) == index;
+                  id(dual_mcu_media_selection_status).publish_state(
+                    std::string(result == 0 ? "Gestartet" : result == 0x7F ? "Angenommen" : "Fehler") +
+                    " kind=" + std::to_string(kind) +
+                    " index=" + std::to_string(index) +
+                    " code=" + std::to_string(result) +
+                    " match=" + (matches_pending ? "1" : "0"));
+                  if (matches_pending && result == 0x7F) {
+                    id(media_selection_started_ms) = millis();
+                    id(media_selection_bridge_accepted) = true;
+                    id(media_selection_accept_settle).execute();
+                  } else if (matches_pending) {
+                    id(media_selection_loading) = false;
+                    id(media_selection_started_ms) = 0;
+                    id(media_selection_pending_kind) = -1;
+                    id(media_selection_pending_index) = -1;
+                    id(media_selection_bridge_accepted) = false;
+                    if (result == 0) {
+                      id(media_picker_visible) = false;
+                      id(touch_swipe_nav_suppress_until_ms) = millis() + 350;
+                      id(control_mode) = 1;
+                      if (media_picker_popup != nullptr)
+                        lv_obj_add_flag(media_picker_popup, LV_OBJ_FLAG_HIDDEN);
+                      if (id(ui_next_enabled) && ui_next::framework.built())
+                        ui_next::framework.set_navigation_visible(true);
+                    } else {
+                      id(media_selection_feedback_text) =
+                        std::string("Startfehler ") + std::to_string(result) + " – erneut wählen";
+                      id(media_selection_feedback_until_ms) = millis() + 5000;
+                      id(control_mode) = 2;
+                      id(media_picker_fast_refresh_requested) = false;
+                      id(refresh_media_picker_popup).execute();
+                    }
+                    id(media_ui_dirty) = true;
+                    id(refresh_media_ui_if_needed).execute();
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::LIBRARY_PAGE_FETCH_RESULT:
+                if (frame.length == 2) {
+                  const uint8_t kind = frame.payload[0];
+                  const uint8_t result = frame.payload[1];
+                  if (result == 0) {
+                    id(dual_mcu_library_proxy_status).publish_state(
+                      std::string(kind == 4 ? "Playlist" : "Titel") +
+                      "-Anfrage via ESP32");
+                  } else {
+                    if (kind == 5 && id(media_selection_loading)) {
+                      id(media_selection_loading) = false;
+                      id(media_selection_started_ms) = 0;
+                      id(media_selection_feedback_text) = "Titelliste konnte nicht geladen werden";
+                      id(media_selection_feedback_until_ms) = millis() + 5000;
+                      id(control_mode) = 2;
+                      id(refresh_media_picker_popup).execute();
+                    }
+                    id(dual_mcu_library_response_proxy_failed_until_ms) = millis() + 10000;
+                    if (kind == 4) {
+                      id(playlist_autoload_inflight) = false;
+                      id(pending_playlist_request_id).clear();
+                    } else if (kind == 5) {
+                      id(track_autoload_inflight) = false;
+                      id(pending_track_request_id).clear();
+                    }
+                    id(dual_mcu_library_proxy_status).publish_state(
+                      std::string("Paging-Fehler ") + std::to_string(result) +
+                      " · Rescue aus");
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::LIGHT_STATE:
+                if (frame.length == 3 && frame.payload[0] < 4 &&
+                    id(dual_mcu_ha_bridge_ready)) {
+                  const int slot = frame.payload[0];
+                  const bool on = (frame.payload[1] & 0x01) != 0;
+                  const int brightness = std::min(100, static_cast<int>(frame.payload[2]));
+                  if (slot == 0) { id(light_1_on) = on; id(light_1_brightness_pct) = brightness; }
+                  else if (slot == 1) { id(light_2_on) = on; id(light_2_brightness_pct) = brightness; }
+                  else if (slot == 2) { id(light_3_on) = on; id(light_3_brightness_pct) = brightness; }
+                  else { id(light_4_on) = on; id(light_4_brightness_pct) = brightness; }
+                  if (id(light_source_index) == slot &&
+                      millis() >= id(light_local_change_deadline_ms)) {
+                    id(light_brightness_pct) = on ? brightness : 0;
+                  }
+                  id(dual_mcu_ha_bridge_last_state_ms) = millis();
+                  id(light_ui_dirty) = true;
+                  id(refresh_light_ui_if_needed).execute();
+                }
+                break;
+              case dual_mcu::MessageType::LIGHT_DETAIL_STATE:
+                if (frame.length == 7 && id(dual_mcu_ha_bridge_ready)) {
+                  const uint8_t slot = frame.payload[0];
+                  const uint8_t flags = frame.payload[1];
+                  if (slot == 0 && (flags & 0x01) != 0) {
+                    const int kelvin = static_cast<int>(frame.payload[2]) |
+                                      (static_cast<int>(frame.payload[3]) << 8);
+                    id(light_1_color_temp) = kelvin;
+                    if (id(light_source_index) == 0 &&
+                        millis() >= id(light_local_change_deadline_ms)) {
+                      id(light_color_temp) = kelvin;
+                    }
+                  } else if (slot == 3 && (flags & 0x02) != 0) {
+                    id(light_rgb_red) = frame.payload[4];
+                    id(light_rgb_green) = frame.payload[5];
+                    id(light_rgb_blue) = frame.payload[6];
+                    static const int color_values[] =
+                      {2200, 2700, 3000, 3200, 3500, 3700, 4000};
+                    int best_index = 0;
+                    float best_distance = 1.0e30f;
+                    for (int index = 0; index < 7; index++) {
+                      const float temperature = color_values[index] / 100.0f;
+                      float red = 255.0f, green = 0.0f, blue = 0.0f;
+                      if (temperature <= 66.0f) {
+                        green = 99.4708025861f * logf(temperature) - 161.1195681661f;
+                        blue = temperature <= 19.0f ? 0.0f :
+                          138.5177312231f * logf(temperature - 10.0f) - 305.0447927307f;
+                      } else {
+                        red = 329.698727446f * powf(temperature - 60.0f, -0.1332047592f);
+                        green = 288.1221695283f * powf(temperature - 60.0f, -0.0755148492f);
+                        blue = 255.0f;
+                      }
+                      const float distance =
+                        powf(red - id(light_rgb_red), 2.0f) +
+                        powf(green - id(light_rgb_green), 2.0f) +
+                        powf(blue - id(light_rgb_blue), 2.0f);
+                      if (distance < best_distance) {
+                        best_distance = distance;
+                        best_index = index;
+                      }
+                    }
+                    id(light_4_color_temp) = color_values[best_index];
+                    if (id(light_source_index) == 3 &&
+                        millis() >= id(light_local_change_deadline_ms)) {
+                      id(light_color_index) = best_index;
+                      id(light_color_temp) = color_values[best_index];
+                    }
+                  }
+                  id(light_ui_dirty) = true;
+                  id(refresh_light_ui_if_needed).execute();
+                }
+                break;
+              case dual_mcu::MessageType::LIGHT_PRESET_TEXT:
+                if (frame.length >= 1 && frame.payload[0] == 3 &&
+                    id(dual_mcu_ha_bridge_ready)) {
+                  const std::string preset = dual_mcu::Link::read_string(
+                    &frame.payload[1], frame.length - 1);
+                  id(light_4_preset_name) = preset.empty() ? "Police" : preset;
+                  id(light_4_preset_index) =
+                    id(light_4_preset_name) == "Warmwhite" ? 1 : 0;
+                  if (id(light_source_index) == 3) {
+                    id(light_ui_dirty) = true;
+                    id(refresh_light_ui_if_needed).execute();
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::WLED_PRESET_ITEM:
+                if (frame.length >= 4 && frame.payload[0] == 0 &&
+                    frame.payload[2] < dual_mcu::WLED_PRESET_MAX_ITEMS) {
+                  const uint8_t generation = frame.payload[1];
+                  const uint8_t index = frame.payload[2];
+                  if (generation != id(dual_mcu_wled_preset_pending_generation) || index == 0) {
+                    id(dual_mcu_wled_preset_pending_generation) = generation;
+                    id(dual_mcu_wled_preset_pending_mask) = 0;
+                    id(dual_mcu_wled_preset_pending_names).assign(
+                      dual_mcu::WLED_PRESET_MAX_ITEMS, std::string());
+                  }
+                  if (generation == id(dual_mcu_wled_preset_pending_generation)) {
+                    id(dual_mcu_wled_preset_pending_names)[index] =
+                      dual_mcu::Link::read_string(&frame.payload[3], frame.length - 3);
+                    id(dual_mcu_wled_preset_pending_mask) |=
+                      static_cast<uint16_t>(1U << index);
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::WLED_PRESET_META:
+                if (frame.length == 4 && frame.payload[0] == 0 &&
+                    frame.payload[2] <= dual_mcu::WLED_PRESET_MAX_ITEMS) {
+                  const uint8_t generation = frame.payload[1];
+                  const uint8_t count = frame.payload[2];
+                  const uint16_t expected_mask = count == 0
+                    ? 0 : static_cast<uint16_t>((1U << count) - 1U);
+                  if (count == 0 ||
+                      (generation == id(dual_mcu_wled_preset_pending_generation) &&
+                       (id(dual_mcu_wled_preset_pending_mask) & expected_mask) == expected_mask)) {
+                    id(dual_mcu_wled_preset_names).clear();
+                    for (uint8_t index = 0; index < count; index++)
+                      id(dual_mcu_wled_preset_names).push_back(
+                        id(dual_mcu_wled_preset_pending_names)[index]);
+                    id(dual_mcu_wled_preset_selected) =
+                      frame.payload[3] < count ? frame.payload[3] : -1;
+                    id(dual_mcu_wled_preset_status).publish_state(
+                      count == 0 ? "Keine WLED-Presets gespeichert" :
+                        std::to_string(count) + " Presets vom ESP32");
+                    id(light_ui_dirty) = true;
+                    id(refresh_light_ui_if_needed).execute();
+                  } else {
+                    id(dual_mcu_wled_preset_status).publish_state(
+                      "Unvollständige Presetliste verworfen");
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::WEATHER_STATE:
+                if (id(dual_mcu_ha_bridge_ready) && id(dual_mcu_ha_bridge_weather)) {
+                  dual_mcu::WeatherState weather;
+                  if (!dual_mcu::Link::decode_weather_state(frame, &weather)) break;
+                  if (weather.temperature_valid) {
+                    id(weather_temperature) = weather.temperature_tenths / 10.0f;
+                  }
+                  if (weather.humidity_valid) {
+                    id(weather_humidity) = weather.humidity_pct;
+                  }
+                  if (weather.wind_valid) {
+                    id(weather_wind_speed) = weather.wind_tenths / 10.0f;
+                  }
+                  if (weather.precipitation_valid) {
+                    id(weather_precipitation_probability) =
+                      weather.precipitation_probability;
+                  }
+                  id(dual_mcu_ha_bridge_last_state_ms) = millis();
+                  id(weather_ui_dirty) = true;
+                  id(refresh_weather_ui_if_needed).execute();
+                  id(refresh_weather_screensaver).execute();
+                }
+                break;
+              case dual_mcu::MessageType::WEATHER_TEXT:
+                if (frame.length >= 1 && id(dual_mcu_ha_bridge_ready) &&
+                    id(dual_mcu_ha_bridge_weather)) {
+                  const std::string value = dual_mcu::Link::read_string(
+                    &frame.payload[1], frame.length - 1);
+                  if (frame.payload[0] == static_cast<uint8_t>(dual_mcu::WeatherTextField::LOCATION)) {
+                    if (!value.empty()) id(weather_location_name) = value;
+                  } else if (frame.payload[0] == static_cast<uint8_t>(dual_mcu::WeatherTextField::CONDITION)) {
+                    id(weather_condition_raw) = value;
+                    const char *translated = "Wetter";
+                    if (value == "clear-night") translated = "Klar";
+                    else if (value == "cloudy") translated = "Bedeckt";
+                    else if (value == "exceptional") translated = "Unwetter";
+                    else if (value == "fog") translated = "Nebel";
+                    else if (value == "hail") translated = "Hagel";
+                    else if (value == "lightning") translated = "Gewitter";
+                    else if (value == "lightning-rainy") translated = "Gewitterregen";
+                    else if (value == "partlycloudy") translated = "Teilweise wolkig";
+                    else if (value == "pouring") translated = "Starkregen";
+                    else if (value == "rainy") translated = "Regen";
+                    else if (value == "snowy") translated = "Schnee";
+                    else if (value == "snowy-rainy") translated = "Schneeregen";
+                    else if (value == "sunny") translated = "Sonnig";
+                    else if (value == "windy") translated = "Windig";
+                    else if (value == "windy-variant") translated = "Windig wolkig";
+                    id(weather_condition_text) = translated;
+                  }
+                  id(dual_mcu_ha_bridge_last_state_ms) = millis();
+                  id(weather_ui_dirty) = true;
+                  id(refresh_weather_ui_if_needed).execute();
+                  id(refresh_weather_screensaver).execute();
+                }
+                break;
+              case dual_mcu::MessageType::WEATHER_FORECAST:
+                if (id(dual_mcu_ha_bridge_ready) && (frame.length == 42)) {
+                  dual_mcu::ForecastState forecast;
+                  if (!dual_mcu::Link::decode_weather_forecast(frame, &forecast)) break;
+                  auto set_daily = [&](size_t index, float minimum, float maximum,
+                                       const char *condition) {
+                    switch (index) {
+                      case 0:
+                        id(weather_forecast_min_0) = minimum;
+                        id(weather_forecast_max_0) = maximum;
+                        id(weather_forecast_condition_0) = condition;
+                        id(weather_minimum) = minimum;
+                        id(weather_maximum) = maximum;
+                        break;
+                      case 1:
+                        id(weather_forecast_min_1) = minimum;
+                        id(weather_forecast_max_1) = maximum;
+                        id(weather_forecast_condition_1) = condition;
+                        break;
+                      case 2:
+                        id(weather_forecast_min_2) = minimum;
+                        id(weather_forecast_max_2) = maximum;
+                        id(weather_forecast_condition_2) = condition;
+                        break;
+                      case 3:
+                        id(weather_forecast_min_3) = minimum;
+                        id(weather_forecast_max_3) = maximum;
+                        id(weather_forecast_condition_3) = condition;
+                        break;
+                      default:
+                        id(weather_forecast_min_4) = minimum;
+                        id(weather_forecast_max_4) = maximum;
+                        id(weather_forecast_condition_4) = condition;
+                        break;
+                    }
+                  };
+                  for (size_t index = 0; index < 5; index++) {
+                    if ((forecast.daily_valid_mask & (1U << index)) == 0) continue;
+                    set_daily(index, forecast.daily_min_tenths[index] / 10.0f,
+                              forecast.daily_max_tenths[index] / 10.0f,
+                              dual_mcu::weather_condition_name(forecast.daily_condition[index]));
+                  }
+                  std::string condition_diagnostics;
+                  for (size_t index = 0; index < 5; index++) {
+                    if ((forecast.daily_valid_mask & (1U << index)) == 0) continue;
+                    if (!condition_diagnostics.empty()) condition_diagnostics += " | ";
+                    condition_diagnostics += std::to_string(index);
+                    condition_diagnostics += ":";
+                    condition_diagnostics += dual_mcu::weather_condition_name(
+                      forecast.daily_condition[index]);
+                  }
+                  id(dual_mcu_forecast_conditions_text).publish_state(condition_diagnostics);
+                  std::string *hourly_conditions[] = {
+                    &id(weather_morning_condition), &id(weather_noon_condition),
+                    &id(weather_evening_condition), &id(weather_overnight_condition)};
+                  float *hourly_temperatures[] = {
+                    &id(weather_morning_temperature), &id(weather_noon_temperature),
+                    &id(weather_evening_temperature), &id(weather_overnight_temperature)};
+                  for (size_t index = 0; index < 4; index++) {
+                    if ((forecast.hourly_valid_mask & (1U << index)) == 0) continue;
+                    *hourly_conditions[index] = dual_mcu::weather_condition_name(
+                      forecast.hourly_condition[index]);
+                    *hourly_temperatures[index] = forecast.hourly_temperature_tenths[index] / 10.0f;
+                  }
+                  id(weather_precipitation_probability) = forecast.precipitation_probability;
+                  id(weather_rain_minutes) = forecast.rain_minutes;
+                  if (forecast.rain_minutes == 0) {
+                    id(weather_rain_eta_text) = "Regnet jetzt";
+                  } else if (forecast.rain_minutes > 0) {
+                    char eta[48];
+                    snprintf(eta, sizeof(eta), "Regen in %d min", forecast.rain_minutes);
+                    id(weather_rain_eta_text) = eta;
+                  } else {
+                    id(weather_rain_eta_text) = "Kein Regen";
+                  }
+                  id(weather_detail_text) = id(weather_rain_eta_text);
+                  id(dual_mcu_ha_bridge_forecast) =
+                    (forecast.daily_valid_mask & 0x06) == 0x06 &&
+                    (forecast.hourly_valid_mask & 0x0F) == 0x0F;
+                  id(dual_mcu_last_forecast_ms) = millis();
+                  id(dual_mcu_ha_bridge_last_state_ms) = millis();
+                  id(weather_ui_dirty) = true;
+                  id(refresh_weather_ui_if_needed).execute();
+                  id(refresh_weather_screensaver).execute();
+                }
+                break;
+              case dual_mcu::MessageType::RADAR_META: {
+                dual_mcu::RadarMeta radar;
+                if (dual_mcu::Link::decode_radar_meta(frame, &radar)) {
+                  id(rain_radar_eta_valid) = radar.eta_valid;
+                  id(rain_radar_eta_minutes) = radar.eta_minutes;
+                  id(rain_radar_direction_valid) = radar.direction_valid;
+                  id(rain_radar_direction_tenths) = radar.direction_tenths;
+                  id(rain_radar_motion_speed_valid) = radar.speed_valid;
+                  id(rain_radar_motion_speed_tenths) = radar.speed_tenths;
+                  id(rain_radar_raining) = radar.raining;
+                  if (id(current_page) == 8)
+                    id(refresh_rain_radar_ui).execute();
+                }
+                break;
+              }
+              case dual_mcu::MessageType::TIME_STATE:
+                if (frame.length == 4) {
+                  const uint32_t epoch =
+                    dual_mcu::Link::read_u32(frame.payload.data());
+                  if (epoch >= 1546300800UL) {
+                    // Preserve the existing HA clock object as the local
+                    // authority for UI and timer code, but synchronize it
+                    // through the ESP32 bridge. Direct HA/SNTP remains the
+                    // automatic rescue path during this migration stage.
+                    id(ha_time).set_epoch_time(epoch);
+                    id(dual_mcu_last_time_state_ms) = millis();
+                    if (!id(dual_mcu_bridge_time_synced).state)
+                      id(dual_mcu_bridge_time_synced).publish_state(true);
+                    id(dual_mcu_bridge_time_age_sensor).publish_state(0);
+                    // Echo the accepted epoch so the network-owning ESP32 can
+                    // monitor the complete bridge-to-S3 synchronization path.
+                    dual_mcu::link.send(
+                      dual_mcu::MessageType::TIME_STATE,
+                      frame.payload.data(), frame.length);
+                  }
+                }
+                break;
+              case dual_mcu::MessageType::RADAR_BEGIN:
+                if (dual_mcu::radar_client.begin(frame)) {
+                  id(dual_mcu_radar_proxy_status).publish_state("Empfange vom ESP32");
+                  dual_mcu::radar_client.send_ack(dual_mcu::link);
+                }
+                break;
+              case dual_mcu::MessageType::RADAR_CHUNK:
+                dual_mcu::radar_client.append(frame);
+                dual_mcu::radar_client.send_ack(dual_mcu::link);
+                break;
+              case dual_mcu::MessageType::RADAR_END:
+                if (dual_mcu::radar_client.finish(frame))
+                  dual_mcu::radar_client.send_ack(dual_mcu::link);
+                break;
+              case dual_mcu::MessageType::RADAR_ERROR:
+                dual_mcu::radar_client.remote_error(frame);
+                break;
+              case dual_mcu::MessageType::LIBRARY_BEGIN:
+                if (dual_mcu::library_client.begin(frame)) {
+                  id(dual_mcu_library_proxy_status).publish_state("Empfange Bibliothek");
+                  dual_mcu::library_client.send_ack(dual_mcu::link);
+                }
+                break;
+              case dual_mcu::MessageType::LIBRARY_CHUNK:
+                if (dual_mcu::library_client.append(frame))
+                  dual_mcu::library_client.send_ack(dual_mcu::link);
+                break;
+              case dual_mcu::MessageType::LIBRARY_END:
+                if (dual_mcu::library_client.finish(frame))
+                  dual_mcu::library_client.send_ack(dual_mcu::link);
+                break;
+              case dual_mcu::MessageType::LIBRARY_ERROR:
+                dual_mcu::library_client.remote_error(frame);
+                break;
+              case dual_mcu::MessageType::LIBRARY_CHANGED:
+                if (frame.length == 1 && frame.payload[0] >= 1 && frame.payload[0] <= 5) {
+                  id(dual_mcu_library_desired_mask) |=
+                    static_cast<uint8_t>(1U << (frame.payload[0] - 1));
+                  id(dual_mcu_library_bridge_mask) &=
+                    static_cast<uint8_t>(~(1U << (frame.payload[0] - 1)));
+                  id(dual_mcu_library_last_request_ms) = 0;
+                  id(dual_mcu_library_proxy_status).publish_state("Bibliothek aktualisiert");
+                }
+                break;
+              default:
+                break;
+            }
+          }
+
+          if (id(latency_probe_pending) &&
+              micros() - id(latency_probe_started_us) > 2000000U) {
+            id(latency_probe_pending) = false;
+            id(latency_timeout_count)++;
+            if (!id(latency_benchmark_active)) {
+              id(latency_timeout_count_sensor).publish_state(id(latency_timeout_count));
+              id(latency_probe_status).publish_state("Timeout nach 2000 ms");
+            }
+            id(latency_benchmark_next_ms) = millis() + 120;
+            id(finish_latency_benchmark).execute();
+          }
+          if (id(latency_benchmark_active) && !id(latency_probe_pending) &&
+              id(latency_benchmark_remaining) > 0 &&
+              static_cast<int32_t>(millis() - id(latency_benchmark_next_ms)) >= 0) {
+            id(latency_benchmark_remaining)--;
+            id(start_latency_probe).execute();
+          }
+          if (id(volume_probe_pending) &&
+              micros() - id(volume_probe_started_us) > 2200000U) {
+            id(volume_probe_pending) = false;
+            id(volume_probe_timeouts)++;
+            if (!id(volume_benchmark_active)) {
+              id(volume_probe_status).publish_state(
+                "Timeout nach 2200 ms");
+            }
+            id(volume_benchmark_next_ms) = millis() + 150;
+            id(finish_volume_benchmark).execute();
+          }
+          if (id(volume_benchmark_active) &&
+              !id(volume_probe_pending) &&
+              id(volume_benchmark_remaining) > 0 &&
+              static_cast<int32_t>(
+                millis() - id(volume_benchmark_next_ms)) >= 0) {
+            id(volume_benchmark_remaining)--;
+            id(start_volume_probe).execute(
+              id(volume_probe_next_target_pct));
+          }
+
+          dual_mcu::library_client.tick();
+          dual_mcu::LibraryKind completed_kind;
+          std::vector<dual_mcu::LibraryEntry> completed_entries;
+          dual_mcu::LibraryPageInfo completed_page;
+          if (dual_mcu::library_client.take_completed(
+                &completed_kind, &completed_entries, &completed_page)) {
+            const uint8_t kind = static_cast<uint8_t>(completed_kind);
+            if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_TRACKS &&
+                completed_page.context != id(playlist_track_generation)) {
+              // A previous playlist response may still be in flight when the
+              // user makes a new selection. Never let that stale page consume
+              // the new selection's autoplay flag.
+              id(dual_mcu_library_proxy_status).publish_state(
+                std::string("Veraltete Titelliste verworfen: gen ") +
+                std::to_string(completed_page.context) + " statt " +
+                std::to_string(id(playlist_track_generation)));
+              const uint8_t stale_status[] = {
+                kind, 0, 0, 2,
+              };
+              dual_mcu::link.send(
+                dual_mcu::MessageType::LIBRARY_CLIENT_STATUS,
+                stale_status, sizeof(stale_status));
+              return;
+            }
+            if (completed_kind == dual_mcu::LibraryKind::PLAYLISTS) {
+              id(ma_playlists_names_cache).clear();
+              id(ma_playlists_uris_cache).clear();
+              id(ma_playlists_item_ids_cache).clear();
+              id(ma_playlists_types_cache).clear();
+              for (const auto &entry : completed_entries) {
+                id(ma_playlists_names_cache).push_back(entry.name);
+                id(ma_playlists_uris_cache).push_back(entry.uri);
+                id(ma_playlists_item_ids_cache).push_back(entry.item_id);
+                id(ma_playlists_types_cache).push_back(entry.media_type);
+              }
+              id(playlist_loaded_count) = completed_entries.size();
+              id(playlist_total_available) = id(playlist_loaded_count);
+              id(playlist_request_offset) = id(playlist_loaded_count);
+              id(playlist_has_more) = false;
+              id(playlist_autoload_inflight) = false;
+              id(playlist_autoload_anchor_count) = 0;
+              id(playlist_paged_mode_ready) = false;
+              id(pending_playlist_request_id).clear();
+              if (id(selected_playlist_index) >= id(playlist_loaded_count))
+                id(selected_playlist_index) = std::max(0, id(playlist_loaded_count) - 1);
+            } else if (completed_kind == dual_mcu::LibraryKind::RADIOS) {
+              id(ma_radios_names_cache).clear();
+              id(ma_radios_uris_cache).clear();
+              id(ma_radios_types_cache).clear();
+              for (const auto &entry : completed_entries) {
+                id(ma_radios_names_cache).push_back(entry.name);
+                id(ma_radios_uris_cache).push_back(entry.uri);
+                id(ma_radios_types_cache).push_back(entry.media_type);
+              }
+              if (id(selected_radio_index) >= static_cast<int>(completed_entries.size()))
+                id(selected_radio_index) = std::max(0, static_cast<int>(completed_entries.size()) - 1);
+            } else if (completed_kind == dual_mcu::LibraryKind::PODCASTS) {
+              id(ma_podcasts_names_cache).clear();
+              id(ma_podcasts_uris_cache).clear();
+              id(ma_podcasts_types_cache).clear();
+              for (const auto &entry : completed_entries) {
+                id(ma_podcasts_names_cache).push_back(entry.name);
+                id(ma_podcasts_uris_cache).push_back(entry.uri);
+                id(ma_podcasts_types_cache).push_back(entry.media_type);
+              }
+              if (id(selected_podcast_index) >= static_cast<int>(completed_entries.size()))
+                id(selected_podcast_index) = std::max(0, static_cast<int>(completed_entries.size()) - 1);
+            } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_PAGE) {
+              const int previous_count = id(playlist_loaded_count);
+              id(ma_playlists_names_cache).clear();
+              id(ma_playlists_uris_cache).clear();
+              id(ma_playlists_item_ids_cache).clear();
+              id(ma_playlists_types_cache).clear();
+              for (const auto &entry : completed_entries) {
+                id(ma_playlists_names_cache).push_back(entry.name);
+                id(ma_playlists_uris_cache).push_back(entry.uri);
+                id(ma_playlists_item_ids_cache).push_back(entry.item_id);
+                id(ma_playlists_types_cache).push_back(entry.media_type);
+              }
+              id(playlist_loaded_count) = completed_entries.size();
+              id(playlist_total_available) = completed_page.total;
+              id(playlist_request_offset) = completed_page.next_offset;
+              id(playlist_has_more) = completed_page.has_more;
+              id(playlist_autoload_inflight) = false;
+              id(playlist_paged_mode_ready) = true;
+              id(last_accepted_playlist_request_id) = id(pending_playlist_request_id);
+              id(pending_playlist_request_id).clear();
+              if (previous_count > 0 && id(playlist_loaded_count) > previous_count &&
+                  id(media_picker_visible) && id(media_picker_tab) == 1)
+                id(selected_playlist_index) = previous_count;
+              if (id(selected_playlist_index) >= id(playlist_loaded_count))
+                id(selected_playlist_index) = std::max(0, id(playlist_loaded_count) - 1);
+              id(playlist_autoload_anchor_count) = 0;
+            } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_TRACKS) {
+              const size_t page_offset = completed_page.offset;
+              const size_t cached_count = id(ma_track_titles_cache).size();
+              if (page_offset > cached_count) {
+                id(track_autoload_inflight) = false;
+                id(pending_track_request_id).clear();
+                id(track_request_offset) = cached_count;
+                id(dual_mcu_library_proxy_status).publish_state(
+                  std::string("Titelseite fehlt: erwartet ") +
+                  std::to_string(cached_count) + ", erhalten " +
+                  std::to_string(page_offset));
+                const uint8_t gap_status[] = {kind, 0, 0, 3};
+                dual_mcu::link.send(
+                  dual_mcu::MessageType::LIBRARY_CLIENT_STATUS,
+                  gap_status, sizeof(gap_status));
+                return;
+              }
+              if (page_offset == 0) {
+                id(ma_track_titles_cache).clear();
+                id(ma_track_artists_cache).clear();
+                id(ma_track_uris_cache).clear();
+              } else if (page_offset < cached_count) {
+                // Repeated responses are idempotent: replace everything from
+                // the returned offset without duplicating rows.
+                id(ma_track_titles_cache).resize(page_offset);
+                id(ma_track_artists_cache).resize(page_offset);
+                id(ma_track_uris_cache).resize(page_offset);
+              }
+              for (const auto &entry : completed_entries) {
+                id(ma_track_titles_cache).push_back(entry.name);
+                id(ma_track_artists_cache).push_back(entry.item_id);
+                id(ma_track_uris_cache).push_back(entry.uri);
+              }
+              id(track_loaded_count) = id(ma_track_titles_cache).size();
+              id(track_total_available) = completed_page.total;
+              id(track_request_offset) = completed_page.next_offset;
+              id(track_has_more) = completed_page.has_more;
+              id(track_autoload_inflight) = false;
+              id(last_accepted_track_request_id) = id(pending_track_request_id);
+              id(pending_track_request_id).clear();
+              if (id(selected_track_index) >= id(track_loaded_count))
+                id(selected_track_index) = std::max(0, id(track_loaded_count) - 1);
+              if (id(media_autoplay_first_track_pending)) {
+                id(media_autoplay_first_track_pending) = false;
+                if (!completed_entries.empty()) {
+                  id(selected_track_index) = 0;
+                  id(start_selected_track).execute();
+                }
+              }
+            }
+            id(dual_mcu_library_bridge_mask) |= static_cast<uint8_t>(1U << (kind - 1));
+            if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_PAGE)
+              id(dual_mcu_library_bridge_mask) |= 0x01;
+            const uint16_t confirmed_count = static_cast<uint16_t>(
+              std::min<size_t>(completed_entries.size(), 65535));
+            const uint8_t client_status[] = {
+              kind,
+              static_cast<uint8_t>(confirmed_count & 0xFF),
+              static_cast<uint8_t>((confirmed_count >> 8) & 0xFF),
+              0,
+            };
+            dual_mcu::link.send(
+              dual_mcu::MessageType::LIBRARY_CLIENT_STATUS,
+              client_status, sizeof(client_status));
+            if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_PAGE) {
+              id(dual_mcu_library_proxy_status).publish_state(
+                std::string("Playlist-Seite via ESP32: ") +
+                std::to_string(completed_entries.size()) + "/" +
+                std::to_string(completed_page.total));
+            } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_TRACKS) {
+              id(dual_mcu_library_proxy_status).publish_state(
+                std::string("Track-Liste via ESP32: ") +
+                std::to_string(id(track_loaded_count)) + "/" +
+                std::to_string(completed_page.total));
+            } else if ((id(dual_mcu_library_bridge_mask) & 0x07) == 0x07) {
+              id(dual_mcu_library_proxy_status).publish_state(
+                std::string("P ") + std::to_string(id(ma_playlists_names_cache).size()) +
+                " · R " + std::to_string(id(ma_radios_names_cache).size()) +
+                " · O " + std::to_string(id(ma_podcasts_names_cache).size()));
+            } else {
+              id(dual_mcu_library_proxy_status).publish_state(
+                std::string("ESP32 Liste ") + std::to_string(kind) + ": " +
+                std::to_string(completed_entries.size()) + " Einträge");
+            }
+            id(media_ui_dirty) = true;
+            id(refresh_media_ui_if_needed).execute();
+            id(refresh_media_picker_popup).execute();
+          }
+          uint8_t library_error = 0;
+          if (dual_mcu::library_client.take_failure(&library_error)) {
+            id(playlist_autoload_inflight) = false;
+            id(track_autoload_inflight) = false;
+            id(pending_playlist_request_id).clear();
+            id(pending_track_request_id).clear();
+            if (id(media_autoplay_first_track_pending) && id(media_selection_loading)) {
+              id(media_autoplay_first_track_pending) = false;
+              id(media_selection_loading) = false;
+              id(media_selection_started_ms) = 0;
+              id(media_selection_feedback_text) = "Titelliste nicht verfügbar";
+              id(media_selection_feedback_until_ms) = millis() + 5000;
+              id(control_mode) = 2;
+              id(refresh_media_picker_popup).execute();
+            }
+            if (library_error == 1 || library_error == 2) {
+              // The ESP32 has not received this retained cache yet. Retry the
+              // proxy without waking the S3 MQTT stack during normal boot.
+              id(dual_mcu_library_proxy_status).publish_state(
+                "ESP32 Bibliothek wird vorbereitet");
+            } else {
+              id(dual_mcu_library_response_proxy_failed_until_ms) = millis() + 10000;
+              id(dual_mcu_library_proxy_status).publish_state(
+                std::string("ESP32 Bibliothek Fehler ") +
+                std::to_string(library_error) + " · Rescue aus");
+            }
+          }
+
+          if (id(dual_mcu_ha_bridge_library) && !dual_mcu::library_client.active() &&
+              millis() - id(dual_mcu_library_last_request_ms) >= 2000) {
+            dual_mcu::LibraryKind missing_kind = dual_mcu::LibraryKind::PLAYLISTS;
+            bool missing = true;
+            const uint8_t missing_mask = id(dual_mcu_library_desired_mask) &
+                                         ~id(dual_mcu_library_bridge_mask);
+            if ((missing_mask & 0x10) != 0) {
+              missing_kind = dual_mcu::LibraryKind::PLAYLIST_TRACKS;
+            } else if ((missing_mask & 0x08) != 0) {
+              missing_kind = dual_mcu::LibraryKind::PLAYLIST_PAGE;
+            } else if ((missing_mask & 0x01) != 0) {
+              missing_kind = dual_mcu::LibraryKind::PLAYLISTS;
+            } else if ((missing_mask & 0x02) != 0) {
+              missing_kind = dual_mcu::LibraryKind::RADIOS;
+            } else if ((missing_mask & 0x04) != 0) {
+              missing_kind = dual_mcu::LibraryKind::PODCASTS;
+            } else {
+              missing = false;
+            }
+            if (missing && dual_mcu::library_client.request(dual_mcu::link, missing_kind)) {
+              id(dual_mcu_library_last_request_ms) = millis();
+              id(dual_mcu_library_proxy_status).publish_state("Fordere ESP32-Bibliothek an");
+            }
+          }
+
+          dual_mcu::radar_client.tick();
+          const bool asset_decode_idle =
+            !id(media_picker_visible) &&
+            !id(track_select_active) &&
+            (id(ui_last_activity_ms) == 0 || millis() - id(ui_last_activity_ms) >= 100);
+          if (asset_decode_idle && !dual_mcu::asset_decode_running &&
+              dual_mcu::radar_client.take_completed()) {
+            dual_mcu::asset_decode_kind =
+              static_cast<uint8_t>(dual_mcu::radar_client.completed_kind());
+            dual_mcu::asset_decode_argument =
+              static_cast<uint8_t>(id(dual_mcu_asset_active_argument));
+            if (dual_mcu::radar_client.completed_kind() ==
+                dual_mcu::AssetKind::RADAR) {
+              dual_mcu::asset_decode_radar_target =
+                id(rain_radar_active_buffer) == 0 ? 1 : 0;
+            }
+            dual_mcu::asset_decode_done = false;
+            dual_mcu::asset_decode_success = false;
+            dual_mcu::asset_decode_running = true;
+            const BaseType_t created = xTaskCreatePinnedToCore(
+              [](void *) {
+                const uint32_t started = millis();
+                const auto &bytes = dual_mcu::radar_client.bytes();
+                const auto kind =
+                  static_cast<dual_mcu::AssetKind>(dual_mcu::asset_decode_kind);
+                bool decoded = false;
+                if (kind == dual_mcu::AssetKind::RADAR) {
+                  if (dual_mcu::asset_decode_radar_target == 0) {
+                    id(rain_radar_image).release();
+                    if (!bytes.empty() &&
+                        id(rain_radar_image).begin_decode(bytes.size())) {
+                      const int consumed = id(rain_radar_image).feed_data(
+                        const_cast<uint8_t *>(bytes.data()), bytes.size());
+                      decoded = consumed >= 0 &&
+                                id(rain_radar_image).end_decode() &&
+                                id(rain_radar_image).get_width() > 0;
+                    }
+                  } else {
+                    id(rain_radar_staging_image).release();
+                    if (!bytes.empty() &&
+                        id(rain_radar_staging_image).begin_decode(bytes.size())) {
+                      const int consumed = id(rain_radar_staging_image).feed_data(
+                        const_cast<uint8_t *>(bytes.data()), bytes.size());
+                      decoded = consumed >= 0 &&
+                                id(rain_radar_staging_image).end_decode() &&
+                                id(rain_radar_staging_image).get_width() > 0;
+                    }
+                  }
+                } else if (kind == dual_mcu::AssetKind::MEDIA_COVER) {
+                  if (dual_mcu::asset_decode_argument == 1) {
+                    id(media_page_cover_image).release();
+                    if (!bytes.empty() && id(media_page_cover_image).begin_decode(bytes.size())) {
+                      const int consumed = id(media_page_cover_image).feed_data(
+                        const_cast<uint8_t *>(bytes.data()), bytes.size());
+                      decoded = consumed >= 0 && id(media_page_cover_image).end_decode() &&
+                                id(media_page_cover_image).get_width() > 0;
+                    }
+                  } else {
+                    id(media_cover_image).release();
+                    if (!bytes.empty() && id(media_cover_image).begin_decode(bytes.size())) {
+                      const int consumed = id(media_cover_image).feed_data(
+                        const_cast<uint8_t *>(bytes.data()), bytes.size());
+                      decoded = consumed >= 0 && id(media_cover_image).end_decode() &&
+                                id(media_cover_image).get_width() > 0;
+                    }
+                  }
+                } else if (kind == dual_mcu::AssetKind::PHOTO) {
+                  id(photo_slideshow_image).release();
+                  if (!bytes.empty() && id(photo_slideshow_image).begin_decode(bytes.size())) {
+                    const int consumed = id(photo_slideshow_image).feed_data(
+                      const_cast<uint8_t *>(bytes.data()), bytes.size());
+                    decoded = consumed >= 0 && id(photo_slideshow_image).end_decode() &&
+                              id(photo_slideshow_image).get_width() > 0;
+                  }
+                } else if (kind == dual_mcu::AssetKind::HOUSE) {
+                  id(house_floorplan_image).release();
+                  if (!bytes.empty() && id(house_floorplan_image).begin_decode(bytes.size())) {
+                    const int consumed = id(house_floorplan_image).feed_data(
+                      const_cast<uint8_t *>(bytes.data()), bytes.size());
+                    decoded = consumed >= 0 && id(house_floorplan_image).end_decode() &&
+                              id(house_floorplan_image).get_width() > 0;
+                  }
+                }
+                dual_mcu::asset_decode_duration_ms = millis() - started;
+                dual_mcu::asset_decode_success = decoded;
+                dual_mcu::asset_decode_done = true;
+                dual_mcu::asset_decode_running = false;
+                vTaskDelete(nullptr);
+              },
+              "asset_decode", 12288, nullptr, 1, nullptr, 0);
+            if (created != pdPASS) {
+              dual_mcu::asset_decode_running = false;
+              dual_mcu::radar_client.decode_failed();
+            }
+          }
+          if (dual_mcu::asset_decode_done) {
+            dual_mcu::asset_decode_done = false;
+            const auto kind =
+              static_cast<dual_mcu::AssetKind>(dual_mcu::asset_decode_kind);
+            const auto &bytes = dual_mcu::radar_client.bytes();
+            if (dual_mcu::asset_decode_success) {
+              if (kind == dual_mcu::AssetKind::RADAR) {
+                id(rain_radar_active_buffer) =
+                  dual_mcu::asset_decode_radar_target;
+                id(rain_radar_ready) = true;
+                id(rain_radar_loading) = false;
+                id(rain_radar_loading_started_ms) = 0;
+                id(rain_radar_loaded_url) = id(rain_radar_active_url);
+                id(rain_radar_status_text) = "Lokaler Fokus via ESP32";
+                id(refresh_rain_radar_ui).execute();
+              } else if (kind == dual_mcu::AssetKind::MEDIA_COVER) {
+                const bool page = dual_mcu::asset_decode_argument == 1;
+                if (page) {
+                  id(media_page_cover_ready) = true;
+                  id(media_page_cover_loaded_url) = id(media_cover_url_cache);
+                  id(media_cover_update_pending) = false;
+                } else {
+                  id(media_cover_ready) = true;
+                  id(media_full_cover_loaded_url) = id(media_cover_url_cache);
+                }
+                id(media_cover_pipeline_state) = 0;
+                id(media_cover_active_target) = 0;
+                id(media_cover_failure_count) = 0;
+                id(media_cover_last_success_ms) = millis();
+                id(media_ui_dirty) = true;
+                id(refresh_media_ui_if_needed).execute();
+              } else if (kind == dual_mcu::AssetKind::PHOTO) {
+                id(photo_slideshow_ready) = true;
+                id(refresh_photo_ui).execute();
+              } else if (kind == dual_mcu::AssetKind::HOUSE) {
+                id(house_floorplan_ready) = true;
+                id(house_floorplan_error) = false;
+                id(refresh_house_ui).execute();
+              }
+              id(dual_mcu_radar_proxy_status).publish_state(
+                std::string("Asset aktiv: ") + dual_mcu::asset_kind_name(kind) +
+                " decode=" +
+                std::to_string(dual_mcu::asset_decode_duration_ms) + "ms");
+              id(dual_mcu_radar_proxy_bytes).publish_state(bytes.size());
+              id(dual_mcu_asset_active_kind) = 0;
+            } else {
+              dual_mcu::radar_client.decode_failed();
+            }
+          }
+          if (dual_mcu::radar_client.take_failure()) {
+            const uint8_t error = dual_mcu::radar_client.last_error();
+            const auto failed_kind =
+              static_cast<dual_mcu::AssetKind>(id(dual_mcu_asset_active_kind));
+            id(dual_mcu_radar_proxy_status).publish_state(
+              std::string("Asset-Fehler ") +
+              dual_mcu::asset_kind_name(failed_kind) + " code=" +
+              std::to_string(error) + " bytes=" +
+              std::to_string(dual_mcu::radar_client.bytes().size()));
+            if (failed_kind == dual_mcu::AssetKind::RADAR) {
+              id(rain_radar_loading) = false;
+              id(rain_radar_loading_started_ms) = 0;
+              id(rain_radar_status_text) =
+                id(rain_radar_ready) ? "Letztes Radar" : "Radar nicht verfügbar";
+              id(refresh_rain_radar_ui).execute();
+            } else if (failed_kind == dual_mcu::AssetKind::MEDIA_COVER) {
+              id(media_cover_pipeline_state) = 4;
+              id(media_cover_failure_count)++;
+              id(media_cover_backoff_until_ms) = millis() + 5000;
+              id(media_ui_dirty) = true;
+              id(refresh_media_ui_if_needed).execute();
+            } else if (failed_kind == dual_mcu::AssetKind::PHOTO) {
+              id(photo_slideshow_ready) = false;
+              id(refresh_photo_ui).execute();
+            } else if (failed_kind == dual_mcu::AssetKind::HOUSE) {
+              id(house_floorplan_ready) = false;
+              id(house_floorplan_error) = true;
+              id(refresh_house_ui).execute();
+            }
+            id(dual_mcu_asset_active_kind) = 0;
+          }
+          // A bridge-capability transition can reset the inner client between
+          // request and RADAR_BEGIN. Recover the outer transaction as well so
+          // no asset can remain indefinitely in "Fordere Asset an".
+          if (id(dual_mcu_asset_active_kind) != 0 &&
+              !dual_mcu::radar_client.active() &&
+              !dual_mcu::asset_decode_running &&
+              dual_mcu::radar_client.bytes().empty() &&
+              id(dual_mcu_asset_request_started_ms) != 0 &&
+              millis() - id(dual_mcu_asset_request_started_ms) > 12500UL) {
+            const uint8_t orphaned_kind = id(dual_mcu_asset_active_kind);
+            const uint8_t orphaned_argument = id(dual_mcu_asset_active_argument);
+            if (orphaned_kind ==
+                  static_cast<uint8_t>(dual_mcu::AssetKind::RADAR) ||
+                id(dual_mcu_asset_pending_kind) == 0) {
+              id(dual_mcu_asset_pending_kind) = orphaned_kind;
+              id(dual_mcu_asset_pending_argument) = orphaned_argument;
+              id(dual_mcu_asset_pending_force) = true;
+            }
+            id(dual_mcu_asset_active_kind) = 0;
+            id(dual_mcu_asset_request_started_ms) = 0;
+            id(dual_mcu_radar_proxy_status).publish_state(
+              "Verwaisten Asset-Transfer erneut eingereiht");
+          }
+          if (id(dual_mcu_ha_bridge_ready) &&
+              !dual_mcu::radar_client.active() &&
+              id(dual_mcu_asset_active_kind) == 0 &&
+              id(dual_mcu_asset_pending_kind) != 0) {
+            const auto pending_kind =
+              static_cast<dual_mcu::AssetKind>(id(dual_mcu_asset_pending_kind));
+            if (dual_mcu::radar_client.request(
+                  dual_mcu::link, pending_kind,
+                  id(dual_mcu_asset_pending_force),
+                  id(dual_mcu_asset_pending_argument))) {
+              id(dual_mcu_asset_active_kind) = id(dual_mcu_asset_pending_kind);
+              id(dual_mcu_asset_active_argument) =
+                id(dual_mcu_asset_pending_argument);
+              id(dual_mcu_asset_pending_kind) = 0;
+              id(dual_mcu_asset_request_started_ms) = millis();
+              id(dual_mcu_radar_proxy_status).publish_state(
+                std::string("Fordere Asset an: ") +
+                dual_mcu::asset_kind_name(pending_kind));
+            }
+          }
+
+          const bool link_up = id(dual_mcu_last_esp32_heartbeat_ms) != 0 &&
+                               millis() - id(dual_mcu_last_esp32_heartbeat_ms) < 1500;
+          if (!link_up && id(dual_mcu_esp32_link_connected).state) {
+            id(dual_mcu_esp32_link_connected).publish_state(false);
+            id(dual_mcu_s3_status).publish_state("ESP32-Link unterbrochen; EC1 arbeitet weiter");
+          }
+          if (!link_up || (id(dual_mcu_ha_bridge_ready) &&
+              millis() - id(dual_mcu_ha_bridge_last_state_ms) > 1600)) {
+            id(dual_mcu_ha_bridge_ready) = false;
+            id(dual_mcu_ha_bridge_extended_media) = false;
+            id(dual_mcu_ha_bridge_media_selection) = false;
+            id(dual_mcu_ha_bridge_weather) = false;
+            id(dual_mcu_ha_bridge_forecast) = false;
+            id(dual_mcu_ha_bridge_radar) = false;
+            id(dual_mcu_ha_bridge_library) = false;
+            id(dual_mcu_ha_bridge_wled_presets) = false;
+            id(dual_mcu_library_bridge_mask) = 0;
+            id(dual_mcu_library_desired_mask) = 0x0F;
+            id(dual_mcu_library_response_proxy_available) = false;
+            id(dual_mcu_library_request_proxy_available) = false;
+            // The decoder reads the shared PSRAM buffer on core 0.  Keep that
+            // buffer alive until the worker has completed; the next loop pass
+            // performs the normal link-loss reset.
+            if (!dual_mcu::asset_decode_running) {
+              dual_mcu::radar_client.set_available(false);
+              id(dual_mcu_asset_active_kind) = 0;
+            }
+            dual_mcu::library_client.set_available(false);
+            id(dual_mcu_ha_bridge_connected).publish_state(false);
+          }
+          if (id(dual_mcu_ha_bridge_forecast) &&
+              millis() - id(dual_mcu_last_forecast_ms) > 20UL * 60UL * 1000UL) {
+            id(dual_mcu_ha_bridge_forecast) = false;
+          }
+          if (link_up && !id(dual_mcu_ha_bridge_ready) &&
+              millis() - id(dual_mcu_last_snapshot_request_ms) >= 2000) {
+            dual_mcu::link.send(dual_mcu::MessageType::SNAPSHOT_REQUEST);
+            id(dual_mcu_last_snapshot_request_ms) = millis();
+          }
+
+          if (millis() - id(dual_mcu_last_encoder_publish_ms) >= 100) {
+            id(dual_mcu_last_encoder_publish_ms) = millis();
+            id(dual_mcu_s3_ec1_count) = static_cast<int32_t>(
+              ec1_pcnt::encoder.signed_total());
+            dual_mcu::link.send_pair_i32(dual_mcu::MessageType::ENCODER_DIAG,
+                                        id(dual_mcu_s3_ec1_count),
+                                        id(dual_mcu_remote_ec2_count));
+          }
+
+          if (millis() - id(dual_mcu_last_stats_publish_ms) >= 1000) {
+            id(dual_mcu_last_stats_publish_ms) = millis();
+            const auto &stats = dual_mcu::link.stats();
+            id(dual_mcu_protocol_error_sensor).publish_state(
+              stats.crc_errors + stats.decode_errors + stats.version_errors +
+              stats.queue_overflows);
+            id(dual_mcu_s3_ec1_count_sensor).publish_state(id(dual_mcu_s3_ec1_count));
+            id(dual_mcu_esp32_ec2_count_sensor).publish_state(id(dual_mcu_remote_ec2_count));
+            id(dual_mcu_encoder_difference_sensor).publish_state(
+              id(dual_mcu_s3_ec1_count) - id(dual_mcu_remote_ec2_count));
+            id(dual_mcu_ui_scheduler_gap_sensor).publish_state(
+              id(dual_mcu_ui_slice_max_gap_ms));
+            id(dual_mcu_ui_slice_max_gap_ms) = 0;
+            const bool bridge_time_fresh =
+              id(dual_mcu_last_time_state_ms) != 0 &&
+              millis() - id(dual_mcu_last_time_state_ms) < 90000UL;
+            if (id(dual_mcu_bridge_time_synced).state != bridge_time_fresh)
+              id(dual_mcu_bridge_time_synced).publish_state(bridge_time_fresh);
+            if (id(dual_mcu_last_time_state_ms) != 0)
+              id(dual_mcu_bridge_time_age_sensor).publish_state(
+                (millis() - id(dual_mcu_last_time_state_ms)) / 1000.0f);
+          }
+
+  - interval: 500ms
+    then:
+      - lambda: |-
+          dual_mcu::link.send_u32(dual_mcu::MessageType::HEARTBEAT, millis());
+          const int battery_pct =
+            std::clamp(id(battery_percentage_cache), 0, 100);
+          const bool external_power = id(external_power_detected);
+          const uint32_t now = millis();
+          if (battery_pct != id(dual_mcu_last_device_battery_pct) ||
+              external_power != id(dual_mcu_last_device_external_power) ||
+              now - id(dual_mcu_last_device_status_ms) >= 15000UL) {
+            const float voltage = id(battery_voltage).state;
+            const uint16_t millivolts = isnan(voltage)
+              ? 0xFFFF
+              : static_cast<uint16_t>(std::clamp(
+                  static_cast<int>(lroundf(voltage * 1000.0f)), 0, 65534));
+            const uint8_t payload[] = {
+              static_cast<uint8_t>(battery_pct),
+              static_cast<uint8_t>(external_power ? 0x01 : 0x00),
+              static_cast<uint8_t>(millivolts & 0xFF),
+              static_cast<uint8_t>((millivolts >> 8) & 0xFF),
+            };
+            dual_mcu::link.send(
+              dual_mcu::MessageType::DEVICE_STATUS, payload, sizeof(payload));
+            id(dual_mcu_last_device_battery_pct) = battery_pct;
+            id(dual_mcu_last_device_external_power) = external_power;
+            id(dual_mcu_last_device_status_ms) = now;
+          }
+          if (!id(dual_mcu_stage1_performance_enabled)) return;
+          if (id(dual_mcu_ha_bridge_ready)) {
+            if (id(dual_mcu_stage1_bridge_ready_since_ms) == 0)
+              id(dual_mcu_stage1_bridge_ready_since_ms) = now;
+          } else {
+            id(dual_mcu_stage1_bridge_ready_since_ms) = 0;
+          }
+          if (id(dual_mcu_stage1_fallback_active_sensor).state !=
+              id(dual_mcu_stage1_fallback_network_active))
+            id(dual_mcu_stage1_fallback_active_sensor).publish_state(
+              id(dual_mcu_stage1_fallback_network_active));
+      - if:
+          condition:
+            lambda: |-
+              return id(dual_mcu_stage1_performance_enabled) &&
+                     id(dual_mcu_s3_network_rescue).state &&
+                     id(dual_mcu_stage1_fallback_network_active) &&
+                     !id(mqtt_client).is_connected();
+          then:
+            - mqtt.enable:
+                id: mqtt_client
+      - if:
+          condition:
+            lambda: |-
+              return id(dual_mcu_stage1_performance_enabled) &&
+                     id(dual_mcu_s3_network_rescue).state &&
+                     id(dual_mcu_stage1_fallback_network_active) &&
+                     !id(dual_mcu_stage1_fallback_refresh_sent) &&
+                     id(dual_mcu_stage1_fallback_started_ms) != 0 &&
+                     millis() - id(dual_mcu_stage1_fallback_started_ms) >= 2000;
+          then:
+            - lambda: 'id(dual_mcu_stage1_fallback_refresh_sent) = true;'
+            - script.execute: fetch_weather
+            - script.execute: fetch_rain_eta
+      - if:
+          condition:
+            lambda: |-
+              return id(dual_mcu_stage1_performance_enabled) &&
+                     id(dual_mcu_stage1_fallback_network_active) &&
+                     !id(dual_mcu_s3_network_rescue).state &&
+                     id(dual_mcu_ha_bridge_ready) &&
+                     id(dual_mcu_stage1_bridge_ready_since_ms) != 0 &&
+                     millis() - id(dual_mcu_stage1_bridge_ready_since_ms) >= 30000 &&
+                     millis() >= id(dual_mcu_library_response_proxy_failed_until_ms);
+          then:
+            - mqtt.disable:
+                id: mqtt_client
+            - lambda: |-
+                id(dual_mcu_stage1_fallback_network_active) = false;
+                id(dual_mcu_s3_library_fallback_active) = false;
+                id(dual_mcu_stage1_fallback_started_ms) = 0;
+                id(dual_mcu_stage1_fallback_refresh_sent) = false;
