@@ -15,7 +15,7 @@ CONFIG_ABS="${REPO_ROOT}/${CONFIG_FILE}"
 CONFIG_ROOT="${REPO_ROOT}${CONFIG_DIR_REL:+/${CONFIG_DIR_REL}}"
 BUILD_ROOT="${CONFIG_ROOT}/.esphome"
 PLATFORMIO_CACHE="${REPO_ROOT}/.esphome_cache/platformio"
-ESPHOME_IMAGE="${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.2.2}"
+ESPHOME_IMAGE="${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.7.0}"
 detect_serial_port() {
   local candidates=()
   shopt -s nullglob

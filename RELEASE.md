@@ -13,6 +13,9 @@ migration branch to the coordinated product release:
 - both processors retain independent OTA and serial recovery paths;
 - credential-free factory profiles support an ungeflashed retail device;
 - private test wrappers remain separate from public release cores.
+- all 15 Home Assistant weather conditions have dedicated, locally compiled
+  360 x 360 screensaver images on the S3, with no runtime image download and a
+  deterministic `partlycloudy` fallback.
 
 ## Canonical structure
 
@@ -60,11 +63,15 @@ flashed independently by OTA and read back through the native ESPHome API:
 - Music Assistant playlist paging verified with 140/140 entries on both
   processors, including automatic continuation beyond the retained
   40-entry bootstrap; inter-MCU protocol errors remained zero.
+- weather screensaver maintenance build flashed to the S3 at
+  `192.168.2.101`; the encrypted API handshake completed in 136 ms,
+  inter-MCU protocol errors remained zero and steady scheduler windows were
+  normally 13–18 ms.
 
 The corresponding credential-free factory artifacts were regenerated from the
 same Version 2.0 cores:
 
 ```text
-6f813960ea1e703366f84eacdc2be360d8d26f9f872a8d67157d01a076ead686  s3/passion-wave-rotaryknob-s3.factory.bin
-8c1f405a8d08b77f1e45ac2e3e49e250dc141763de0e41f6285f046144850ebf  esp32/passion-wave-rotaryknob-esp32.factory.bin
+e13af6f459a140ec2cbdde539f809f7e563b5bf8b9a7f404990b503b319440b7  s3/passion-wave-rotaryknob-s3.factory.bin
+89f2c1a68a97abe2c2c6f2a86c3be8019f0fe7aa1e9d7d23a12cf8f9b0f5fe57  esp32/passion-wave-rotaryknob-esp32.factory.bin
 ```

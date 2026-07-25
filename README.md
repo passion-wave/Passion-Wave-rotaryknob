@@ -38,6 +38,15 @@ must remain enabled until the final recovery and endurance gates are passed.
 - `docs/`: architecture, installation, migration, validation and product plan.
 - `tools/`: developer diagnostics and flash helpers.
 
+## Weather screensaver
+
+The S3 firmware contains a complete local image set for all 15 Home Assistant
+weather conditions. The ESP32 bridge forwards the condition, while the S3
+switches the precompiled RGB565 image without an HTTP request or loading delay.
+Unknown states use `partlycloudy` as a deterministic fallback. Source,
+provenance, checksums and the exact state mapping are documented in
+[Weather screensaver assets](assets/screensaver/README.md).
+
 ## Installation status
 
 The repository now supplies separate credential-free S3 and ESP32 factory

@@ -93,12 +93,15 @@ Current reviewed candidate:
 - static review of touch targets, blueprint selectors, automation modes,
   firmware profiles and web/control repository hand-off points;
 - ESPHome 2026.7.0 compilation of both profiles;
-- S3 build: 2,578,311-byte image, 55.5% DIRAM, 31.7% application partition;
-- ESP32 build: 1,135,515-byte image, 41.9% DRAM, 61.9% application partition;
-- successful OTA of S3 `.98` to the test device at `192.168.2.101`;
-- successful post-OTA API handshake; bridge snapshots resumed and the observed
-  scheduler windows were normally 12–17 ms. One startup protocol-error count
-  remains visible and must be reset/observed during the qualification catalog.
+- S3 public factory build: 6,428,167-byte image, 56.0% DIRAM, 79.1% of
+  the application partition; 1,698,176 bytes remain in each OTA slot;
+- ESP32 public factory build: 1,071,383-byte image, 42.1% DRAM, 58.4% of
+  the application partition;
+- successful weather-screensaver OTA to the S3 test device at
+  `192.168.2.101`;
+- successful post-OTA API handshake in 136 ms; bridge snapshots resumed,
+  protocol errors remained zero and observed steady scheduler windows were
+  normally 13–18 ms.
 
 ## Release decision
 

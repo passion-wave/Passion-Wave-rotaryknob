@@ -3,12 +3,16 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="${1:-${repo_dir}/release/public}"
-esphome_command="${ESPHOME_COMMAND:-esphome}"
 
 mkdir -p "${output_dir}/s3" "${output_dir}/esp32"
 
-"${esphome_command}" compile "${repo_dir}/esphome/factory-s3.yaml"
-"${esphome_command}" compile "${repo_dir}/esphome/factory-esp32.yaml"
+if [[ -n "${ESPHOME_COMMAND:-}" ]]; then
+  "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-s3.yaml"
+  "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-esp32.yaml"
+else
+  "${repo_dir}/tools/build.sh" esphome/factory-s3.yaml
+  "${repo_dir}/tools/build.sh" esphome/factory-esp32.yaml
+fi
 
 cp "${repo_dir}/esphome/.esphome/build/passion_wave_factory_s3/build/firmware.factory.bin" \
   "${output_dir}/s3/passion-wave-rotaryknob-s3.factory.bin"

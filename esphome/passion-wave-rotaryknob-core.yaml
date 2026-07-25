@@ -1808,6 +1808,70 @@ font:
       - "\U0000E855"  # alarm
       - "\U0000E042"  # replay
 
+image:
+  # The weather screensaver images are compiled into the S3 firmware. This
+  # keeps state changes instantaneous and avoids a runtime network download.
+  - platform: file
+    file: ../assets/screensaver/states/clear-night.jpg
+    id: screensaver_weather_clear_night_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/cloudy.jpg
+    id: screensaver_weather_cloudy_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/exceptional.jpg
+    id: screensaver_weather_exceptional_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/fog.jpg
+    id: screensaver_weather_fog_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/hail.jpg
+    id: screensaver_weather_hail_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/lightning.jpg
+    id: screensaver_weather_lightning_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/lightning-rainy.jpg
+    id: screensaver_weather_lightning_rainy_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/partlycloudy.jpg
+    id: screensaver_weather_partlycloudy_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/pouring.jpg
+    id: screensaver_weather_pouring_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/rainy.jpg
+    id: screensaver_weather_rainy_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/snowy.jpg
+    id: screensaver_weather_snowy_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/snowy-rainy.jpg
+    id: screensaver_weather_snowy_rainy_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/sunny.jpg
+    id: screensaver_weather_sunny_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/windy.jpg
+    id: screensaver_weather_windy_image
+    type: RGB565
+  - platform: file
+    file: ../assets/screensaver/states/windy-variant.jpg
+    id: screensaver_weather_windy_variant_image
+    type: RGB565
+
 output:
   - platform: ledc
     pin:
@@ -5653,6 +5717,40 @@ script:
           const bool is_partly = raw == "partlycloudy";
           const bool is_cloudy = raw == "cloudy" || is_fog || raw == "windy-variant" || is_partly || is_rain || is_snow;
 
+          auto *weather_image = screensaver_weather_partlycloudy_image;
+          if (raw == "clear-night") {
+            weather_image = screensaver_weather_clear_night_image;
+          } else if (raw == "cloudy") {
+            weather_image = screensaver_weather_cloudy_image;
+          } else if (raw == "exceptional") {
+            weather_image = screensaver_weather_exceptional_image;
+          } else if (raw == "fog") {
+            weather_image = screensaver_weather_fog_image;
+          } else if (raw == "hail") {
+            weather_image = screensaver_weather_hail_image;
+          } else if (raw == "lightning") {
+            weather_image = screensaver_weather_lightning_image;
+          } else if (raw == "lightning-rainy") {
+            weather_image = screensaver_weather_lightning_rainy_image;
+          } else if (raw == "pouring") {
+            weather_image = screensaver_weather_pouring_image;
+          } else if (raw == "rainy") {
+            weather_image = screensaver_weather_rainy_image;
+          } else if (raw == "snowy") {
+            weather_image = screensaver_weather_snowy_image;
+          } else if (raw == "snowy-rainy") {
+            weather_image = screensaver_weather_snowy_rainy_image;
+          } else if (raw == "sunny") {
+            weather_image = screensaver_weather_sunny_image;
+          } else if (raw == "windy") {
+            weather_image = screensaver_weather_windy_image;
+          } else if (raw == "windy-variant") {
+            weather_image = screensaver_weather_windy_variant_image;
+          }
+          lv_img_set_src(screensaver_weather_image_widget, weather_image);
+          lv_obj_clear_flag(screensaver_weather_image_widget, LV_OBJ_FLAG_HIDDEN);
+          lv_obj_move_background(screensaver_weather_image_widget);
+
           const uint32_t sky = is_rain ? (is_night ? 0x0E1422 : 0x5C6E84)
                              : is_snow ? (is_night ? 0x1A223A : 0x96B2CE)
                              : is_cloudy ? (is_night ? 0x121C30 : 0x7088A6)
@@ -5680,6 +5778,7 @@ script:
           };
 
           style_bg(screensaver_bg, sky);
+          lv_obj_set_style_bg_opa(screensaver_bg, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
           style_bg(screensaver_moon_cutout, sky);
           style_bg(screensaver_hill_1, hill_1);
           style_bg(screensaver_hill_2, hill_2);
@@ -5693,8 +5792,8 @@ script:
           show_obj(screensaver_time_shadow_label, false);
           show_obj(screensaver_time_label, false);
 
-          const uint32_t hand_color = 0x334155;
-          const uint32_t minute_color = 0x111827;
+          const uint32_t hand_color = 0xDCE7EC;
+          const uint32_t minute_color = 0xFFFFFF;
           lv_obj_set_style_bg_opa(screensaver_clock_host, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_border_width(screensaver_clock_host, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
           style_bg(screensaver_clock_center_dot, minute_color);
@@ -5733,19 +5832,25 @@ script:
             }
           }
 
-          show_obj(screensaver_sun, !is_night);
-          show_obj(screensaver_sun_ray_0, !is_night && raw == "sunny");
-          show_obj(screensaver_sun_ray_1, !is_night && raw == "sunny");
-          show_obj(screensaver_sun_ray_2, !is_night && raw == "sunny");
-          show_obj(screensaver_sun_ray_3, !is_night && raw == "sunny");
-          show_obj(screensaver_moon, is_night);
-          show_obj(screensaver_moon_cutout, is_night);
-          show_obj(screensaver_star_0, is_night);
-          show_obj(screensaver_star_1, is_night);
-          show_obj(screensaver_star_2, is_night);
-          show_obj(screensaver_star_3, is_night);
+          // The photographic layer supersedes the former vector landscape.
+          // Keep the objects allocated as a rollback-safe fallback, but hide
+          // them so only the selected weather photograph remains visible.
+          show_obj(screensaver_sun, false);
+          show_obj(screensaver_sun_ray_0, false);
+          show_obj(screensaver_sun_ray_1, false);
+          show_obj(screensaver_sun_ray_2, false);
+          show_obj(screensaver_sun_ray_3, false);
+          show_obj(screensaver_moon, false);
+          show_obj(screensaver_moon_cutout, false);
+          show_obj(screensaver_star_0, false);
+          show_obj(screensaver_star_1, false);
+          show_obj(screensaver_star_2, false);
+          show_obj(screensaver_star_3, false);
+          show_obj(screensaver_hill_1, false);
+          show_obj(screensaver_hill_2, false);
+          show_obj(screensaver_hill_3, false);
 
-          const bool clouds_visible = is_cloudy;
+          const bool clouds_visible = false;
           show_obj(screensaver_cloud_0, clouds_visible);
           show_obj(screensaver_cloud_1, clouds_visible);
           show_obj(screensaver_cloud_2, clouds_visible);
@@ -5755,21 +5860,21 @@ script:
           show_obj(screensaver_cloud_6, clouds_visible && (is_cloudy && !is_partly));
           show_obj(screensaver_cloud_7, clouds_visible && (is_cloudy && !is_partly));
 
-          show_obj(screensaver_rain_0, is_rain);
-          show_obj(screensaver_rain_1, is_rain);
-          show_obj(screensaver_rain_2, is_rain);
-          show_obj(screensaver_rain_3, is_rain);
-          show_obj(screensaver_rain_4, is_rain);
-          show_obj(screensaver_snow_0, is_snow);
-          show_obj(screensaver_snow_1, is_snow);
-          show_obj(screensaver_snow_2, is_snow);
-          show_obj(screensaver_snow_3, is_snow);
-          show_obj(screensaver_snow_4, is_snow);
-          show_obj(screensaver_fog_0, is_fog);
-          show_obj(screensaver_fog_1, is_fog);
-          show_obj(screensaver_fog_2, is_fog);
-          show_obj(screensaver_fog_3, is_fog);
-          show_obj(screensaver_fog_4, is_fog);
+          show_obj(screensaver_rain_0, false);
+          show_obj(screensaver_rain_1, false);
+          show_obj(screensaver_rain_2, false);
+          show_obj(screensaver_rain_3, false);
+          show_obj(screensaver_rain_4, false);
+          show_obj(screensaver_snow_0, false);
+          show_obj(screensaver_snow_1, false);
+          show_obj(screensaver_snow_2, false);
+          show_obj(screensaver_snow_3, false);
+          show_obj(screensaver_snow_4, false);
+          show_obj(screensaver_fog_0, false);
+          show_obj(screensaver_fog_1, false);
+          show_obj(screensaver_fog_2, false);
+          show_obj(screensaver_fog_3, false);
+          show_obj(screensaver_fog_4, false);
 
           if (time_valid) {
             const char *weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
@@ -13165,6 +13270,11 @@ lvgl:
             }
         - script.execute: refresh_weather_screensaver
       widgets:
+        - image:
+            id: screensaver_weather_image_widget
+            x: 0
+            y: 0
+            src: screensaver_weather_partlycloudy_image
         - obj:
             id: screensaver_bg
             x: 0
@@ -13172,6 +13282,17 @@ lvgl:
             width: 360
             height: 360
             bg_color: 0x589EE4
+            bg_opa: 0%
+            border_width: 0
+            pad_all: 0
+        - obj:
+            id: screensaver_weather_scrim
+            x: 0
+            y: 0
+            width: 360
+            height: 360
+            bg_color: 0x07111F
+            bg_opa: 20%
             border_width: 0
             pad_all: 0
         - obj:

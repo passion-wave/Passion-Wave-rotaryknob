@@ -1,7 +1,8 @@
 # Weather screensaver source collage
 
 `weather-condition-collage-source.png` is the original user-provided visual
-reference for a future photographic weather screensaver.
+reference for the photographic weather screensaver. The production-ready,
+display-sized files live in [`states/`](states/).
 
 Technical properties:
 
@@ -11,50 +12,42 @@ Technical properties:
 - SHA-256:
   `ba3f8ca1326ef007e80532cb4bca1f489833d78e72de928992568fab192b6408`.
 
-The collage is intentionally stored as a source asset. It is not currently
-compiled into the firmware: the existing screensaver is rendered from LVGL
-objects, and the complete collage would waste flash and runtime memory. Before
-integration, each approved motif must be cropped, resized and converted into a
-device-appropriate asset.
+The collage remains stored unchanged as source evidence. Eight approved motifs
+were cropped from it; seven missing motifs were generated with OpenAI's built-in
+image-generation workflow using the collage as the visual reference. All
+production files are 360 x 360 JPEGs and are compiled into the ESP32-S3
+firmware as RGB565 images. `states/SHA256SUMS` makes the complete set
+reproducible.
 
-## Coverage audit
+## Complete state mapping
 
-Positions use `R<row>C<column>`, counted from the upper left.
+| Home Assistant state | File | Source |
+|---|---|---|
+| `clear-night` | `states/clear-night.jpg` | generated completion |
+| `cloudy` | `states/cloudy.jpg` | source collage R1C3 |
+| `exceptional` | `states/exceptional.jpg` | generated completion |
+| `fog` | `states/fog.jpg` | source collage R3C1 |
+| `hail` | `states/hail.jpg` | generated completion |
+| `lightning` | `states/lightning.jpg` | source collage R2C3 |
+| `lightning-rainy` | `states/lightning-rainy.jpg` | generated completion |
+| `partlycloudy` | `states/partlycloudy.jpg` | source collage R1C2 |
+| `pouring` | `states/pouring.jpg` | source collage R2C2 |
+| `rainy` | `states/rainy.jpg` | source collage R2C1 |
+| `snowy` | `states/snowy.jpg` | source collage R3C2 |
+| `snowy-rainy` | `states/snowy-rainy.jpg` | generated completion |
+| `sunny` | `states/sunny.jpg` | source collage R1C1 |
+| `windy` | `states/windy.jpg` | generated completion |
+| `windy-variant` | `states/windy-variant.jpg` | generated completion |
 
-| Firmware condition | Proposed motif | Coverage |
-|---|---:|---|
-| `clear-night` | — | missing: a calm, clear night sky is required |
-| `cloudy` | R1C3 | direct |
-| `exceptional` | R2C3 | partial: thunderstorm is not a universal exceptional condition |
-| `fog` | R3C1 or R3C3 | direct; the collage contains two similar fog motifs |
-| `hail` | — | missing: rain does not communicate hail |
-| `lightning` | R2C3 | direct |
-| `lightning-rainy` | R2C3 | partial: lightning is clear, rain is not |
-| `partlycloudy` | R1C2 | direct |
-| `pouring` | R2C2 | direct |
-| `rainy` | R2C1 | direct |
-| `snowy` | R3C2 | direct |
-| `snowy-rainy` | — | missing: mixed snow and rain is required |
-| `sunny` | R1C1 | direct |
-| `windy` | — | missing: no visible wind cue |
-| `windy-variant` | — | missing: clouds are present, but wind is not communicated |
-| unknown/fallback | — | a neutral fallback motif is required |
+Unknown or empty values deliberately fall back to `partlycloudy`.
 
-The nine tiles therefore provide eight clearly distinct weather classes; the
-two fog tiles are visually redundant. The collage cannot represent all 15
-supported Home Assistant conditions unambiguously.
+## Runtime behavior
 
-## Required completion set
-
-For complete screensaver coverage, add at least these five motifs in the same
-color treatment, exposure, circular crop and camera style:
-
-1. clear night;
-2. hail;
-3. mixed snow and rain;
-4. wind without dominant cloud cover;
-5. wind with cloud cover.
-
-An additional neutral fallback and a more general severe-weather motif are
-recommended. Distribution rights and final image provenance must be confirmed
-before these assets are shipped in public factory firmware.
+- The ESP32 bridge transports the Home Assistant condition as before.
+- The S3 maps the condition locally and swaps the already compiled image; there
+  is no HTTP request and therefore no loading state.
+- A restrained dark LVGL scrim keeps clock hands and status text readable.
+- The old vector weather objects remain allocated but hidden for a safe
+  rollback during the Version 2.0 test phase.
+- Only the S3 image changes. Encoder, touch, Home Assistant and OTA paths remain
+  unchanged.
