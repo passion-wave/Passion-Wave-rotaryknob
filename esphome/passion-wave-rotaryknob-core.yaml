@@ -6429,8 +6429,7 @@ script:
       - if:
           condition:
             lambda: |-
-              return id(track_select_active) &&
-                     (!id(chosen_playlist_uri).empty() || !id(chosen_playlist_item_id).empty()) &&
+              return (!id(chosen_playlist_uri).empty() || !id(chosen_playlist_item_id).empty()) &&
                      id(track_has_more) &&
                      id(pending_track_request_id).empty() &&
                      !id(track_autoload_inflight);
@@ -6647,7 +6646,6 @@ script:
             - lambda: |-
                 id(playlist_autoload_inflight) = false;
                 id(pending_playlist_request_id).clear();
-                id(playlist_has_more) = false;
                 id(media_ui_dirty) = true;
             - script.execute: refresh_media_picker_popup
             - script.execute: refresh_media_ui_if_needed
@@ -6727,7 +6725,8 @@ script:
                   id(playlist_request_offset) = id(playlist_loaded_count);
                 }
                 id(playlist_autoload_anchor_count) = id(playlist_loaded_count);
-                if (id(media_picker_visible) &&
+                if (id(media_picker_more_requested) &&
+                    id(media_picker_visible) &&
                     id(media_picker_tab) == 1 &&
                     id(playlist_loaded_count) > 0) {
                   id(selected_playlist_index) = id(playlist_loaded_count) - 1;

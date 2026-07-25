@@ -26,6 +26,11 @@ struct LibraryEntry {
   std::string media_type;
 };
 
+struct LibraryLookupEntry {
+  std::string locator;
+  bool item_id{false};
+};
+
 struct LibraryPageInfo {
   uint16_t total{0};
   uint16_t offset{0};
@@ -37,7 +42,9 @@ struct LibraryPageInfo {
 
 static constexpr size_t LIBRARY_MAX_BYTES = 48 * 1024;
 static constexpr size_t LIBRARY_CHUNK_BYTES = MAX_PAYLOAD - 6;
-static constexpr size_t LIBRARY_MAX_ENTRIES = 64;
+// Allow catalogs well beyond the retained bootstrap while the byte cap remains
+// the final heap/transport guard.
+static constexpr size_t LIBRARY_MAX_ENTRIES = 192;
 
 inline uint32_t library_crc32_update(uint32_t crc, const uint8_t *data, size_t length) {
   crc = ~crc;
@@ -100,51 +107,53 @@ class LibraryProxyServer {
     library_write_u16(&blob[2], count);
     this->cache_[slot] = std::move(blob);
     this->contexts_[slot] = 0;
-    auto &canonical_entries = this->paged_entries_[slot];
-    canonical_entries.assign(entries.begin(), entries.begin() + count);
+    auto &lookup_entries = this->lookup_entries_[slot];
+    lookup_entries.clear();
+    lookup_entries.reserve(count);
+    for (size_t index = 0; index < count; index++) {
+      const auto &entry = entries[index];
+      lookup_entries.push_back({
+        !entry.uri.empty() ? entry.uri : entry.item_id,
+        entry.uri.empty() && !entry.item_id.empty(),
+      });
+    }
     this->ready_[slot] = true;
     return true;
   }
 
-  // Accumulate a bounded paginated result on the network processor and send
-  // one complete snapshot to the S3. Replacing from `offset` also makes a
-  // repeated page response idempotent.
+  // Keep only a compact global locator index on the network processor and send
+  // the current page to the S3. The S3 owns display names and accumulates the
+  // pages for the UI; avoiding a second full catalog prevents heap exhaustion
+  // on the classic ESP32.
   bool set_page(LibraryKind kind, const std::vector<LibraryEntry> &entries,
                 uint16_t offset, uint16_t total, bool has_more,
                 uint16_t context = 0) {
     const size_t slot = static_cast<size_t>(kind);
     if (slot == 0 || slot >= this->cache_.size()) return false;
-    auto &all = this->paged_entries_[slot];
-    const bool stream_page_only = kind == LibraryKind::PLAYLIST_TRACKS;
-    if (stream_page_only) {
-      // Track lists can contain hundreds of items. Keeping the growing list,
-      // rebuilding its complete blob and copying that blob for every UART
-      // transfer caused quadratic work and exhausted the classic ESP32 heap
-      // on page two. The S3 owns the UI cache, so the network processor only
-      // needs to retain and transfer the current delta page.
-      all.clear();
-      const size_t remaining =
-        offset < LIBRARY_MAX_ENTRIES ? LIBRARY_MAX_ENTRIES - offset : 0;
-      const size_t page_count = std::min(entries.size(), remaining);
-      all.assign(entries.begin(), entries.begin() + page_count);
-    } else {
-      // Playlist pages stay cumulative because the ESP32 resolves a selected
-      // playlist index locally when the S3 requests its tracks.
-      if (offset == 0) {
-        all.clear();
-      } else if (offset > all.size()) {
-        return false;
-      } else if (offset < all.size()) {
-        all.resize(offset);
-      }
-      for (const auto &entry : entries) {
-        if (all.size() >= LIBRARY_MAX_ENTRIES) break;
-        all.push_back(entry);
-      }
+    auto &lookup = this->lookup_entries_[slot];
+    if (offset == 0) {
+      lookup.clear();
+      if (lookup.capacity() < LIBRARY_MAX_ENTRIES)
+        lookup.reserve(LIBRARY_MAX_ENTRIES);
+    } else if (offset > lookup.size()) {
+      return false;
+    } else if (offset < lookup.size()) {
+      lookup.resize(offset);
+    }
+    const size_t remaining =
+      offset < LIBRARY_MAX_ENTRIES ? LIBRARY_MAX_ENTRIES - offset : 0;
+    const size_t page_count = std::min(entries.size(), remaining);
+    for (size_t index = 0; index < page_count; index++) {
+      const auto &entry = entries[index];
+      lookup.push_back({
+        !entry.uri.empty() ? entry.uri : entry.item_id,
+        entry.uri.empty() && !entry.item_id.empty(),
+      });
     }
 
     std::vector<uint8_t> blob;
-    blob.reserve(std::min<size_t>(LIBRARY_MAX_BYTES, 9 + all.size() * 96));
+    blob.reserve(std::min<size_t>(
+      LIBRARY_MAX_BYTES, 9 + page_count * 96));
     blob.push_back(2);
     blob.push_back(static_cast<uint8_t>(kind));
     blob.push_back(0);
@@ -155,7 +164,8 @@ class LibraryProxyServer {
     blob.push_back(0);
     blob.push_back(0);
     uint16_t count = 0;
-    for (const auto &entry : all) {
+    for (size_t index = 0; index < page_count; index++) {
+      const auto &entry = entries[index];
       const size_t entry_start = blob.size();
       if (!this->append_string_(blob, entry.name, 96) ||
           !this->append_string_(blob, entry.uri, 192) ||
@@ -170,7 +180,7 @@ class LibraryProxyServer {
     library_write_u16(&blob[4], total);
     const uint16_t next_offset = static_cast<uint16_t>(
       std::min<size_t>(
-        stream_page_only ? static_cast<size_t>(offset) + count : all.size(),
+        static_cast<size_t>(offset) + count,
         UINT16_MAX));
     library_write_u16(&blob[6], next_offset);
     blob[8] = (has_more && next_offset < LIBRARY_MAX_ENTRIES) ? 0x01 : 0x00;
@@ -284,10 +294,22 @@ class LibraryProxyServer {
   bool entry(LibraryKind kind, uint16_t index, LibraryEntry *result) const {
     if (result == nullptr) return false;
     const size_t slot = static_cast<size_t>(kind);
-    if (slot == 0 || slot >= this->paged_entries_.size() ||
-        !this->ready_[slot] || index >= this->paged_entries_[slot].size()) return false;
-    *result = this->paged_entries_[slot][index];
+    if (slot == 0 || slot >= this->lookup_entries_.size() ||
+        !this->ready_[slot] || index >= this->lookup_entries_[slot].size()) return false;
+    const auto &lookup = this->lookup_entries_[slot][index];
+    *result = LibraryEntry{};
+    if (lookup.item_id) result->item_id = lookup.locator;
+    else result->uri = lookup.locator;
+    result->media_type =
+      kind == LibraryKind::PLAYLISTS || kind == LibraryKind::PLAYLIST_PAGE
+        ? "playlist" : "track";
     return true;
+  }
+
+  size_t lookup_count(LibraryKind kind) const {
+    const size_t slot = static_cast<size_t>(kind);
+    return slot > 0 && slot < this->lookup_entries_.size()
+      ? this->lookup_entries_[slot].size() : 0;
   }
 
  private:
@@ -305,7 +327,7 @@ class LibraryProxyServer {
   }
 
   std::array<std::vector<uint8_t>, 6> cache_{};
-  std::array<std::vector<LibraryEntry>, 6> paged_entries_{};
+  std::array<std::vector<LibraryLookupEntry>, 6> lookup_entries_{};
   std::array<uint16_t, 6> contexts_{};
   std::vector<uint8_t> active_blob_{};
   std::array<bool, 6> ready_{};

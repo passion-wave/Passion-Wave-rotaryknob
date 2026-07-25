@@ -88,7 +88,9 @@ identical forecasts from icon mapping or transport defects.
 
 Bridge `.11` subscribes to the retained Music Assistant playlist, radio and
 podcast bootstrap topics on the classic ESP32. JSON is parsed there into at
-most 64 bounded entries per list. The S3 requests one list at a time and
+most 192 bounded entries per list. The retained playlist payload is only a
+fast bootstrap prefix; it is never treated as the complete catalog. The S3
+requests one list at a time and
 receives versioned binary records through the same acknowledged 42-byte chunk
 transport with contiguous offsets and end-to-end CRC-32. Only after a complete
 list has decoded successfully does the S3 suppress that list's original MQTT
@@ -112,11 +114,13 @@ An empty Home Assistant option list is represented explicitly and does not
 create synthetic presets.
 
 Bridge `.13` owns JSON parsing for paginated playlist and playlist-track
-responses. It accepts only request IDs belonging to the test S3, accumulates
-at most 64 records and sends a versioned complete snapshot containing total,
-next offset and `has_more`. The S3 replaces its visible cache only after a
-contiguous transfer and CRC-32 validation. A proxy timeout re-enables the
-original S3 response parser for ten seconds.
+responses. It accepts only request IDs belonging to the test S3 and sends
+bounded delta pages containing offset, next offset and `has_more`. The S3
+accumulates display names only after each page passes contiguous-transfer and
+CRC-32 validation. The classic ESP32 keeps only a compact global URI/item-ID
+index for playback and further track requests. This avoids the former
+cumulative name/blob duplication and its heap peak on large catalogs. A proxy
+timeout re-enables the original S3 response parser for ten seconds.
 
 Bridge `.14` adds index-based media selection. The S3 sends only the library
 kind and selected index; the ESP32 resolves both against its canonical cache.
@@ -158,11 +162,11 @@ first item. S3 `.78` identifies this route explicitly as
 `PLAYLIST_PAGE`; bridge `.38` accepts both playlist kind identifiers for
 backward compatibility.
 
-The live acceptance on the test device transferred a 24-entry playlist page
-and a 16-entry first track page from a 100-track playlist. Both processors
-reported zero protocol errors after the aligned restart; the S3 diagnostics
-reported `Playlist-Seite via ESP32: 24/0` and
-`Track-Seite via ESP32: 16/100`.
+The current live acceptance automatically transferred all 140 Music Assistant
+playlists, including every entry after the 40-item retained bootstrap. Both
+processors reported 140 cached playlist locators and zero protocol errors.
+Playlist tracks use the same delta-page scheme and are prefetched in bounded
+chunks while the ESP32 retains their compact global URI index.
 
 S3 `.56` turns that proven path into a hard normal-operation boundary. The S3
 ignores retained playlist, radio, podcast and track JSON while the bridge owns
@@ -295,8 +299,10 @@ On the ESP32:
     Select a preset and confirm the ESP32 action counter increases once. With
     no WLED presets saved, both diagnostics and the popup must report the empty
     state without protocol errors.
-14. Open the media picker, request another playlist page and select a playlist.
-    The ESP32 diagnostic must show `Playlist-Seite` and then `Track-Seite`.
+14. After boot, confirm `S3 Playlist Cache Entries` and
+    `ESP32 Playlist Cache Entries` converge to the same full catalog count
+    without pressing `Weitere laden`. Scroll beyond the retained bootstrap
+    boundary, select a playlist and confirm the title pages load automatically.
     Paging metadata must remain intact and both protocol counters must stay at
     zero. Selecting a transferred track must start the same URI as before.
 15. Confirm `ESP32 Bridge Time Synced` becomes on within 15 seconds and

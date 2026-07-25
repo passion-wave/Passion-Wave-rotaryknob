@@ -57,11 +57,14 @@ flashed independently by OTA and read back through the native ESPHome API:
 - shared native Music Assistant target `media_player.move_2`;
 - shared four-light target snapshot;
 - runtime status `ESP32 HA-Bridge aktiv`.
+- Music Assistant playlist paging verified with 140/140 entries on both
+  processors, including automatic continuation beyond the retained
+  40-entry bootstrap; inter-MCU protocol errors remained zero.
 
 The corresponding credential-free factory artifacts were regenerated from the
 same Version 2.0 cores:
 
 ```text
-fdbece5c268eb5f83acc3dafb865fdc954575662a6fc479071942c046ce9b87a  s3/passion-wave-rotaryknob-s3.factory.bin
-3c5db0c897d0afbe6645faa82d460b95714b516767bed18e5417b49ad1162eb5  esp32/passion-wave-rotaryknob-esp32.factory.bin
+6f813960ea1e703366f84eacdc2be360d8d26f9f872a8d67157d01a076ead686  s3/passion-wave-rotaryknob-s3.factory.bin
+8c1f405a8d08b77f1e45ac2e3e49e250dc141763de0e41f6285f046144850ebf  esp32/passion-wave-rotaryknob-esp32.factory.bin
 ```

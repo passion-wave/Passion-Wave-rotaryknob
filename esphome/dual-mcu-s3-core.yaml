@@ -149,7 +149,10 @@ globals:
   - id: dual_mcu_library_desired_mask
     type: uint8_t
     restore_value: false
-    initial_value: '15'
+    # Radios, podcasts and the paged playlist catalog. The compact legacy
+    # playlist kind is only a compatibility mirror and must not overwrite the
+    # paged catalog after its bootstrap transfer.
+    initial_value: '14'
   - id: dual_mcu_wled_preset_pending_names
     type: std::vector<std::string>
     restore_value: false
@@ -321,6 +324,24 @@ switch:
               : "ESP32 Bridge fehlt · Rescue aus");
 
 sensor:
+  - platform: template
+    id: dual_mcu_s3_playlist_cache_entries_sensor
+    name: "S3 Playlist Cache Entries"
+    accuracy_decimals: 0
+    update_interval: 2s
+    entity_category: diagnostic
+    lambda: |-
+      return static_cast<float>(id(ma_playlists_names_cache).size());
+
+  - platform: template
+    id: dual_mcu_s3_track_cache_entries_sensor
+    name: "S3 Track Cache Entries"
+    accuracy_decimals: 0
+    update_interval: 2s
+    entity_category: diagnostic
+    lambda: |-
+      return static_cast<float>(id(ma_track_titles_cache).size());
+
   - platform: template
     id: dual_mcu_s3_ec1_count_sensor
     name: "S3 EC1 Diagnostic Count"
@@ -1642,10 +1663,19 @@ interval:
                 break;
               case dual_mcu::MessageType::LIBRARY_CHANGED:
                 if (frame.length == 1 && frame.payload[0] >= 1 && frame.payload[0] <= 5) {
+                  // Kind 1 mirrors the retained playlist bootstrap for old S3
+                  // firmware. Version 2 consumes kind 4 exclusively so that
+                  // this 40-entry prefix cannot overwrite the growing catalog.
+                  const uint8_t changed_kind =
+                    frame.payload[0] == static_cast<uint8_t>(
+                      dual_mcu::LibraryKind::PLAYLISTS)
+                      ? static_cast<uint8_t>(
+                          dual_mcu::LibraryKind::PLAYLIST_PAGE)
+                      : frame.payload[0];
                   id(dual_mcu_library_desired_mask) |=
-                    static_cast<uint8_t>(1U << (frame.payload[0] - 1));
+                    static_cast<uint8_t>(1U << (changed_kind - 1));
                   id(dual_mcu_library_bridge_mask) &=
-                    static_cast<uint8_t>(~(1U << (frame.payload[0] - 1)));
+                    static_cast<uint8_t>(~(1U << (changed_kind - 1)));
                   id(dual_mcu_library_last_request_ms) = 0;
                   id(dual_mcu_library_proxy_status).publish_state("Bibliothek aktualisiert");
                 }
@@ -1762,10 +1792,21 @@ interval:
                 id(selected_podcast_index) = std::max(0, static_cast<int>(completed_entries.size()) - 1);
             } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_PAGE) {
               const int previous_count = id(playlist_loaded_count);
-              id(ma_playlists_names_cache).clear();
-              id(ma_playlists_uris_cache).clear();
-              id(ma_playlists_item_ids_cache).clear();
-              id(ma_playlists_types_cache).clear();
+              const size_t page_offset = completed_page.offset;
+              const size_t cached_count = id(ma_playlists_names_cache).size();
+              if (page_offset > cached_count) {
+                id(playlist_autoload_inflight) = false;
+                id(pending_playlist_request_id).clear();
+                id(dual_mcu_library_proxy_status).publish_state(
+                  "Playlist-Seitenlücke");
+                return;
+              }
+              if (page_offset < cached_count) {
+                id(ma_playlists_names_cache).resize(page_offset);
+                id(ma_playlists_uris_cache).resize(page_offset);
+                id(ma_playlists_item_ids_cache).resize(page_offset);
+                id(ma_playlists_types_cache).resize(page_offset);
+              }
               for (const auto &entry : completed_entries) {
                 id(ma_playlists_names_cache).push_back(entry.name);
                 id(ma_playlists_uris_cache).push_back(entry.uri);
@@ -1773,19 +1814,33 @@ interval:
                 id(ma_playlists_types_cache).push_back(entry.media_type);
               }
               id(playlist_loaded_count) = completed_entries.size();
-              id(playlist_total_available) = completed_page.total;
+              id(playlist_total_available) =
+                  completed_page.total > 0
+                      ? completed_page.total
+                      : (!completed_page.has_more ? completed_entries.size() : 0);
               id(playlist_request_offset) = completed_page.next_offset;
               id(playlist_has_more) = completed_page.has_more;
               id(playlist_autoload_inflight) = false;
               id(playlist_paged_mode_ready) = true;
               id(last_accepted_playlist_request_id) = id(pending_playlist_request_id);
               id(pending_playlist_request_id).clear();
-              if (previous_count > 0 && id(playlist_loaded_count) > previous_count &&
+              if (id(media_picker_more_requested) &&
+                  previous_count > 0 && id(playlist_loaded_count) > previous_count &&
                   id(media_picker_visible) && id(media_picker_tab) == 1)
                 id(selected_playlist_index) = previous_count;
               if (id(selected_playlist_index) >= id(playlist_loaded_count))
                 id(selected_playlist_index) = std::max(0, id(playlist_loaded_count) - 1);
               id(playlist_autoload_anchor_count) = 0;
+              id(media_picker_more_requested) = false;
+              // Fill the bounded catalog cache in the background. The
+              // retained MQTT bootstrap intentionally contains only the
+              // first 40 playlists.
+              if (id(playlist_has_more) &&
+                  (id(playlist_total_available) == 0 ||
+                   id(playlist_loaded_count) < id(playlist_total_available)) &&
+                  id(pending_playlist_request_id).empty()) {
+                id(request_more_playlist_page).execute();
+              }
             } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_TRACKS) {
               const size_t page_offset = completed_page.offset;
               const size_t cached_count = id(ma_track_titles_cache).size();
@@ -1835,6 +1890,15 @@ interval:
                   id(start_selected_track).execute();
                 }
               }
+              // Prefetch subsequent 16-entry pages immediately. Waiting for
+              // the user to land on the final visible row left the popup
+              // stuck at entries 16/total on touch scrolling and made the
+              // encoder appear to stop after the first page.
+              if (id(track_has_more) &&
+                  id(track_loaded_count) < id(track_total_available) &&
+                  id(pending_track_request_id).empty()) {
+                id(request_more_playlist_tracks).execute();
+              }
             }
             id(dual_mcu_library_bridge_mask) |= static_cast<uint8_t>(1U << (kind - 1));
             if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_PAGE)
@@ -1854,7 +1918,7 @@ interval:
               id(dual_mcu_library_proxy_status).publish_state(
                 std::string("Playlist-Seite via ESP32: ") +
                 std::to_string(completed_entries.size()) + "/" +
-                std::to_string(completed_page.total));
+                std::to_string(id(playlist_total_available)));
             } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_TRACKS) {
               id(dual_mcu_library_proxy_status).publish_state(
                 std::string("Track-Liste via ESP32: ") +
@@ -2163,7 +2227,7 @@ interval:
             id(dual_mcu_ha_bridge_library) = false;
             id(dual_mcu_ha_bridge_wled_presets) = false;
             id(dual_mcu_library_bridge_mask) = 0;
-            id(dual_mcu_library_desired_mask) = 0x0F;
+            id(dual_mcu_library_desired_mask) = 0x0E;
             id(dual_mcu_library_response_proxy_available) = false;
             id(dual_mcu_library_request_proxy_available) = false;
             // The decoder reads the shared PSRAM buffer on core 0.  Keep that
@@ -2257,6 +2321,19 @@ interval:
               id(dual_mcu_stage1_fallback_network_active))
             id(dual_mcu_stage1_fallback_active_sensor).publish_state(
               id(dual_mcu_stage1_fallback_network_active));
+      - if:
+          condition:
+            lambda: |-
+              // A bootstrap page can arrive a few milliseconds before the
+              // ESP32 advertises its MQTT request proxy. Retry without user
+              // interaction instead of permanently truncating the catalog.
+              return id(playlist_paged_mode_ready) &&
+                     id(playlist_has_more) &&
+                     !id(playlist_autoload_inflight) &&
+                     id(pending_playlist_request_id).empty() &&
+                     id(dual_mcu_library_request_proxy_available);
+          then:
+            - script.execute: request_more_playlist_page
       - if:
           condition:
             lambda: |-

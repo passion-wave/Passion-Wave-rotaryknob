@@ -436,6 +436,26 @@ binary_sensor:
 
 sensor:
   - platform: template
+    id: bridge_playlist_cache_entries_sensor
+    name: "ESP32 Playlist Cache Entries"
+    accuracy_decimals: 0
+    update_interval: 2s
+    entity_category: diagnostic
+    lambda: |-
+      return static_cast<float>(dual_mcu::library_server.lookup_count(
+        dual_mcu::LibraryKind::PLAYLIST_PAGE));
+
+  - platform: template
+    id: bridge_track_cache_entries_sensor
+    name: "ESP32 Track Cache Entries"
+    accuracy_decimals: 0
+    update_interval: 2s
+    entity_category: diagnostic
+    lambda: |-
+      return static_cast<float>(dual_mcu::library_server.lookup_count(
+        dual_mcu::LibraryKind::PLAYLIST_TRACKS));
+
+  - platform: template
     id: bridge_s3_battery_percentage_sensor
     name: "S3 Battery Percentage via Bridge"
     unit_of_measurement: "%"
@@ -1317,12 +1337,12 @@ script:
           }
           if (kind == static_cast<int>(dual_mcu::LibraryKind::PLAYLISTS)) {
             // The retained compact list is available immediately after a
-            // cold boot. Expose it as a complete page as well, so the S3 does
-            // not need to wait for a fresh HA service call before showing the
-            // playlist picker.
+            // cold boot, but it is only a bootstrap prefix. Expose it as an
+            // open-ended page so the S3 keeps fetching beyond the retained
+            // limit instead of treating item 40 as the complete catalog.
             dual_mcu::library_server.set_page(
               dual_mcu::LibraryKind::PLAYLIST_PAGE, entries, 0,
-              static_cast<uint16_t>(entries.size()), false);
+              0, true);
           }
           id(bridge_library_proxy_status).publish_state(
             std::string("Cache ") + std::to_string(kind) + ": " +
