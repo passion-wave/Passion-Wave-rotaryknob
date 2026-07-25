@@ -10,6 +10,10 @@ two-processor performance architecture, NextUI and the ungeflashed-device
 factory pipeline. Historical migration revisions remain documented for
 traceability.
 
+Version 2.0 is now integrated into `main`. The former integration branch
+`feature/next` is retained at the same release commit; `stable/1.2.0` remains
+the unchanged rollback branch.
+
 ## Current architecture
 
 - ESP32-S3: EC1 encoder, touch, LVGL rendering, haptics, local optimistic UI and

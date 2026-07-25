@@ -31,3 +31,16 @@ migration branch to the coordinated product release:
 rebuilding or renaming them and must keep one chip family per guided installer
 stage. `Passion-Wave-control` records the release order and external launch
 gates.
+
+## Branch integration
+
+The Version 2.0 implementation was developed on `feature/next` and
+fast-forwarded into `main` on 2026-07-25. The immutable release tag `v2.0.0`
+points to commit `6ce110b` with description `responsiveness,nextUI`.
+
+- `main`: active Version 2.0 production line.
+- `feature/next`: retained at the same release commit for traceability.
+- `stable/1.2.0`: unchanged rollback point for Version 1.2.0.
+
+The integration introduced no merge commit and no conflict resolution because
+`main` was a direct ancestor of `feature/next`.
