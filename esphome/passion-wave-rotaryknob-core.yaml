@@ -9166,8 +9166,15 @@ interval:
                 const bool bridge_owns_media =
                   id(dual_mcu_ha_bridge_enabled) &&
                   id(dual_mcu_ha_bridge_ready);
+                // ha_volume_level is bound to the compile-time fallback
+                // player. A runtime target selected from Home Assistant must
+                // use the dynamic snapshot cache; otherwise every redraw
+                // paints the old player's volume over the optimistic value.
+                const bool dynamic_media_target =
+                  !id(media_static_fallback_active);
                 float volume =
-                  (bridge_owns_media || id(volume_override_active))
+                  (bridge_owns_media || dynamic_media_target ||
+                   id(volume_override_active))
                     ? id(display_volume_level)
                     : id(ha_volume_level).state;
                 if (isnan(volume)) volume = id(display_volume_level);
@@ -9435,8 +9442,11 @@ interval:
               const bool bridge_owns_media =
                 id(dual_mcu_ha_bridge_enabled) &&
                 id(dual_mcu_ha_bridge_ready);
+              const bool dynamic_media_target =
+                !id(media_static_fallback_active);
               float base =
-                (bridge_owns_media || id(volume_override_active))
+                (bridge_owns_media || dynamic_media_target ||
+                 id(volume_override_active))
                   ? id(display_volume_level)
                   : id(ha_volume_level).state;
               if (isnan(base)) base = id(display_volume_level);

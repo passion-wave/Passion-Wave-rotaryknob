@@ -852,11 +852,17 @@ interval:
           // this out of the package overlay's on_boot prevents ESPHome from
           // replacing the complete inherited 1.2.0 boot automation.
           if (!id(dual_mcu_link_initialized)) {
-            // The inherited configuration field is intentionally restorable.
-            // Pin the test profile to the compiled MA target on every boot so
-            // an older stored Sonos entity cannot disable or misroute bridge
-            // actions after changing this profile's substitution.
-            id(media_target_entity_text).publish_state("${ha_player}");
+            // Keep a Home Assistant-selected runtime target across reboots.
+            // Only replace an empty/public placeholder with the compiled
+            // fallback. Unconditionally publishing ${ha_player} here used to
+            // undo a valid Sonos target and reintroduced the old player's
+            // volume on every startup.
+            const std::string restored_media_target =
+              id(media_target_entity_text).state;
+            if (restored_media_target.empty() ||
+                restored_media_target == "media_player.passion_wave_media") {
+              id(media_target_entity_text).publish_state("${ha_player}");
+            }
             dual_mcu::link.setup(id(inter_mcu_uart));
             const uint8_t role[] = {'S', '3'};
             dual_mcu::link.send(dual_mcu::MessageType::HELLO, role, sizeof(role));
