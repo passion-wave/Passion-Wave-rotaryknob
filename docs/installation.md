@@ -150,7 +150,10 @@ Create one automation from that blueprint and select:
 - the ESPHome Rotaryknob device;
 - one `media_player` entity. Home Assistant lists all media players. Choose a
   Music Assistant capable player if playlist, radio or podcast browsing should
-  be available.
+  be available. For a Sonos speaker, choose its native Music Assistant entity
+  (for example `media_player.move_2`) rather than the generic Sonos integration
+  entity. The latter supports basic transport and volume but does not own the
+  Music Assistant queue.
 - four `light` entities. Home Assistant lists all light entities.
 
 The blueprint writes the selected entity IDs and friendly names into the
@@ -186,6 +189,12 @@ device page if the blueprint is not used:
 - `scrollwheel Screensaver Timeout`
 
 The settings are stored persistently on the ESPHome device.
+
+For a private dual-MCU development build, the same media target and all four
+light entity IDs must also be compiled into both `dual-mcu-test-s3.yaml` and
+`dual-mcu-test-esp32.yaml`. A differing target does not damage the device, but
+deliberately disables the low-latency ESP32 bridge and reports
+`HA-Bridge Zielkonfiguration abweichend`.
 
 ## 5. Optional Music Assistant Library Blueprint
 

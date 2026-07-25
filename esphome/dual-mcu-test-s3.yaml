@@ -10,6 +10,13 @@ packages:
 
 # Private test-device wrapper. Factory builds include the core directly.
 substitutions:
+  # Native Music Assistant entity for the Sonos Move test device.
+  ha_player: "media_player.move_2"
+  # The coprocessor subscribes to these exact Home Assistant entities.
+  light_1_entity: "light.timo_wandschalter_l1"
+  light_2_entity: "light.timo_vitrine"
+  light_3_entity: "light.wled_timo_main_2"
+  light_4_entity: "light.passion_wave_light_4"
   mqtt_host: !secret mqtt_host
   mqtt_username: !secret mqtt_username
   mqtt_password: !secret mqtt_password

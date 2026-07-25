@@ -47,7 +47,9 @@ recommended Home Assistant blueprint provides the comfortable entity picker.
 The blueprint selects from:
 
 - all Home Assistant `media_player` entities for the media target; choose a
-  Music Assistant capable player for playlist/radio/podcast playback.
+  Music Assistant capable player for playlist/radio/podcast playback. With
+  Sonos, use the Music Assistant player entity rather than the generic Sonos
+  entity so playlist selection replaces the intended MA queue.
 - all Home Assistant `light` entities for light slots 1 to 4.
 
 This blueprint is the compatibility setup for existing installations. The

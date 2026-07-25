@@ -44,3 +44,24 @@ points to commit `6ce110b` with description `responsiveness,nextUI`.
 
 The integration introduced no merge commit and no conflict resolution because
 `main` was a direct ancestor of `feature/next`.
+
+## Verified maintenance baseline
+
+The immutable `v2.0.0` tag remains the release anchor. `main` additionally
+contains Version 2.0 maintenance fixes and is the source for current builds.
+On 2026-07-25 both private test processors were rebuilt with ESPHome 2026.7.0,
+flashed independently by OTA and read back through the native ESPHome API:
+
+- S3 project `passion-wave.rotaryknob-test-s3`, version `2.0.0`;
+- ESP32 project `passion-wave.rotaryknob-test-esp32`, version `2.0.0`;
+- shared native Music Assistant target `media_player.move_2`;
+- shared four-light target snapshot;
+- runtime status `ESP32 HA-Bridge aktiv`.
+
+The corresponding credential-free factory artifacts were regenerated from the
+same Version 2.0 cores:
+
+```text
+fdbece5c268eb5f83acc3dafb865fdc954575662a6fc479071942c046ce9b87a  s3/passion-wave-rotaryknob-s3.factory.bin
+3c5db0c897d0afbe6645faa82d460b95714b516767bed18e5417b49ad1162eb5  esp32/passion-wave-rotaryknob-esp32.factory.bin
+```

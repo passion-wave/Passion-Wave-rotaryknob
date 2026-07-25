@@ -127,9 +127,18 @@ action. Bridge `.16` targets the native Music Assistant player
 generic Sonos entity: transport controls work there, but Music Assistant
 library selection does not address the MA queue. Both entities have the same
 physical `RINCON_C43875C917BC01400` identifier in this Home Assistant registry.
-The S3 `.46` profile also pins its restorable runtime target to the compiled
-MA entity at boot, preventing an old stored Sonos target from disabling the
-bridge after an update.
+The S3 keeps a valid Home Assistant-selected runtime target across reboots.
+Only an empty value or the public factory placeholder is replaced by the
+compiled fallback. The former unconditional boot assignment could silently
+restore an old player and make optimistic volume feedback jump to that
+player's value.
+
+The fast bridge path still requires the compiled S3 and ESP32 targets to match
+the persisted S3 targets. Private test wrappers therefore override the same
+native Music Assistant entity and the same four light entities in both
+profiles. The current Sonos Move test installation uses
+`media_player.move_2`; the generic Sonos entity can provide transport and
+volume but is not the correct target for Music Assistant queue replacement.
 
 Bridge `.17` moves the two remaining outbound library page requests. S3 `.47`
 sends a fixed six-byte command containing list kind, offset, limit and selected

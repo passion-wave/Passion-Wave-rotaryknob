@@ -9,6 +9,14 @@ packages:
         password: !secret ota_password
 
 # Private test-device wrapper. Factory builds include the core directly.
+substitutions:
+  # Must match the S3 target so feedback and commands use the same player.
+  ha_player: "media_player.move_2"
+  light_1_entity: "light.timo_wandschalter_l1"
+  light_2_entity: "light.timo_vitrine"
+  light_3_entity: "light.wled_timo_main_2"
+  light_4_entity: "light.passion_wave_light_4"
+
 mqtt:
   id: bridge_mqtt_client
   broker: !secret mqtt_host
