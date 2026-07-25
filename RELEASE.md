@@ -72,6 +72,6 @@ The corresponding credential-free factory artifacts were regenerated from the
 same Version 2.0 cores:
 
 ```text
-e13af6f459a140ec2cbdde539f809f7e563b5bf8b9a7f404990b503b319440b7  s3/passion-wave-rotaryknob-s3.factory.bin
+d2f1c68323014953bf5bd4d4dac7786508417792447a49fe92d3275957965869  s3/passion-wave-rotaryknob-s3.factory.bin
 89f2c1a68a97abe2c2c6f2a86c3be8019f0fe7aa1e9d7d23a12cf8f9b0f5fe57  esp32/passion-wave-rotaryknob-esp32.factory.bin
 ```

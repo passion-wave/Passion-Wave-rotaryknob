@@ -47,6 +47,10 @@ Unknown or empty values deliberately fall back to `partlycloudy`.
 - The S3 maps the condition locally and swaps the already compiled image; there
   is no HTTP request and therefore no loading state.
 - A restrained dark LVGL scrim keeps clock hands and status text readable.
+- Clock contrast is selected from the fixed `Smoked Aqua` benchmark palette
+  without runtime image analysis. Dark photographs use warm white `#F2F1EE`
+  and cool grey `#899297`; light photographs use near-black `#111519` and
+  graphite grey `#596268`. The centre and second dots follow the minute hand.
 - The old vector weather objects remain allocated but hidden for a safe
   rollback during the Version 2.0 test phase.
 - Only the S3 image changes. Encoder, touch, Home Assistant and OTA paths remain

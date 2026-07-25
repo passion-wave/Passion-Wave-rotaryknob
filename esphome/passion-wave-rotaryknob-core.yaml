@@ -5792,11 +5792,24 @@ script:
           show_obj(screensaver_time_shadow_label, false);
           show_obj(screensaver_time_label, false);
 
-          const uint32_t hand_color = 0xDCE7EC;
-          const uint32_t minute_color = 0xFFFFFF;
+          // The 15 fixed photographs are classified once at build time. This
+          // avoids per-frame pixel analysis while retaining reliable contrast.
+          const bool dark_weather_image =
+              raw == "clear-night" ||
+              raw == "exceptional" ||
+              raw == "hail" ||
+              raw == "lightning" ||
+              raw == "lightning-rainy" ||
+              raw == "pouring" ||
+              raw == "rainy" ||
+              raw == "snowy-rainy" ||
+              raw == "windy-variant";
+          const uint32_t hand_color = dark_weather_image ? 0x899297 : 0x596268;
+          const uint32_t minute_color = dark_weather_image ? 0xF2F1EE : 0x111519;
           lv_obj_set_style_bg_opa(screensaver_clock_host, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_border_width(screensaver_clock_host, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
           style_bg(screensaver_clock_center_dot, minute_color);
+          style_bg(screensaver_second_dot, minute_color);
           lv_obj_set_style_bg_opa(screensaver_clock_center_dot, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
           if (id(screensaver_hour_hand) != nullptr && id(screensaver_minute_hand) != nullptr) {
             if (time_valid) {

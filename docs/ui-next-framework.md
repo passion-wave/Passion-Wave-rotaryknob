@@ -67,6 +67,13 @@ the popup is reparented to `lv_layer_top()` when first opened. The framework
 keeps the UI Next media view active underneath it; loading the old media page
 is neither required nor permitted by this action path.
 
+The photographic weather screensaver applies the same palette adaptively.
+Because all 15 images are immutable firmware assets, each condition is
+classified as light or dark during development instead of analysing pixels at
+runtime. Dark scenes render the clock hands in `#899297` and `#F2F1EE`; light
+scenes use `#596268` and `#111519`. This preserves benchmark contrast without
+adding work to the render loop.
+
 ## Five primary destinations
 
 | View | Main interaction | Existing function source |
