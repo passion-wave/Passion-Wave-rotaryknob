@@ -100,6 +100,14 @@ orientation. Always identify the connected chip before installing firmware.
    flash this configuration to the ESP32.
 7. Power-cycle the complete board after both installations.
 
+The classic ESP32 owns radar, photo, cover and floorplan downloads. Therefore
+its private wrapper must contain the same `home_assistant_base_url`, photo and
+`house_floorplan_image_url` substitutions as the S3 wrapper. Prefer the numeric
+Home Assistant LAN address here; `.local` is resolved explicitly but depends
+on Home Assistant advertising the expected mDNS hostname. The generated ESP32
+configuration must point to `floorplan-render/live.png` when the dynamic
+floorplan renderer is used.
+
 Never flash the 16 MB S3 image to the 4 MB ESP32 or the ESP32 coprocessor image
 to the S3. If chip identification is ambiguous, stop before pressing Install.
 
@@ -159,9 +167,13 @@ First reset the diagnostic counters, then turn the knob slowly through at least
 - `ESP32 Daily Forecast Conditions` and `S3 Forecast Conditions Received`
   contain the same raw condition sequence. Equal icons are correct when these
   raw values are equal.
-- Opening Radar ends with `S3 Radar Proxy Status` = `Bild aktiv`, a positive
+- Opening Radar ends with `S3 Radar Proxy Status` = `Asset aktiv: radar`, a positive
   byte count and `ESP32 Radar Proxy Status` = `Bereit` while both UART error
   counters remain unchanged.
+- Opening House ends with `S3 Radar Proxy Status` = `Asset aktiv: house`, a
+  positive byte count and the live floorplan instead of `Hausbild fehlt`.
+  The same path can be tested without touch through the S3 API action
+  `house_refresh`.
 - `S3 Library Proxy Status` reports received ESP32 lists; playlists, radios
   and podcasts remain selectable. If the ESP32 link is interrupted, the S3
   reports the bridge error without automatically starting MQTT. Only the

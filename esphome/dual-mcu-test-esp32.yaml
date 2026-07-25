@@ -16,6 +16,16 @@ substitutions:
   light_2_entity: "light.timo_vitrine"
   light_3_entity: "light.wled_timo_main_2"
   light_4_entity: "light.passion_wave_light_4"
+  # The classic ESP32 owns every HTTP asset download in the dual-MCU
+  # architecture. Keep these substitutions here as well as in the S3 wrapper;
+  # otherwise the bridge silently falls back to homeassistant.local and the
+  # obsolete static floorplan path.
+  ha_base_url: !secret home_assistant_base_url
+  rain_radar_image_url: !secret rain_radar_image_url
+  photo_image_url_0: !secret photo_image_url_0
+  photo_image_url_1: !secret photo_image_url_1
+  photo_image_url_2: !secret photo_image_url_2
+  house_floorplan_image_url: !secret house_floorplan_image_url
 
 mqtt:
   id: bridge_mqtt_client

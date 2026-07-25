@@ -3,15 +3,18 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
 
 #include <esp_http_client.h>
 #include <esp_heap_caps.h>
+#include <esp_netif_ip_addr.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
+#include <mdns.h>
 
 #include "dual_mcu_link.h"
 
@@ -229,8 +232,13 @@ class RadarProxyServer {
   }
 
   void download_task_() {
+    std::string download_url = this->url_.data();
+    if (!this->resolve_local_url_(&download_url)) {
+      this->enqueue_error_(15);
+      return;
+    }
     esp_http_client_config_t config{};
-    config.url = this->url_.data();
+    config.url = download_url.c_str();
     config.method = HTTP_METHOD_GET;
     config.timeout_ms = 4000;
     config.disable_auto_redirect = false;
@@ -309,6 +317,50 @@ class RadarProxyServer {
     this->enqueue_(end);
   }
 
+  bool resolve_local_url_(std::string *url) {
+    if (url == nullptr) return false;
+    const size_t scheme_end = url->find("://");
+    if (scheme_end == std::string::npos) return true;
+    const size_t authority_start = scheme_end + 3;
+    const size_t authority_end = url->find_first_of("/?#", authority_start);
+    const size_t host_end = url->find(':', authority_start);
+    const size_t hostname_end =
+      host_end != std::string::npos &&
+          (authority_end == std::string::npos || host_end < authority_end)
+        ? host_end
+        : authority_end;
+    const size_t effective_hostname_end =
+      hostname_end == std::string::npos ? url->size() : hostname_end;
+    if (effective_hostname_end <= authority_start) return true;
+    const std::string hostname =
+      url->substr(authority_start, effective_hostname_end - authority_start);
+    static constexpr char suffix[] = ".local";
+    if (hostname.size() <= sizeof(suffix) - 1 ||
+        hostname.compare(hostname.size() - (sizeof(suffix) - 1),
+                         sizeof(suffix) - 1, suffix) != 0) {
+      return true;
+    }
+
+    char address[16]{};
+    if (hostname == this->cached_mdns_host_.data() &&
+        this->cached_mdns_address_[0] != '\0') {
+      std::memcpy(address, this->cached_mdns_address_.data(), sizeof(address));
+    } else {
+      const std::string mdns_name =
+        hostname.substr(0, hostname.size() - (sizeof(suffix) - 1));
+      esp_ip4_addr_t resolved{};
+      if (mdns_query_a(mdns_name.c_str(), 2000, &resolved) != ESP_OK)
+        return false;
+      std::snprintf(address, sizeof(address), IPSTR, IP2STR(&resolved));
+      std::snprintf(this->cached_mdns_host_.data(),
+                    this->cached_mdns_host_.size(), "%s", hostname.c_str());
+      std::snprintf(this->cached_mdns_address_.data(),
+                    this->cached_mdns_address_.size(), "%s", address);
+    }
+    url->replace(authority_start, hostname.size(), address);
+    return true;
+  }
+
   static void write_u16_(uint8_t *data, uint16_t value) {
     data[0] = static_cast<uint8_t>(value & 0xFF);
     data[1] = static_cast<uint8_t>((value >> 8) & 0xFF);
@@ -331,6 +383,8 @@ class RadarProxyServer {
   uint32_t last_send_ms_{0};
   uint32_t last_progress_ms_{0};
   volatile bool abort_{false};
+  std::array<char, 64> cached_mdns_host_{};
+  std::array<char, 16> cached_mdns_address_{};
 };
 
 class RadarProxyClient {
@@ -358,6 +412,7 @@ class RadarProxyClient {
     this->failure_pending_ = false;
     this->finished_ = false;
     this->completed_kind_ = AssetKind::NONE;
+    this->failed_kind_ = AssetKind::NONE;
     return true;
   }
 
@@ -450,6 +505,7 @@ class RadarProxyClient {
   }
   const AssetBuffer &bytes() const { return this->bytes_; }
   uint8_t last_error() const { return this->last_error_; }
+  AssetKind failed_kind() const { return this->failed_kind_; }
 
  private:
   bool fail_(uint8_t error) {
@@ -468,6 +524,7 @@ class RadarProxyClient {
     if (failed_kind != AssetKind::NONE)
       this->retry_after_ms_[kind_index_(failed_kind)] =
         millis() + cooldown_ms;
+    this->failed_kind_ = failed_kind;
     this->last_error_ = error;
     this->waiting_ = false;
     this->receiving_ = false;
@@ -490,6 +547,7 @@ class RadarProxyClient {
     this->bytes_.clear();
     this->requested_kind_ = AssetKind::NONE;
     this->completed_kind_ = AssetKind::NONE;
+    this->failed_kind_ = AssetKind::NONE;
   }
   static uint16_t read_u16_(const uint8_t *data) {
     return static_cast<uint16_t>(data[0]) | (static_cast<uint16_t>(data[1]) << 8);
@@ -524,6 +582,7 @@ class RadarProxyClient {
   uint8_t last_error_{0};
   AssetKind requested_kind_{AssetKind::NONE};
   AssetKind completed_kind_{AssetKind::NONE};
+  AssetKind failed_kind_{AssetKind::NONE};
   AssetBuffer bytes_{};
 };
 

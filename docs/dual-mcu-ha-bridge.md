@@ -59,14 +59,17 @@ encoder, action and state processing. A 64-frame receiver queue
 absorbs short LVGL stalls without dropping image chunks. Per-frame
 CRC-16, contiguous offsets, total length and an end-to-end CRC-32 protect the
 image. Every begin, data and end frame is acknowledged; a missing or damaged
-frame is retransmitted after 40 ms. The S3 reuses the existing runtime JPEG decoder, so the radar widget and
-320 x 320 display buffer are unchanged. A 12 second transfer timeout, invalid
-offset, CRC mismatch, HTTP error or decode error activates the original direct
-S3 download for that request.
+frame is retransmitted after 40 ms. The S3 reuses the existing runtime JPEG
+decoder, so the radar widget and 320 x 320 display buffer are unchanged. A
+12-second transfer timeout, invalid offset, CRC mismatch, HTTP error or decode
+error preserves the last valid image and reports the affected asset kind. The
+direct S3 download is available only when Rescue mode is explicitly enabled.
 
 Revision `.50` / UI `.97` completes the responsive asset path. Retry cooldowns
 are isolated by asset kind, so a missing photo, cover or floorplan cannot delay
-radar. Radar requests take priority over queued decorative assets. The bridge
+radar. Radar warm-up takes priority over background decorative assets; an
+explicitly opened House page may replace a not-yet-started radar warm-up and is
+otherwise queued directly behind the active transfer. The bridge
 prefetches radar once after link readiness, while the S3 retains the last valid
 image in one buffer and decodes the new JPEG into the inactive buffer. Only a
 successful decode swaps the visible buffer. Opening Radar therefore paints the
@@ -80,6 +83,15 @@ overflows and a maximum measured steady-state S3 scheduler gap of 4 ms. An indep
 transition resets its inner client before the first data frame arrives. The
 ESP32 server independently aborts an unacknowledged transfer after 12 seconds,
 so an S3 restart cannot leave the proxy permanently busy.
+
+The bridge resolves `.local` asset hosts with an explicit mDNS query before
+starting the ESP-IDF HTTP client and caches the resulting IPv4 address.
+Nevertheless, a numeric Home Assistant URL is the deterministic and fastest
+choice for private installations. The private ESP32 wrapper must receive
+`home_assistant_base_url`, all photo URLs and
+`house_floorplan_image_url`; configuring these only on the S3 does not affect
+the processor that owns the HTTP download. Error code `2` means HTTP connect
+failed, while code `15` means the preceding `.local` mDNS lookup failed.
 
 The bridge publishes the raw five-day condition sequence as
 `ESP32 Daily Forecast Conditions`; the S3 publishes the decoded sequence as
@@ -287,19 +299,23 @@ On the ESP32:
 11. Open Radar and confirm the cached image appears immediately. Trigger three
     reloads at least one second apart; every request must replace the image in
     under one second on the local network, `S3 Radar Proxy Status` must reach
-    `Bild aktiv`, the byte counter must be greater than zero and both protocol
-    error counters must remain unchanged. A proxy error must preserve the last
-    valid image and activate the original direct S3 path instead of blocking
-    the UI.
-12. Open the media picker and compare playlists, radios and podcasts with the
+    `Asset aktiv: radar`, the byte counter must be greater than zero and both
+    protocol error counters must remain unchanged. A proxy error must preserve
+    the last valid image, identify `radar` rather than `none`, and leave the UI
+    responsive.
+12. Open House or call the S3 API action `house_refresh`. The proxy status must
+    reach `Asset aktiv: house`, the byte counter must be positive and the live
+    floorplan must replace the loading placeholder. Repeat directly after a
+    radar refresh to verify single-flight queuing.
+13. Open the media picker and compare playlists, radios and podcasts with the
     existing Music Assistant lists. `S3 Library Proxy Status` must report all
     three received lists in sequence and both protocol counters must stay zero.
-13. Open Light details for a WLED entity. Its saved Home Assistant preset
+14. Open Light details for a WLED entity. Its saved Home Assistant preset
     options must appear in the popup and the active option must be highlighted.
     Select a preset and confirm the ESP32 action counter increases once. With
     no WLED presets saved, both diagnostics and the popup must report the empty
     state without protocol errors.
-14. After boot, confirm `S3 Playlist Cache Entries` and
+15. After boot, confirm `S3 Playlist Cache Entries` and
     `ESP32 Playlist Cache Entries` converge to the same full catalog count
     without pressing `Weitere laden`. Scroll beyond the retained bootstrap
     boundary, select a playlist and confirm the title pages load automatically.

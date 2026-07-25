@@ -2137,8 +2137,11 @@ interval:
           }
           if (dual_mcu::radar_client.take_failure()) {
             const uint8_t error = dual_mcu::radar_client.last_error();
-            const auto failed_kind =
-              static_cast<dual_mcu::AssetKind>(id(dual_mcu_asset_active_kind));
+            auto failed_kind = dual_mcu::radar_client.failed_kind();
+            if (failed_kind == dual_mcu::AssetKind::NONE) {
+              failed_kind =
+                static_cast<dual_mcu::AssetKind>(id(dual_mcu_asset_active_kind));
+            }
             id(dual_mcu_radar_proxy_status).publish_state(
               std::string("Asset-Fehler ") +
               dual_mcu::asset_kind_name(failed_kind) + " code=" +

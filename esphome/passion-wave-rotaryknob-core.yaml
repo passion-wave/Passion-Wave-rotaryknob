@@ -204,6 +204,9 @@ api:
       then:
         - lambda: 'id(rain_radar_force_refresh) = true;'
         - script.execute: refresh_rain_radar_image
+    - service: house_refresh
+      then:
+        - script.execute: refresh_house_image
 
 mqtt:
   id: mqtt_client
@@ -3783,13 +3786,13 @@ script:
           id(house_floorplan_ready) = false;
           id(house_floorplan_error) = false;
           if (id(dual_mcu_ha_bridge_ready)) {
-            if (id(dual_mcu_asset_pending_kind) !=
-                static_cast<uint8_t>(dual_mcu::AssetKind::RADAR)) {
-              id(dual_mcu_asset_pending_kind) =
-                static_cast<uint8_t>(dual_mcu::AssetKind::HOUSE);
-              id(dual_mcu_asset_pending_argument) = 0;
-              id(dual_mcu_asset_pending_force) = true;
-            }
+            // An explicitly opened house page takes precedence over an
+            // unstarted radar warm-up. If radar is already transferring,
+            // HOUSE remains pending and starts immediately afterwards.
+            id(dual_mcu_asset_pending_kind) =
+              static_cast<uint8_t>(dual_mcu::AssetKind::HOUSE);
+            id(dual_mcu_asset_pending_argument) = 0;
+            id(dual_mcu_asset_pending_force) = true;
             return;
           }
           if (id(dual_mcu_stage1_performance_enabled) &&
