@@ -903,6 +903,10 @@ globals:
     type: int
     restore_value: yes
     initial_value: '30'
+  - id: screensaver_brightness_boost_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
   - id: media_target_index
     type: int
     restore_value: yes
@@ -4678,6 +4682,7 @@ script:
   - id: show_weather_screensaver
     mode: restart
     then:
+      - script.stop: boost_screensaver_brightness
       - lambda: |-
           if (id(current_page) != 7) {
             // Radar and settings are transient workspaces. Once idle mode has
@@ -4688,6 +4693,7 @@ script:
               id(screensaver_return_page) = id(current_page);
             }
           }
+          id(screensaver_brightness_boost_until_ms) = 0;
           id(display_charge_dimmed) = false;
       # Start the fully rendered screensaver at maximum brightness. The second
       # call delegates the complete 100 -> 10 % curve to ESPHome's native PWM
@@ -4704,10 +4710,39 @@ script:
           id: display_backlight
           brightness: 10%
           transition_length: 5min
+  - id: boost_screensaver_brightness
+    # A fast encoder can produce a batch every 10 ms. Keep one cooperative
+    # script alive and only extend its deadline instead of restarting the
+    # light transition for every pulse.
+    mode: single
+    then:
+      - light.turn_on:
+          id: display_backlight
+          brightness: 100%
+          transition_length: 0ms
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(current_page) != 7 ||
+                     id(display_sleeping) ||
+                     id(screensaver_brightness_boost_until_ms) == 0 ||
+                     static_cast<int32_t>(
+                       millis() - id(screensaver_brightness_boost_until_ms)) >= 0;
+      - if:
+          condition:
+            lambda: 'return id(current_page) == 7 && !id(display_sleeping);'
+          then:
+            - light.turn_on:
+                id: display_backlight
+                brightness: 10%
+                transition_length: 5min
+      - lambda: 'id(screensaver_brightness_boost_until_ms) = 0;'
   - id: return_from_screensaver
     mode: restart
     then:
+      - script.stop: boost_screensaver_brightness
       - lambda: 'id(ui_last_activity_ms) = millis();'
+      - lambda: 'id(screensaver_brightness_boost_until_ms) = 0;'
       - light.turn_on:
           id: display_backlight
           brightness: 70%
@@ -9341,6 +9376,15 @@ interval:
           }
           if (id(display_sleeping)) {
             id(wake_display).execute();
+            return;
+          }
+          if (id(current_page) == 7) {
+            // Encoder movement only wakes the screensaver brightness. It must
+            // not leave the screensaver or reach any page-specific control.
+            id(screensaver_brightness_boost_until_ms) = millis() + 2000U;
+            if (!id(boost_screensaver_brightness).is_running()) {
+              id(boost_screensaver_brightness).execute();
+            }
             return;
           }
           const int steps = encoder_batch.signed_steps();

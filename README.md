@@ -51,6 +51,10 @@ When the screensaver opens, the display starts at 100% brightness and uses the
 native PWM transition engine to fade continuously to 10% over five minutes. It
 then remains at 10% until interaction; leaving the screensaver restores the
 normal 70% UI brightness. The fade does not add periodic work to the UI loop.
+Rotating the encoder while the screensaver is visible raises the backlight to
+100% immediately, holds it there for two seconds after the last encoder pulse
+and then restarts the five-minute fade. Rotary input never leaves the
+screensaver or reaches a control on the page behind it.
 
 ## Installation status
 
