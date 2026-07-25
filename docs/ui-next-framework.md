@@ -252,6 +252,13 @@ The framework uses fixed object arrays, bounded action storage and existing
 compiled fonts/icons. It performs no JSON parsing, image scaling, blur, shadow
 or large opacity animation.
 
+The proposed photographic weather collage is retained as a source reference in
+[`assets/screensaver/`](../assets/screensaver/README.md). Its coverage audit
+shows that it cannot yet replace the generated screensaver: clear night, hail,
+mixed snow/rain and both wind variants need dedicated motifs. The 1254-pixel
+collage must not be compiled directly; approved motifs require offline crop,
+resize and conversion first.
+
 ## Regenradar
 
 The full-screen radar follows the same dark, restrained visual language as UI
