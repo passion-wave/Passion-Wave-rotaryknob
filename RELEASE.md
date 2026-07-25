@@ -17,11 +17,14 @@ migration branch to the coordinated product release:
   360 x 360 screensaver images on the S3, with no runtime image download and a
   deterministic `partlycloudy` fallback.
 - the screensaver starts at 100% display brightness, fades natively and
-  continuously to 10% over five minutes, and restores the 70% UI brightness
-  immediately when closed without adding periodic scheduler load.
+  continuously to 10% over a persistent Home Assistant configurable duration
+  (default five minutes), and restores the 70% UI brightness immediately when
+  closed without adding periodic scheduler load.
 - encoder movement on the active screensaver restores 100% brightness for two
-  seconds after the final pulse and then restarts the native five-minute fade;
+  seconds after the final pulse and then restarts the configured native fade;
   the input is consumed before it can trigger an underlying UI control.
+- Home Assistant exposes clearly separated native configuration numbers for
+  the screensaver start delay and the 100-to-10% dimming duration.
 
 ## Canonical structure
 

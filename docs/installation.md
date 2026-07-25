@@ -186,7 +186,8 @@ device page if the blueprint is not used:
 - `scrollwheel Vibration`
 - `scrollwheel Rotary Haptic Effect`
 - `scrollwheel Timer Done Haptic Effect`
-- `scrollwheel Screensaver Timeout`
+- `Screensaver Startverzögerung` (10–600 s, Standard 30 s)
+- `Screensaver Abdunkeldauer` (100 % auf 10 %, 30–1800 s, Standard 300 s)
 
 The settings are stored persistently on the ESPHome device.
 

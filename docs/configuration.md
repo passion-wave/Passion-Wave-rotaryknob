@@ -35,7 +35,8 @@ They are stored persistently on the ESPHome device.
 | Vibration | `switch` | yes |
 | Rotary effect | `number` | yes |
 | Timer done effect | `number` | yes |
-| Screensaver timeout | `number` | yes |
+| Screensaver Startverzögerung | `number` | yes |
+| Screensaver Abdunkeldauer | `number` | yes |
 | Offline demo mode | `switch` | yes |
 
 ## Dynamic Home Assistant Selection
