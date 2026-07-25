@@ -47,6 +47,11 @@ Unknown states use `partlycloudy` as a deterministic fallback. Source,
 provenance, checksums and the exact state mapping are documented in
 [Weather screensaver assets](assets/screensaver/README.md).
 
+When the screensaver opens, the display starts at 100% brightness and uses the
+native PWM transition engine to fade continuously to 10% over five minutes. It
+then remains at 10% until interaction; leaving the screensaver restores the
+normal 70% UI brightness. The fade does not add periodic work to the UI loop.
+
 ## Installation status
 
 The repository now supplies separate credential-free S3 and ESP32 factory

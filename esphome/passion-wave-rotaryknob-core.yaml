@@ -4188,7 +4188,7 @@ script:
     then:
       - if:
           condition:
-            lambda: 'return id(external_power_detected) && !id(display_sleeping) && !id(display_charge_dimmed);'
+            lambda: 'return id(external_power_detected) && id(current_page) != 7 && !id(display_sleeping) && !id(display_charge_dimmed);'
           then:
             - lambda: |-
                 id(display_charge_dimmed) = true;
@@ -4688,14 +4688,30 @@ script:
               id(screensaver_return_page) = id(current_page);
             }
           }
+          id(display_charge_dimmed) = false;
+      # Start the fully rendered screensaver at maximum brightness. The second
+      # call delegates the complete 100 -> 10 % curve to ESPHome's native PWM
+      # transition engine, so the UI loop has no periodic dimming work.
+      - light.turn_on:
+          id: display_backlight
+          brightness: 100%
+          transition_length: 0ms
       - lvgl.page.show:
           id: page_7
           animation: FADE_IN
           time: 35ms
+      - light.turn_on:
+          id: display_backlight
+          brightness: 10%
+          transition_length: 5min
   - id: return_from_screensaver
     mode: restart
     then:
       - lambda: 'id(ui_last_activity_ms) = millis();'
+      - light.turn_on:
+          id: display_backlight
+          brightness: 70%
+          transition_length: 150ms
       - if:
           condition:
             lambda: |-
@@ -8925,6 +8941,7 @@ interval:
           condition:
             lambda: |-
               return id(external_power_detected) &&
+                     id(current_page) != 7 &&
                      !id(display_sleeping) &&
                      !id(display_charge_dimmed) &&
                      !id(timer_running) &&

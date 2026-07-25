@@ -16,6 +16,9 @@ migration branch to the coordinated product release:
 - all 15 Home Assistant weather conditions have dedicated, locally compiled
   360 x 360 screensaver images on the S3, with no runtime image download and a
   deterministic `partlycloudy` fallback.
+- the screensaver starts at 100% display brightness, fades natively and
+  continuously to 10% over five minutes, and restores the 70% UI brightness
+  immediately when closed without adding periodic scheduler load.
 
 ## Canonical structure
 
