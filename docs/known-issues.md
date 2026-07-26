@@ -15,6 +15,22 @@ Softwarefehler geführt.
 
 ## Behoben
 
+### PW-REL-003: Release-CI erwartete auf dem S3 den falschen Improv-Transport
+
+- **Status:** Behoben in Version 2.1.1
+- **Betroffen:** Clean-Build der öffentlichen Dual-MCU-Release-Artefakte
+- **Fehlerbild:** Beide Factory-Images kompilierten erfolgreich, der
+  nachgelagerte CI-Check beendete den Release-Build dennoch ohne konkrete
+  Diagnose.
+- **Ursache:** Die Prüfung erwartete `UART0` auf beiden Prozessoren. Der
+  klassische ESP32 verwendet diesen UART korrekt; der ESP32-S3 stellt die
+  serielle Improv-Verbindung dagegen plattformgemäß über
+  `USB_SERIAL_JTAG` bereit.
+- **Behebung:** Die Prüfung validiert nun je Chip den richtigen Transport:
+  `USB_SERIAL_JTAG` für den S3 und `UART0` für die Bridge, jeweils mit
+  115200 Baud. Jede fehlende Release-Voraussetzung gibt zusätzlich eine
+  eindeutige Fehlermeldung aus.
+
 ### PW-REL-002: Bridge-Flash öffnete die WLAN-Provisionierung nicht zuverlässig
 
 - **Status:** Behoben in Version 2.1.1
@@ -33,7 +49,8 @@ Softwarefehler geführt.
   Der Assistent schaltet nicht anhand eines Flash-Events weiter, sondern erst
   nach expliziter WLAN-Bestätigung. Ein separater Bridge-WLAN-Button kann
   Improv nach einem USB-Reconnect öffnen, ohne erneut zu flashen. Beide
-  Factory-Builds prüfen in CI Improv Serial und UART0-Logger mit 115200 Baud.
+  Factory-Builds prüfen in CI Improv Serial sowie den plattformspezifischen
+  Logger-Transport mit 115200 Baud.
 
 ### PW-WEB-001: ESP-Web-Tools-Abzweigungen unterbrachen den Installationsfluss
 

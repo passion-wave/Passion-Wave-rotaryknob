@@ -12,6 +12,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+require_line() {
+  local pattern="$1"
+  local file="$2"
+  local description="$3"
+
+  if ! grep -q "${pattern}" "${file}"; then
+    echo "Public factory validation failed: ${description}." >&2
+    exit 1
+  fi
+}
+
 mkdir -p "${output_dir}/s3" "${output_dir}/esp32"
 
 if [[ -n "${ESPHOME_COMMAND:-}" ]]; then
@@ -40,18 +51,26 @@ if grep -q '^[[:space:]]*encryption:' \
   exit 1
 fi
 
-grep -q 'friendly_name: PassionWave Rotaryknob$' \
-  "${resolved_dir}/factory-s3.yaml"
-grep -q 'friendly_name: PassionWave Rotaryknob Bridge$' \
-  "${resolved_dir}/factory-esp32.yaml"
-grep -q 'name_add_mac_suffix: true' "${resolved_dir}/factory-s3.yaml"
-grep -q 'name_add_mac_suffix: true' "${resolved_dir}/factory-esp32.yaml"
-grep -q '^improv_serial:' "${resolved_dir}/factory-s3.yaml"
-grep -q '^improv_serial:' "${resolved_dir}/factory-esp32.yaml"
-grep -q '^  baud_rate: 115200$' "${resolved_dir}/factory-s3.yaml"
-grep -q '^  baud_rate: 115200$' "${resolved_dir}/factory-esp32.yaml"
-grep -q '^  hardware_uart: UART0$' "${resolved_dir}/factory-s3.yaml"
-grep -q '^  hardware_uart: UART0$' "${resolved_dir}/factory-esp32.yaml"
+require_line 'friendly_name: PassionWave Rotaryknob$' \
+  "${resolved_dir}/factory-s3.yaml" "S3 friendly name is missing"
+require_line 'friendly_name: PassionWave Rotaryknob Bridge$' \
+  "${resolved_dir}/factory-esp32.yaml" "ESP32 bridge friendly name is missing"
+require_line 'name_add_mac_suffix: true' \
+  "${resolved_dir}/factory-s3.yaml" "S3 MAC suffix is disabled"
+require_line 'name_add_mac_suffix: true' \
+  "${resolved_dir}/factory-esp32.yaml" "ESP32 bridge MAC suffix is disabled"
+require_line '^improv_serial:' \
+  "${resolved_dir}/factory-s3.yaml" "S3 Improv Serial is disabled"
+require_line '^improv_serial:' \
+  "${resolved_dir}/factory-esp32.yaml" "ESP32 bridge Improv Serial is disabled"
+require_line '^  baud_rate: 115200$' \
+  "${resolved_dir}/factory-s3.yaml" "S3 logger does not use 115200 baud"
+require_line '^  baud_rate: 115200$' \
+  "${resolved_dir}/factory-esp32.yaml" "ESP32 bridge logger does not use 115200 baud"
+require_line '^  hardware_uart: USB_SERIAL_JTAG$' \
+  "${resolved_dir}/factory-s3.yaml" "S3 Improv transport is not USB Serial/JTAG"
+require_line '^  hardware_uart: UART0$' \
+  "${resolved_dir}/factory-esp32.yaml" "ESP32 bridge Improv transport is not UART0"
 if grep -q 'next_url:' \
     "${resolved_dir}/factory-s3.yaml" "${resolved_dir}/factory-esp32.yaml"; then
   echo "Public factory Improv must not expose a next_url." >&2
