@@ -1,9 +1,9 @@
 # S3 network dependency inventory
 
-The current test candidate is `1.2.0-ui-next.98` /
-`1.2.0-ha-bridge.50`. Revisions `.80/.39` and `.83/.45` below are historical
-migration checkpoints, not the installed state. The production device remains
-on its unchanged 1.2.0 configuration.
+The current product release is Version `2.1.0`
+(`responsiveness,nextUI`). Internal revisions `.98/.50`, `.80/.39` and
+`.83/.45` below are historical migration checkpoints, not customer-facing
+versions. The production device remains on its unchanged 1.2.0 configuration.
 
 ## Direct Home Assistant subscriptions
 
@@ -36,6 +36,13 @@ Their inherited S3 subscriptions remain compiled for the Milestone-2
 compatibility fallback. With a healthy bridge, callback guards prevent these
 states from changing UI state. Milestone 3 removes the subscriptions.
 
+UI Next light-detail discovery is also network-owned by the classic ESP32 in
+Version 2.0. It resolves same-device WLED preset selects and same-area Hue
+scenes, keeps command values on the ESP32, and sends an atomic label catalog to
+the S3. The S3 performs no direct discovery or light-detail action during
+healthy dual-MCU operation. Its equivalent Home Assistant template/action path
+is retained only for the standalone image and deliberate Rescue mode.
+
 ## Direct S3 HTTP and MQTT
 
 Five on-demand image decoders remain on the S3:
@@ -53,8 +60,9 @@ UI objects can consume the proxied bytes and so Milestone 2 still has a
 bridge-loss compatibility path. Media artwork uses a 256-pixel Music Assistant
 source, the smallest size accepted by the active provider.
 
-The S3 MQTT client remains disabled while the bridge is healthy. It is retained
-only for media-library compatibility after an explicit proxy failure.
+The S3 MQTT client remains disabled during normal operation. It is retained
+only for deliberate, non-persistent `S3 Network Rescue Mode`; a proxy failure
+alone does not start it.
 
 ## Control-path closure in revision .71
 
@@ -93,7 +101,7 @@ Revision `.74` completes media metadata ownership:
 - only one URL chunk is emitted per cooperative loop pass, after encoder and
   control traffic, so artwork changes cannot block interactive input;
 - the inherited S3 artwork subscriptions and downloader remain available only
-  as a bridge-loss rescue path. Actual artwork bytes use the ESP32 stream.
+  in deliberate Rescue mode. Actual artwork bytes use the ESP32 stream.
 
 Revision `.76` closes the playlist-selection race:
 

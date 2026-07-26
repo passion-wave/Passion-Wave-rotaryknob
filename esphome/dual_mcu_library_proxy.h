@@ -198,6 +198,13 @@ class LibraryProxyServer {
       link.send(MessageType::LIBRARY_ERROR, error, sizeof(error));
       return false;
     }
+    // A peer reboot can abandon a stop-and-wait transfer before its final
+    // acknowledgement. Recover that server slot locally; otherwise every
+    // later request is rejected as busy until the ESP32 itself is restarted.
+    if (this->active_ &&
+        millis() - this->last_progress_ms_ > TRANSFER_STALL_TIMEOUT_MS) {
+      this->reset_transfer();
+    }
     if (this->active_) {
       const uint8_t error[] = {kind, 2};
       link.send(MessageType::LIBRARY_ERROR, error, sizeof(error));
@@ -215,11 +222,16 @@ class LibraryProxyServer {
     this->phase_ = Phase::BEGIN;
     this->awaiting_ack_ = false;
     this->active_ = true;
+    this->last_progress_ms_ = millis();
     return true;
   }
 
   bool poll_send(Link &link) {
     if (!this->active_) return false;
+    if (millis() - this->last_progress_ms_ > TRANSFER_STALL_TIMEOUT_MS) {
+      this->reset_transfer();
+      return false;
+    }
     if (this->awaiting_ack_ && millis() - this->last_send_ms_ < 40) return false;
     const std::vector<uint8_t> &blob = this->active_blob_;
     uint8_t payload[MAX_PAYLOAD]{};
@@ -260,6 +272,7 @@ class LibraryProxyServer {
     else if (this->phase_ == Phase::END) expected = this->active_blob_.size();
     if (next_offset != expected) return false;
     this->awaiting_ack_ = false;
+    this->last_progress_ms_ = millis();
     if (this->phase_ == Phase::BEGIN) {
       this->phase_ = this->active_blob_.empty() ? Phase::END : Phase::CHUNK;
     } else if (this->phase_ == Phase::CHUNK) {
@@ -281,6 +294,7 @@ class LibraryProxyServer {
     this->active_blob_.clear();
     this->offset_ = 0;
     this->last_chunk_length_ = 0;
+    this->last_progress_ms_ = 0;
   }
   LibraryKind current_kind() const { return static_cast<LibraryKind>(this->kind_); }
 
@@ -313,6 +327,7 @@ class LibraryProxyServer {
   }
 
  private:
+  static constexpr uint32_t TRANSFER_STALL_TIMEOUT_MS = 2000;
   enum class Phase : uint8_t { IDLE, BEGIN, CHUNK, END };
 
   static bool append_string_(std::vector<uint8_t> &blob, const std::string &value,
@@ -338,6 +353,7 @@ class LibraryProxyServer {
   uint16_t active_context_{0};
   uint32_t offset_{0};
   uint32_t last_send_ms_{0};
+  uint32_t last_progress_ms_{0};
   uint8_t last_chunk_length_{0};
   Phase phase_{Phase::IDLE};
 };
@@ -451,6 +467,20 @@ class LibraryProxyClient {
     this->failure_pending_ = false;
     if (error != nullptr) *error = this->last_error_;
     return true;
+  }
+
+  // Page generation is asynchronous. The first request can reach the ESP32
+  // before its MQTT response has filled the requested cache and is then
+  // rejected as "not ready". LIBRARY_CHANGED is the authoritative signal
+  // that this exact kind is ready, so it releases the matching retry
+  // immediately instead of keeping request and retry phase-locked.
+  void notify_remote_cache_changed(LibraryKind kind) {
+    if (this->active() ||
+        this->requested_kind_ != static_cast<uint8_t>(kind)) {
+      return;
+    }
+    this->retry_after_ms_ = 0;
+    this->failure_pending_ = false;
   }
 
   uint8_t kind() const { return this->kind_; }

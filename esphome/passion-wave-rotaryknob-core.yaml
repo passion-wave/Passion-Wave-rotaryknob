@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave Rotaryknob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "2.0.0"
+  project_version: "2.1.0"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "false"
   # Stage 1 leaves Wi-Fi/API/OTA available on the S3, but keeps application
@@ -12,6 +12,9 @@ substitutions:
   # Stage 2 makes the ESP32 the exclusive media-library owner during normal
   # operation. S3 MQTT parsing remains compiled only for explicit fallback.
   dual_mcu_stage2_library_offload_enabled: "false"
+  # Public factory builds stay discoverable until Home Assistant has connected
+  # once. Adopted and development builds retain the normal idle policy.
+  factory_onboarding_guard: "false"
   ha_player: "media_player.passion_wave_media"
   light_1_name: "Light 1"
   light_1_entity: "light.passion_wave_light_1"
@@ -65,6 +68,7 @@ esphome:
   build_path: build/passion_wave_rotaryknob
   includes:
     - <ArduinoJson.h>
+    - <array>
     - <cctype>
     - <cmath>
     - <cstring>
@@ -186,6 +190,20 @@ logger:
 
 api:
   reboot_timeout: 0s
+  on_client_connected:
+    - lambda: |-
+        if (${factory_onboarding_guard} &&
+            !id(factory_onboarding_completed)) {
+          id(factory_onboarding_completed) = true;
+        }
+    - delay: 1200ms
+    - if:
+        condition:
+          lambda: |-
+            return !id(dual_mcu_ha_bridge_enabled) ||
+                   id(dual_mcu_s3_rescue_mode_enabled);
+        then:
+          - script.execute: refresh_all_light_detail_catalogs
   services:
     - service: media_debug_on
       then:
@@ -362,17 +380,33 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
-  - id: dual_mcu_ha_bridge_wled_presets
+  - id: dual_mcu_ha_bridge_light_details
     type: bool
     restore_value: false
     initial_value: 'false'
-  - id: dual_mcu_wled_preset_names
-    type: std::vector<std::string>
+  # Detail catalogs are cached locally for immediate rendering. In dual-MCU
+  # mode the ESP32 resolves them; standalone/rescue mode uses the local path.
+  # Kind: 0=none, 1=WLED preset, 2=Hue scene.
+  - id: light_detail_kinds
+    type: std::array<uint8_t, 4>
     restore_value: false
-  - id: dual_mcu_wled_preset_selected
-    type: int
+    initial_value: '{0, 0, 0, 0}'
+  - id: light_detail_labels
+    type: std::array<std::vector<std::string>, 4>
     restore_value: false
-    initial_value: '-1'
+  - id: light_detail_commands
+    type: std::array<std::vector<std::string>, 4>
+    restore_value: false
+  - id: light_detail_targets
+    type: std::array<std::string, 4>
+    restore_value: false
+  - id: light_detail_loaded_entities
+    type: std::array<std::string, 4>
+    restore_value: false
+  - id: light_detail_selected
+    type: std::array<int, 4>
+    restore_value: false
+    initial_value: '{-1, -1, -1, -1}'
   # Bit 0=playlists, 1=radios, 2=podcasts. A set bit means that the
   # corresponding cache arrived from the ESP32 library proxy. With all bits
   # clear, the original S3 MQTT path remains fully operational.
@@ -479,10 +513,6 @@ globals:
   - id: current_media_label
     type: std::string
     restore_value: no
-  - id: ma_playlists_json_cache
-    type: std::string
-    restore_value: no
-    initial_value: '"[]"'
   - id: ma_playlists_names_cache
     type: std::vector<std::string>
     restore_value: no
@@ -533,10 +563,6 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: '0'
-  - id: ma_radios_json_cache
-    type: std::string
-    restore_value: no
-    initial_value: '"[]"'
   - id: ma_radios_names_cache
     type: std::vector<std::string>
     restore_value: no
@@ -546,10 +572,6 @@ globals:
   - id: ma_radios_types_cache
     type: std::vector<std::string>
     restore_value: no
-  - id: ma_podcasts_json_cache
-    type: std::string
-    restore_value: no
-    initial_value: '"[]"'
   - id: ma_podcasts_names_cache
     type: std::vector<std::string>
     restore_value: no
@@ -659,10 +681,6 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
-  - id: ma_playlist_tracks_json_cache
-    type: std::string
-    restore_value: no
-    initial_value: '"[]"'
   - id: ma_track_titles_cache
     type: std::vector<std::string>
     restore_value: no
@@ -907,14 +925,34 @@ globals:
     type: int
     restore_value: yes
     initial_value: '300'
+  - id: display_keep_awake
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: factory_onboarding_completed
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: display_dim_delay_seconds
+    type: int
+    restore_value: yes
+    initial_value: '15'
+  - id: display_dim_brightness_percent
+    type: int
+    restore_value: yes
+    initial_value: '10'
+  - id: display_sleep_no_playback_seconds
+    type: int
+    restore_value: yes
+    initial_value: '60'
+  - id: display_sleep_playback_seconds
+    type: int
+    restore_value: yes
+    initial_value: '180'
   - id: screensaver_brightness_boost_until_ms
     type: uint32_t
     restore_value: no
     initial_value: '0'
-  - id: media_target_index
-    type: int
-    restore_value: yes
-    initial_value: '3'
   - id: media_effective_entity_id
     type: std::string
     restore_value: no
@@ -929,19 +967,19 @@ globals:
     initial_value: 'true'
   - id: scene_slot_index
     type: int
-    restore_value: yes
+    restore_value: no
     initial_value: '0'
   - id: light_slot_2_index
     type: int
-    restore_value: yes
+    restore_value: no
     initial_value: '11'
   - id: light_slot_3_index
     type: int
-    restore_value: yes
+    restore_value: no
     initial_value: '10'
   - id: light_slot_4_index
     type: int
-    restore_value: yes
+    restore_value: no
     initial_value: '4'
   - id: settings_focus_index
     type: int
@@ -969,7 +1007,7 @@ globals:
     initial_value: '0'
   - id: timer_edit_field
     type: int
-    restore_value: yes
+    restore_value: no
     initial_value: '0'
   - id: timer_preset_index
     type: int
@@ -989,7 +1027,7 @@ globals:
     initial_value: '0'
   - id: alarm_edit_field
     type: int
-    restore_value: yes
+    restore_value: no
     initial_value: '1'
   - id: alarm_last_trigger_date
     type: int
@@ -1041,6 +1079,10 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: rain_radar_last_visible_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
   - id: rain_radar_zoom_level
     type: int
     restore_value: yes
@@ -1077,7 +1119,15 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: photo_slideshow_loading
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: house_floorplan_ready
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: house_floorplan_loading
     type: bool
     restore_value: no
     initial_value: 'false'
@@ -1085,9 +1135,17 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: photo_last_visible_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: house_last_visible_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
   - id: photo_slideshow_index
     type: int
-    restore_value: yes
+    restore_value: no
     initial_value: '0'
   - id: light_ui_dirty
     type: bool
@@ -1717,24 +1775,65 @@ font:
     id: roboto_32
     size: 32
     bpp: 4
-    glyphsets:
-      - GF_Latin_Core
+    glyphs:
+      - "0"
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "6"
+      - "7"
+      - "8"
+      - "9"
+      - ":"
+      - "-"
+      - "/"
+      - "°"
+      - "%"
+      - " "
   - file: "gfonts://Roboto"
     id: roboto_56
     size: 56
     bpp: 4
     glyphs:
+      - "0"
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "6"
+      - "7"
+      - "8"
+      - "9"
+      - ":"
+      - "-"
+      - "/"
       - "°"
-    glyphsets:
-      - GF_Latin_Core
+      - "%"
+      - " "
   - file: "gfonts://Roboto"
     id: roboto_88
     size: 88
     bpp: 4
     glyphs:
+      - "0"
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "6"
+      - "7"
+      - "8"
+      - "9"
+      - ":"
+      - "-"
+      - "/"
       - "°"
-    glyphsets:
-      - GF_Latin_Core
+      - "%"
+      - " "
   - file: "gfonts://Material Symbols Outlined"
     id: media_icon_12
     size: 12
@@ -2031,10 +2130,14 @@ online_image:
     buffer_size: 65536
     update_interval: never
     on_download_finished:
-      - lambda: 'id(photo_slideshow_ready) = true;'
+      - lambda: |-
+          id(photo_slideshow_loading) = false;
+          id(photo_slideshow_ready) = true;
       - script.execute: refresh_photo_ui
     on_error:
-      - lambda: 'id(photo_slideshow_ready) = false;'
+      - lambda: |-
+          id(photo_slideshow_loading) = false;
+          id(photo_slideshow_ready) = false;
       - script.execute: refresh_photo_ui
   - id: house_floorplan_image
     url: "${house_floorplan_image_url}"
@@ -2047,11 +2150,13 @@ online_image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(house_floorplan_loading) = false;
           id(house_floorplan_ready) = true;
           id(house_floorplan_error) = false;
       - script.execute: refresh_house_ui
     on_error:
       - lambda: |-
+          id(house_floorplan_loading) = false;
           id(house_floorplan_ready) = false;
           id(house_floorplan_error) = true;
       - script.execute: refresh_house_ui
@@ -2342,6 +2447,265 @@ binary_sensor:
     entity_category: diagnostic
 
 script:
+  - id: refresh_all_light_detail_catalogs
+    mode: restart
+    then:
+      - script.execute:
+          id: refresh_light_detail_catalog
+          slot: 0
+          entity: !lambda 'return id(light_slot_1_entity_text).state;'
+      - script.execute:
+          id: refresh_light_detail_catalog
+          slot: 1
+          entity: !lambda 'return id(light_slot_2_entity_text).state;'
+      - script.execute:
+          id: refresh_light_detail_catalog
+          slot: 2
+          entity: !lambda 'return id(light_slot_3_entity_text).state;'
+      - script.execute:
+          id: refresh_light_detail_catalog
+          slot: 3
+          entity: !lambda 'return id(light_slot_4_entity_text).state;'
+
+  - id: refresh_light_detail_catalog
+    mode: queued
+    max_runs: 4
+    parameters:
+      slot: int
+      entity: std::string
+    then:
+      - lambda: |-
+          if (slot < 0 || slot >= 4) return;
+          if (id(dual_mcu_ha_bridge_enabled) &&
+              !id(dual_mcu_s3_rescue_mode_enabled))
+            return;
+          id(light_detail_kinds)[slot] = 0;
+          id(light_detail_labels)[slot].clear();
+          id(light_detail_commands)[slot].clear();
+          id(light_detail_targets)[slot].clear();
+          id(light_detail_loaded_entities)[slot].clear();
+          id(light_detail_selected)[slot] = -1;
+      - if:
+          condition:
+            lambda: |-
+              if (slot < 0 || slot >= 4 || entity.rfind("light.", 0) != 0)
+                return false;
+              for (char c : entity) {
+                const bool valid =
+                  std::isalnum(static_cast<unsigned char>(c)) ||
+                  c == '_' || c == '.';
+                if (!valid) return false;
+              }
+              return !id(demo_mode_active) && id(wifi_connected) &&
+                     (!id(dual_mcu_ha_bridge_enabled) ||
+                      id(dual_mcu_s3_rescue_mode_enabled));
+          then:
+            - homeassistant.action:
+                action: weather.get_forecasts
+                data:
+                  entity_id: ${ha_weather}
+                  type: daily
+                capture_response: true
+                response_template: !lambda |-
+                  return std::string("{% set e = '") + entity + "' %}"
+                    "{% set hue_entities = integration_entities('hue') %}"
+                    "{% set wled_entities = integration_entities('wled') %}"
+                    "{% set device = device_id(e) %}"
+                    "{% set siblings = device_entities(device) if device else [] %}"
+                    "{% set preset_candidates = siblings | select('match', 'select[.]') | select('search', 'preset') | list %}"
+                    "{% set preset = preset_candidates | first | default('', true) %}"
+                    "{% set ns = namespace(items=[]) %}"
+                    "{% if e in wled_entities and preset %}"
+                      "{% for option in (state_attr(preset, 'options') or [])[:32] %}"
+                        "{% set ns.items = ns.items + [{'label': option, 'command': option}] %}"
+                      "{% endfor %}"
+                      "{{ {'entity_id': e, 'kind': 'wled', 'target': preset, 'selected': states(preset), 'items': ns.items} | to_json }}"
+                    "{% elif e in hue_entities %}"
+                      "{% set room = area_id(e) %}"
+                      "{% set room_name = area_name(room) if room else '' %}"
+                      "{% set room_entities = area_entities(room) if room else [] %}"
+                      "{% for candidate in room_entities | sort %}"
+                        "{% if candidate in hue_entities and candidate[0:6] == 'scene.' and (ns.items | count) < 32 %}"
+                          "{% set label = state_attr(candidate, 'friendly_name') or candidate %}"
+                          "{% if room_name and label[0:(room_name | length) + 1] == room_name ~ ' ' %}"
+                            "{% set label = label[(room_name | length) + 1:] %}"
+                          "{% endif %}"
+                          "{% set ns.items = ns.items + [{'label': label, 'command': candidate}] %}"
+                        "{% endif %}"
+                      "{% endfor %}"
+                      "{{ {'entity_id': e, 'kind': 'hue', 'target': '', 'selected': '', 'items': ns.items} | to_json }}"
+                    "{% else %}"
+                      "{{ {'entity_id': e, 'kind': 'none', 'target': '', 'selected': '', 'items': []} | to_json }}"
+                    "{% endif %}";
+                on_success:
+                  - lambda: |-
+                      if (slot < 0 || slot >= 4) return;
+
+                      auto payload_has_catalog = [](JsonObjectConst object) -> bool {
+                        return !object.isNull() &&
+                               object["entity_id"].is<const char *>() &&
+                               object["kind"].is<const char *>();
+                      };
+                      JsonDocument doc;
+                      JsonObjectConst catalog;
+                      if (payload_has_catalog(response)) {
+                        catalog = response;
+                      } else {
+                        JsonVariantConst payload = response["response"];
+                        if (payload.is<JsonObjectConst>() &&
+                            payload_has_catalog(payload.as<JsonObjectConst>())) {
+                          catalog = payload.as<JsonObjectConst>();
+                        } else {
+                          const char *raw = payload.as<const char *>();
+                          if (raw == nullptr || raw[0] == '\0') {
+                            payload = response["service_response"];
+                            if (payload.is<JsonObjectConst>() &&
+                                payload_has_catalog(payload.as<JsonObjectConst>())) {
+                              catalog = payload.as<JsonObjectConst>();
+                            } else {
+                              raw = payload.as<const char *>();
+                            }
+                          }
+                          if (catalog.isNull() && raw != nullptr && raw[0] != '\0') {
+                            if (deserializeJson(doc, raw)) return;
+                            catalog = doc.as<JsonObjectConst>();
+                          }
+                        }
+                      }
+                      if (!payload_has_catalog(catalog)) return;
+
+                      const char *catalog_entity = catalog["entity_id"];
+                      const char *kind_text = catalog["kind"];
+                      const char *target = catalog["target"] | "";
+                      if (catalog_entity == nullptr || kind_text == nullptr ||
+                          entity != catalog_entity) return;
+                      const std::string current_entity =
+                        slot == 0 ? id(light_slot_1_entity_text).state :
+                        slot == 1 ? id(light_slot_2_entity_text).state :
+                        slot == 2 ? id(light_slot_3_entity_text).state :
+                                    id(light_slot_4_entity_text).state;
+                      if (current_entity != entity) return;
+
+                      uint8_t kind = 0;
+                      if (strcmp(kind_text, "wled") == 0) kind = 1;
+                      else if (strcmp(kind_text, "hue") == 0) kind = 2;
+
+                      auto &labels = id(light_detail_labels)[slot];
+                      auto &commands = id(light_detail_commands)[slot];
+                      labels.clear();
+                      commands.clear();
+                      JsonArrayConst items = catalog["items"].as<JsonArrayConst>();
+                      if (!items.isNull()) {
+                        for (JsonObjectConst item : items) {
+                          if (labels.size() >= ui_next::kLightDetailMaxItems) break;
+                          const char *label = item["label"];
+                          const char *command = item["command"];
+                          if (label == nullptr || command == nullptr ||
+                              label[0] == '\0' || command[0] == '\0') continue;
+                          labels.emplace_back(label);
+                          commands.emplace_back(command);
+                        }
+                      }
+                      if (labels.empty()) kind = 0;
+                      id(light_detail_kinds)[slot] = kind;
+                      id(light_detail_targets)[slot] = target;
+                      id(light_detail_loaded_entities)[slot] = entity;
+                      id(light_detail_selected)[slot] = -1;
+                      const char *selected = catalog["selected"] | "";
+                      if (selected[0] != '\0') {
+                        for (size_t i = 0; i < commands.size(); i++) {
+                          if (commands[i] == selected) {
+                            id(light_detail_selected)[slot] = static_cast<int>(i);
+                            break;
+                          }
+                        }
+                      }
+                      id(light_ui_dirty) = true;
+                  - script.execute: refresh_light_ui_if_needed
+                on_error:
+                  - lambda: |-
+                      if (slot < 0 || slot >= 4) return;
+                      id(light_detail_loaded_entities)[slot] = entity;
+                      id(light_ui_dirty) = true;
+                  - script.execute: refresh_light_ui_if_needed
+
+  - id: activate_light_detail
+    mode: restart
+    parameters:
+      slot: int
+      option: int
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return slot >= 0 && slot < 4 && option >= 0 &&
+                     option < static_cast<int>(id(light_detail_labels)[slot].size()) &&
+                     ((id(dual_mcu_ha_bridge_enabled) &&
+                       id(dual_mcu_ha_bridge_ready) &&
+                       id(dual_mcu_ha_bridge_light_details) &&
+                       !id(dual_mcu_s3_rescue_mode_enabled)) ||
+                      option < static_cast<int>(
+                        id(light_detail_commands)[slot].size()));
+          then:
+            - lambda: |-
+                id(light_detail_selected)[slot] = option;
+                id(light_ui_dirty) = true;
+            - if:
+                condition:
+                  lambda: |-
+                    return id(dual_mcu_ha_bridge_enabled) &&
+                           id(dual_mcu_ha_bridge_ready) &&
+                           id(dual_mcu_ha_bridge_light_details) &&
+                           !id(dual_mcu_s3_rescue_mode_enabled);
+                then:
+                  - lambda: |-
+                      dual_mcu::link.send_light_detail_activate(
+                        static_cast<uint8_t>(slot),
+                        static_cast<uint8_t>(option));
+                  - script.stop: activate_light_detail
+            - if:
+                condition:
+                  lambda: |-
+                    return id(dual_mcu_ha_bridge_enabled) &&
+                           id(dual_mcu_ha_bridge_ready) &&
+                           id(light_detail_kinds)[slot] == 2;
+                then:
+                  - lambda: |-
+                      dual_mcu::link.send_ha_action(
+                        dual_mcu::HAAction::SCENE_ACTIVATE, 0,
+                        id(light_detail_commands)[slot][option].c_str());
+                  - script.stop: activate_light_detail
+            - if:
+                condition:
+                  lambda: |-
+                    return id(dual_mcu_ha_bridge_enabled) &&
+                           id(dual_mcu_ha_bridge_ready) &&
+                           id(light_detail_kinds)[slot] == 1;
+                then:
+                  - lambda: |-
+                      dual_mcu::link.send_ha_text_action(
+                        dual_mcu::HAAction::SELECT_OPTION,
+                        id(light_detail_targets)[slot].c_str(),
+                        id(light_detail_commands)[slot][option].c_str());
+                  - script.stop: activate_light_detail
+            - if:
+                condition:
+                  lambda: 'return id(light_detail_kinds)[slot] == 2;'
+                then:
+                  - homeassistant.service:
+                      service: scene.turn_on
+                      data_template:
+                        entity_id: !lambda 'return id(light_detail_commands)[slot][option];'
+            - if:
+                condition:
+                  lambda: 'return id(light_detail_kinds)[slot] == 1;'
+                then:
+                  - homeassistant.service:
+                      service: select.select_option
+                      data_template:
+                        entity_id: !lambda 'return id(light_detail_targets)[slot];'
+                        option: !lambda 'return id(light_detail_commands)[slot][option];'
+
   - id: refresh_media_target_runtime
     mode: restart
     then:
@@ -3187,7 +3551,7 @@ script:
     then:
       - script.execute: refresh_control_time
       - lambda: |-
-          const int focus_count = 10;
+          const int focus_count = 11;
           id(settings_focus_index) = scrollwheel_targets::clamp_index(id(settings_focus_index), focus_count);
           const char *focus_names[focus_count] = {
             "Haptik",
@@ -3200,6 +3564,7 @@ script:
             "Licht 2",
             "Licht 3",
             "Licht 4",
+            "DEV: Wach halten",
           };
           std::string value;
           const bool demo = id(demo_mode_active);
@@ -3237,8 +3602,11 @@ script:
             case 8:
               value = demo ? "Table" : id(light_slot_3_label_text).state;
               break;
-            default:
+            case 9:
               value = demo ? "Accent" : id(light_slot_4_label_text).state;
+              break;
+            default:
+              value = id(display_keep_awake) ? "Wach halten EIN" : "Wach halten AUS";
               break;
           }
           lv_label_set_text(settings_status_label, focus_names[id(settings_focus_index)]);
@@ -3253,11 +3621,15 @@ script:
           lv_obj_set_style_text_color(settings_ha_check_label, lv_color_hex(ha_ok ? 0x22C55E : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_text_color(settings_ha_status_label, lv_color_hex(ha_ok ? 0xCBD5E1 : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_label_set_text_fmt(settings_ip_address_label, "IP %s", wifi_ok ? ip_address.c_str() : "--");
-          const bool route_setting = id(settings_focus_index) >= 5;
+          const bool route_setting =
+            id(settings_focus_index) >= 5 && id(settings_focus_index) <= 9;
           const bool demo_setting = id(settings_focus_index) == 4;
+          const bool keep_awake_setting = id(settings_focus_index) == 10;
           uint32_t button_color = route_setting ? 0x2563EB : (id(haptic_enabled) ? 0xEC4899 : 0x1F2937);
           if (demo_setting) {
             button_color = id(demo_mode_enabled) ? 0x16A34A : 0x1F2937;
+          } else if (keep_awake_setting) {
+            button_color = id(display_keep_awake) ? 0x16A34A : 0x1F2937;
           }
           lv_obj_set_style_bg_color(settings_haptic_button, lv_color_hex(button_color), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_text_color(settings_haptic_label, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -3275,7 +3647,7 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(settings_focus_index) -= 1;
-          if (id(settings_focus_index) < 0) id(settings_focus_index) = 9;
+          if (id(settings_focus_index) < 0) id(settings_focus_index) = 10;
       - script.execute: refresh_settings_ui
   - id: settings_focus_next
     mode: restart
@@ -3284,7 +3656,7 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(settings_focus_index) += 1;
-          if (id(settings_focus_index) > 9) id(settings_focus_index) = 0;
+          if (id(settings_focus_index) > 10) id(settings_focus_index) = 0;
       - script.execute: refresh_settings_ui
   - id: settings_value_prev
     mode: restart
@@ -3337,8 +3709,13 @@ script:
             case 7:
               id(light_ui_dirty) = true;
               break;
-            default:
+            case 8:
+            case 9:
               id(light_ui_dirty) = true;
+              break;
+            default:
+              id(display_keep_awake) = !id(display_keep_awake);
+              id(display_keep_awake_switch).publish_state(id(display_keep_awake));
               break;
           }
       - if:
@@ -3346,6 +3723,11 @@ script:
             lambda: 'return id(settings_focus_index) == 4;'
           then:
             - script.execute: sync_demo_mode_with_wifi
+      - if:
+          condition:
+            lambda: 'return id(settings_focus_index) == 10;'
+          then:
+            - script.execute: apply_display_keep_awake
       - script.execute: play_haptic_feedback
       - script.execute: refresh_settings_ui
   - id: settings_value_next
@@ -3399,8 +3781,13 @@ script:
             case 7:
               id(light_ui_dirty) = true;
               break;
-            default:
+            case 8:
+            case 9:
               id(light_ui_dirty) = true;
+              break;
+            default:
+              id(display_keep_awake) = !id(display_keep_awake);
+              id(display_keep_awake_switch).publish_state(id(display_keep_awake));
               break;
           }
       - if:
@@ -3408,6 +3795,11 @@ script:
             lambda: 'return id(settings_focus_index) == 4;'
           then:
             - script.execute: sync_demo_mode_with_wifi
+      - if:
+          condition:
+            lambda: 'return id(settings_focus_index) == 10;'
+          then:
+            - script.execute: apply_display_keep_awake
       - script.execute: play_haptic_feedback
       - script.execute: refresh_settings_ui
   - id: settings_toggle_haptic
@@ -3548,7 +3940,7 @@ script:
 
           if (id(rain_radar_zoom_level) < 0) id(rain_radar_zoom_level) = 0;
           if (id(rain_radar_zoom_level) > 2) id(rain_radar_zoom_level) = 2;
-          if (id(dual_mcu_ha_bridge_ready) && id(dual_mcu_ha_bridge_radar)) {
+          if (dual_mcu::radar_client.available()) {
             id(dual_mcu_asset_pending_kind) =
               static_cast<uint8_t>(dual_mcu::AssetKind::RADAR);
             id(dual_mcu_asset_pending_argument) =
@@ -3709,6 +4101,7 @@ script:
             lambda: 'return id(demo_mode_active) || (!id(wifi_connected) && !id(dual_mcu_ha_bridge_ready));'
           then:
             - lambda: |-
+                id(photo_slideshow_loading) = false;
                 id(photo_slideshow_ready) = false;
             - script.execute: refresh_photo_ui
             - script.stop: refresh_photo_image
@@ -3729,6 +4122,7 @@ script:
               id(dual_mcu_asset_pending_argument) =
                 static_cast<uint8_t>(id(photo_slideshow_index));
               id(dual_mcu_asset_pending_force) = true;
+              id(photo_slideshow_loading) = true;
             }
             return;
           }
@@ -3736,6 +4130,7 @@ script:
               !id(dual_mcu_s3_rescue_mode_enabled)) {
             return;
           }
+          id(photo_slideshow_loading) = true;
           const std::string url = std::string(urls[id(photo_slideshow_index)]) + "?v=" + std::to_string(millis());
           id(photo_slideshow_image).set_url(url);
           id(photo_slideshow_image).update();
@@ -3786,6 +4181,7 @@ script:
             lambda: 'return id(demo_mode_active) || (!id(wifi_connected) && !id(dual_mcu_ha_bridge_ready));'
           then:
             - lambda: |-
+                id(house_floorplan_loading) = false;
                 id(house_floorplan_ready) = false;
                 id(house_floorplan_error) = false;
             - script.execute: refresh_house_ui
@@ -3801,6 +4197,7 @@ script:
               static_cast<uint8_t>(dual_mcu::AssetKind::HOUSE);
             id(dual_mcu_asset_pending_argument) = 0;
             id(dual_mcu_asset_pending_force) = true;
+            id(house_floorplan_loading) = true;
             return;
           }
           if (id(dual_mcu_stage1_performance_enabled) &&
@@ -3808,6 +4205,7 @@ script:
             id(house_floorplan_error) = true;
             return;
           }
+          id(house_floorplan_loading) = true;
           const std::string url = std::string("${house_floorplan_image_url}") + "?v=" + std::to_string(millis());
           id(house_floorplan_image).set_url(url);
           id(house_floorplan_image).update();
@@ -4175,12 +4573,36 @@ script:
           if (id(current_page) == 12) {
             id(refresh_alarm_ui).execute();
           }
-  - id: sleep_display_on_battery
+  - id: apply_display_keep_awake
+    mode: restart
+    then:
+      - lambda: |-
+          id(ui_last_activity_ms) = millis();
+      - if:
+          condition:
+            lambda: 'return id(display_keep_awake) && id(current_page) == 7;'
+          then:
+            - script.execute: return_from_screensaver
+      - if:
+          condition:
+            lambda: 'return id(display_keep_awake) && id(display_sleeping);'
+          then:
+            - script.execute: wake_display
+      - if:
+          condition:
+            lambda: 'return id(display_keep_awake) && id(display_charge_dimmed);'
+          then:
+            - script.execute: restore_display_from_charge_dim
+      - script.execute: refresh_settings_ui
+  - id: sleep_display_below_full
     mode: restart
     then:
       - if:
           condition:
-            lambda: 'return !id(external_power_detected) && !id(display_sleeping);'
+            lambda: |-
+              return id(battery_percentage_cache) < 100 &&
+                     !id(display_keep_awake) &&
+                     !id(display_sleeping);
           then:
             - lambda: |-
                 id(display_sleeping) = true;
@@ -4191,12 +4613,36 @@ script:
                 id(weather_ui_dirty) = true;
             - light.turn_off: display_backlight
             - lvgl.pause:
+  - id: dim_display_below_full
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return id(battery_percentage_cache) < 100 &&
+                     !id(display_keep_awake) &&
+                     !id(display_sleeping);
+          then:
+            - lambda: |-
+                id(display_charge_dimmed) = true;
+            - light.turn_on:
+                id: display_backlight
+                brightness: !lambda |-
+                  return static_cast<float>(
+                    std::clamp(id(display_dim_brightness_percent), 5, 30)) / 100.0f;
+                transition_length: 250ms
   - id: dim_display_on_external_power
     mode: restart
     then:
       - if:
           condition:
-            lambda: 'return id(external_power_detected) && id(current_page) != 7 && !id(display_sleeping) && !id(display_charge_dimmed);'
+            lambda: |-
+              return id(external_power_detected) &&
+                     id(battery_percentage_cache) >= 100 &&
+                     !id(display_keep_awake) &&
+                     id(current_page) != 7 &&
+                     !id(display_sleeping) &&
+                     !id(display_charge_dimmed);
           then:
             - lambda: |-
                 id(display_charge_dimmed) = true;
@@ -4250,53 +4696,85 @@ script:
   - id: show_light_page
     mode: restart
     then:
-      - lambda: |-
-          id(ui_last_activity_ms) = millis();
-          id(extra_menu_visible) = false;
-          id(extra_menu_hide_at_ms) = 0;
-          id(control_mode) = 0;
-          id(light_ui_dirty) = true;
-      - lvgl.page.show:
-          id: page_1
-          animation: FADE_IN
-          time: 35ms
+      - if:
+          condition:
+            lambda: |-
+              return id(ui_next_enabled) && ui_next::framework.built();
+          then:
+            - lambda: |-
+                id(ui_last_activity_ms) = millis();
+                ui_next::framework.show(ui_next::View::LIGHT);
+                id(current_page) = 21;
+          else:
+            - lambda: |-
+                id(ui_last_activity_ms) = millis();
+                id(extra_menu_visible) = false;
+                id(extra_menu_hide_at_ms) = 0;
+                id(control_mode) = 0;
+                id(light_ui_dirty) = true;
+            - lvgl.page.show:
+                id: page_1
+                animation: FADE_IN
+                time: 35ms
   - id: show_media_page
     mode: restart
     then:
-      - lambda: |-
-          id(ui_last_activity_ms) = millis();
-          id(extra_menu_visible) = false;
-          id(extra_menu_hide_at_ms) = 0;
-          id(media_last_activity_ms) = millis();
-          id(media_cover_fullscreen_active) = false;
-          id(media_cover_fullscreen_due_ms) = (id(music_state_cache) == "playing") ? millis() + 10000 : 0;
-          const bool keep_list_active = id(current_page) == 2 && id(control_mode) == 2;
-          if (id(current_page) == 2) {
-            id(media_browser_mode) += 1;
-            if (id(media_browser_mode) > 3) {
-              id(media_browser_mode) = 1;
-            }
-          }
-          if (id(control_mode) != 2) {
-            id(track_select_active) = false;
-          }
-          id(control_mode) = keep_list_active ? 2 : 1;
-          id(media_ui_dirty) = true;
-      - lvgl.page.show:
-          id: page_2
-          animation: FADE_IN
-          time: 35ms
+      - if:
+          condition:
+            lambda: |-
+              return id(ui_next_enabled) && ui_next::framework.built();
+          then:
+            - lambda: |-
+                id(ui_last_activity_ms) = millis();
+                id(media_last_activity_ms) = millis();
+                ui_next::framework.show(ui_next::View::MEDIA);
+                id(current_page) = 22;
+                id(control_mode) = 1;
+          else:
+            - lambda: |-
+                id(ui_last_activity_ms) = millis();
+                id(extra_menu_visible) = false;
+                id(extra_menu_hide_at_ms) = 0;
+                id(media_last_activity_ms) = millis();
+                id(media_cover_fullscreen_active) = false;
+                id(media_cover_fullscreen_due_ms) = (id(music_state_cache) == "playing") ? millis() + 10000 : 0;
+                const bool keep_list_active = id(current_page) == 2 && id(control_mode) == 2;
+                if (id(current_page) == 2) {
+                  id(media_browser_mode) += 1;
+                  if (id(media_browser_mode) > 3) {
+                    id(media_browser_mode) = 1;
+                  }
+                }
+                if (id(control_mode) != 2) {
+                  id(track_select_active) = false;
+                }
+                id(control_mode) = keep_list_active ? 2 : 1;
+                id(media_ui_dirty) = true;
+            - lvgl.page.show:
+                id: page_2
+                animation: FADE_IN
+                time: 35ms
   - id: show_weather_page
     mode: restart
     then:
-      - lambda: |-
-          id(ui_last_activity_ms) = millis();
-          id(extra_menu_visible) = false;
-          id(extra_menu_hide_at_ms) = 0;
-      - lvgl.page.show:
-          id: page_4
-          animation: FADE_IN
-          time: 35ms
+      - if:
+          condition:
+            lambda: |-
+              return id(ui_next_enabled) && ui_next::framework.built();
+          then:
+            - lambda: |-
+                id(ui_last_activity_ms) = millis();
+                ui_next::framework.show(ui_next::View::WEATHER);
+                id(current_page) = 20;
+          else:
+            - lambda: |-
+                id(ui_last_activity_ms) = millis();
+                id(extra_menu_visible) = false;
+                id(extra_menu_hide_at_ms) = 0;
+            - lvgl.page.show:
+                id: page_4
+                animation: FADE_IN
+                time: 35ms
   - id: show_settings_page
     mode: restart
     then:
@@ -5458,6 +5936,7 @@ script:
     mode: restart
     then:
       - lambda: |-
+          if (id(ui_next_enabled)) return;
           auto now = id(ha_time).now();
           if (!now.is_valid()) {
             now = id(sntp_time).now();
@@ -5576,6 +6055,10 @@ script:
     mode: restart
     then:
       - lambda: |-
+          if (id(ui_next_enabled)) {
+            id(weather_ui_dirty) = false;
+            return;
+          }
           auto rounded_int = [](float value) -> int {
             return static_cast<int>(lroundf(value));
           };
@@ -6504,11 +6987,16 @@ script:
       - if:
           condition:
             lambda: |-
+              const bool proxy_ready =
+                id(dual_mcu_library_request_proxy_available) &&
+                millis() >=
+                  id(dual_mcu_library_response_proxy_failed_until_ms);
+              const bool direct_ready =
+                id(wifi_connected) &&
+                (!id(dual_mcu_stage2_library_offload_enabled) ||
+                 id(dual_mcu_s3_library_fallback_active));
               return id(demo_mode_active) ||
-                     (!id(wifi_connected) && !id(dual_mcu_library_request_proxy_available)) ||
-                     (id(dual_mcu_stage2_library_offload_enabled) &&
-                      !id(dual_mcu_s3_library_fallback_active) &&
-                      !id(dual_mcu_library_request_proxy_available));
+                     (!proxy_ready && !direct_ready);
           then:
             - lambda: |-
                 id(track_autoload_inflight) = false;
@@ -6532,7 +7020,6 @@ script:
                 id(track_has_more) = false;
                 id(track_autoload_inflight) = true;
                 id(selected_track_index) = 0;
-                id(ma_playlist_tracks_json_cache) = "[]";
                 id(ma_track_titles_cache).clear();
                 id(ma_track_artists_cache).clear();
                 id(ma_track_uris_cache).clear();
@@ -6590,16 +7077,24 @@ script:
       - if:
           condition:
             lambda: |-
+              const bool proxy_ready =
+                id(dual_mcu_library_request_proxy_available) &&
+                millis() >=
+                  id(dual_mcu_library_response_proxy_failed_until_ms);
+              const bool direct_ready =
+                id(wifi_connected) &&
+                (!id(dual_mcu_stage2_library_offload_enabled) ||
+                 id(dual_mcu_s3_library_fallback_active));
               return id(demo_mode_active) ||
-                     (!id(wifi_connected) && !id(dual_mcu_library_request_proxy_available)) ||
-                     (id(dual_mcu_stage2_library_offload_enabled) &&
-                      !id(dual_mcu_s3_library_fallback_active) &&
-                      !id(dual_mcu_library_request_proxy_available));
+                     (!proxy_ready && !direct_ready);
           then:
             - lambda: |-
                 id(track_autoload_inflight) = false;
                 id(pending_track_request_id).clear();
-                id(track_has_more) = false;
+                // Preserve continuation metadata across a transient bridge
+                // outage. The next interaction or recovery retry resumes at
+                // the same offset instead of turning a temporary failure into
+                // a false end-of-list.
                 id(media_ui_dirty) = true;
             - script.execute: refresh_media_picker_popup
             - script.execute: refresh_media_ui_if_needed
@@ -6754,7 +7249,6 @@ script:
               fallback_index++;
             }
 
-            id(ma_playlists_json_cache) = incoming;
             id(playlist_loaded_count) = static_cast<int>(id(ma_playlists_names_cache).size());
             id(playlist_total_available) = doc["total"] | id(playlist_loaded_count);
             id(playlist_request_offset) = doc["next_offset"] | (response_offset + static_cast<int>(arr.size()));
@@ -6791,7 +7285,6 @@ script:
               append_playlist(item, fallback_index);
               fallback_index++;
             }
-            id(ma_playlists_json_cache) = incoming;
             id(playlist_loaded_count) = static_cast<int>(id(ma_playlists_names_cache).size());
             id(playlist_total_available) = id(playlist_loaded_count);
             id(playlist_request_offset) = id(playlist_loaded_count);
@@ -6815,11 +7308,16 @@ script:
       - if:
           condition:
             lambda: |-
+              const bool proxy_ready =
+                id(dual_mcu_library_request_proxy_available) &&
+                millis() >=
+                  id(dual_mcu_library_response_proxy_failed_until_ms);
+              const bool direct_ready =
+                id(wifi_connected) &&
+                (!id(dual_mcu_stage2_library_offload_enabled) ||
+                 id(dual_mcu_s3_library_fallback_active));
               return id(demo_mode_active) ||
-                     (!id(wifi_connected) && !id(dual_mcu_library_request_proxy_available)) ||
-                     (id(dual_mcu_stage2_library_offload_enabled) &&
-                      !id(dual_mcu_s3_library_fallback_active) &&
-                      !id(dual_mcu_library_request_proxy_available));
+                     (!proxy_ready && !direct_ready);
           then:
             - lambda: |-
                 id(playlist_autoload_inflight) = false;
@@ -6876,16 +7374,23 @@ script:
       - if:
           condition:
             lambda: |-
+              const bool proxy_ready =
+                id(dual_mcu_library_request_proxy_available) &&
+                millis() >=
+                  id(dual_mcu_library_response_proxy_failed_until_ms);
+              const bool direct_ready =
+                id(wifi_connected) &&
+                (!id(dual_mcu_stage2_library_offload_enabled) ||
+                 id(dual_mcu_s3_library_fallback_active));
               return id(demo_mode_active) ||
-                     (!id(wifi_connected) && !id(dual_mcu_library_request_proxy_available)) ||
-                     (id(dual_mcu_stage2_library_offload_enabled) &&
-                      !id(dual_mcu_s3_library_fallback_active) &&
-                      !id(dual_mcu_library_request_proxy_available));
+                     (!proxy_ready && !direct_ready);
           then:
             - lambda: |-
                 id(playlist_autoload_inflight) = false;
                 id(pending_playlist_request_id).clear();
-                id(playlist_has_more) = false;
+                // Keep the received page's continuation flag and offset. A
+                // short transport outage must remain retryable and must never
+                // masquerade as the actual end of the Music Assistant list.
                 id(media_ui_dirty) = true;
             - script.execute: refresh_media_picker_popup
             - script.execute: refresh_media_ui_if_needed
@@ -6899,18 +7404,25 @@ script:
           then:
             - lambda: |-
                 id(playlist_request_seq) += 1;
+                const int cached_count =
+                  static_cast<int>(id(ma_playlists_names_cache).size());
                 if (id(playlist_request_offset) <= 0) {
-                  id(playlist_request_offset) = id(playlist_loaded_count);
+                  id(playlist_request_offset) = cached_count;
                 }
-                id(playlist_autoload_anchor_count) = id(playlist_loaded_count);
+                id(playlist_loaded_count) = cached_count;
+                // Only an explicit "Weitere laden" activation moves the
+                // selection to the first new item. Invisible prefetch must
+                // preserve encoder focus and touch position.
+                id(playlist_autoload_anchor_count) =
+                  id(media_picker_more_requested) ? cached_count : 0;
                 if (id(media_picker_more_requested) &&
                     id(media_picker_visible) &&
                     id(media_picker_tab) == 1 &&
-                    id(playlist_loaded_count) > 0) {
-                  id(selected_playlist_index) = id(playlist_loaded_count) - 1;
+                    cached_count > 0) {
+                  id(selected_playlist_index) = cached_count - 1;
                   const int playlist_capacity = id(playlist_has_more) ? 15 : 16;
                   id(media_picker_window_start) =
-                    id(playlist_loaded_count) > playlist_capacity ? id(playlist_loaded_count) - playlist_capacity : 0;
+                    cached_count > playlist_capacity ? cached_count - playlist_capacity : 0;
                 }
                 id(playlist_autoload_inflight) = true;
                 id(pending_playlist_request_id) =
@@ -7650,7 +8162,10 @@ script:
           if (follow_row > 15) follow_row = 15;
           int scroll_target = follow_row <= 2 ? 0 : (follow_row * 44) - 88;
           if (scroll_target < 0) scroll_target = 0;
-          if (id(media_picker_scroll_reset_requested) || follow_row >= 0) {
+          // A background page response must not snap a touch-scrolled list
+          // back to the selected row. Explicit open/tab/window changes set
+          // the reset flag; encoder movement uses the fast two-row path above.
+          if (id(media_picker_scroll_reset_requested)) {
             lv_obj_scroll_to_y(media_picker_list, scroll_target, LV_ANIM_OFF);
             id(media_picker_scroll_reset_requested) = false;
           }
@@ -7765,7 +8280,6 @@ script:
             id(media_duration_seconds) = 180.0f;
           }
           if (id(media_browser_mode) != 1) {
-            id(ma_playlist_tracks_json_cache) = "[]";
             id(ma_track_titles_cache).clear();
             id(ma_track_artists_cache).clear();
             id(ma_track_uris_cache).clear();
@@ -8833,6 +9347,54 @@ time:
     timezone: Europe/Berlin
 
 interval:
+  # Optional full-screen images are decoded lazily. Once their page has been
+  # left, release pixel buffers after a short grace period. Radar and
+  # floorplan will therefore fetch a current frame on the next visit; photos
+  # trade a rare reload for a permanently smaller PSRAM footprint.
+  - interval: 15s
+    then:
+      - lambda: |-
+          const uint32_t now = millis();
+          const bool asset_idle =
+            !dual_mcu::asset_decode_running &&
+            !dual_mcu::radar_client.active() &&
+            id(dual_mcu_asset_active_kind) == 0 &&
+            id(dual_mcu_asset_pending_kind) == 0 &&
+            !id(rain_radar_loading) &&
+            !id(photo_slideshow_loading) &&
+            !id(house_floorplan_loading);
+
+          if (id(current_page) == 8) {
+            id(rain_radar_last_visible_ms) = now;
+          } else if (asset_idle && id(rain_radar_last_visible_ms) != 0 &&
+                     now - id(rain_radar_last_visible_ms) >= 45000U) {
+            id(rain_radar_image).release();
+            id(rain_radar_staging_image).release();
+            id(rain_radar_ready) = false;
+            id(rain_radar_loaded_url).clear();
+            id(rain_radar_active_buffer) = 0;
+            id(rain_radar_status_text) = "Aktualisierung beim Öffnen";
+            id(rain_radar_last_visible_ms) = 0;
+          }
+
+          if (id(current_page) == 9) {
+            id(photo_last_visible_ms) = now;
+          } else if (asset_idle && id(photo_last_visible_ms) != 0 &&
+                     now - id(photo_last_visible_ms) >= 30000U) {
+            id(photo_slideshow_image).release();
+            id(photo_slideshow_ready) = false;
+            id(photo_last_visible_ms) = 0;
+          }
+
+          if (id(current_page) == 10) {
+            id(house_last_visible_ms) = now;
+          } else if (asset_idle && id(house_last_visible_ms) != 0 &&
+                     now - id(house_last_visible_ms) >= 45000U) {
+            id(house_floorplan_image).release();
+            id(house_floorplan_ready) = false;
+            id(house_floorplan_error) = false;
+            id(house_last_visible_ms) = 0;
+          }
   - interval: 1s
     then:
       - lambda: |-
@@ -8858,7 +9420,16 @@ interval:
           }
       - if:
           condition:
-            lambda: 'return id(display_sleeping) && !id(external_power_detected) && !id(timer_running) && !id(alarm_alert_active) && (millis() - id(ui_last_activity_ms)) >= 90000;'
+            lambda: |-
+              return id(display_sleeping) &&
+                     !id(external_power_detected) &&
+                     !id(display_keep_awake) &&
+                     (!${factory_onboarding_guard} ||
+                      id(factory_onboarding_completed)) &&
+                     id(music_state_cache) != "playing" &&
+                     !id(timer_running) &&
+                     !id(alarm_alert_active) &&
+                     (millis() - id(ui_last_activity_ms)) >= 90000;
           then:
             - deep_sleep.enter: battery_deep_sleep
       - script.execute: timer_tick
@@ -8961,6 +9532,8 @@ interval:
             lambda: |-
               return id(current_page) != 7 &&
                      !id(display_sleeping) &&
+                     !id(display_keep_awake) &&
+                     id(battery_percentage_cache) >= 100 &&
                      !id(media_picker_visible) &&
                      !id(timer_running) &&
                      !id(alarm_alert_active) &&
@@ -8971,17 +9544,38 @@ interval:
       - if:
           condition:
             lambda: |-
-              return !id(external_power_detected) &&
+              return id(battery_percentage_cache) < 100 &&
+                     !id(display_keep_awake) &&
+                     !id(display_sleeping) &&
+                     !id(display_charge_dimmed) &&
+                     !id(timer_running) &&
+                     !id(alarm_alert_active) &&
+                     (millis() - id(ui_last_activity_ms)) >=
+                       static_cast<uint32_t>(id(display_dim_delay_seconds)) * 1000UL;
+          then:
+            - script.execute: dim_display_below_full
+      - if:
+          condition:
+            lambda: |-
+              const bool playback = id(music_state_cache) == "playing";
+              const int timeout_seconds = playback
+                ? id(display_sleep_playback_seconds)
+                : id(display_sleep_no_playback_seconds);
+              return id(battery_percentage_cache) < 100 &&
+                     !id(display_keep_awake) &&
                      !id(display_sleeping) &&
                      !id(timer_running) &&
                      !id(alarm_alert_active) &&
-                     (millis() - id(ui_last_activity_ms)) >= 12000;
+                     (millis() - id(ui_last_activity_ms)) >=
+                       static_cast<uint32_t>(timeout_seconds) * 1000UL;
           then:
-            - script.execute: sleep_display_on_battery
+            - script.execute: sleep_display_below_full
       - if:
           condition:
             lambda: |-
               return id(external_power_detected) &&
+                     id(battery_percentage_cache) >= 100 &&
+                     !id(display_keep_awake) &&
                      id(current_page) != 7 &&
                      !id(display_sleeping) &&
                      !id(display_charge_dimmed) &&
@@ -9111,6 +9705,121 @@ interval:
                     id(media_icon_28), id(media_icon_42))) {
                 id(current_page) = 20;
                 id(ui_next_last_refresh_ms) = 0;
+                // The media picker is the only retained child of the legacy
+                // primary pages. Move it first, then release the unused
+                // light/media/weather object trees from the LVGL heap.
+                if (media_picker_popup != nullptr &&
+                    lv_obj_get_parent(media_picker_popup) != lv_layer_top()) {
+                  lv_obj_set_parent(media_picker_popup, lv_layer_top());
+                }
+                lv_obj_clean(id(page_1).obj);
+                lv_obj_clean(id(page_2).obj);
+                lv_obj_clean(id(page_4).obj);
+
+                light_active_summary_label = nullptr;
+                light_battery_label = nullptr;
+                light_charge_icon_label = nullptr;
+                light_context_1_label = nullptr;
+                light_context_2_label = nullptr;
+                light_context_3_label = nullptr;
+                light_date_label = nullptr;
+                light_drawer_panel = nullptr;
+                light_mode_label = nullptr;
+                light_ring_host = nullptr;
+                light_second_dot = nullptr;
+                light_source_label = nullptr;
+                light_status_1_chip = nullptr;
+                light_status_1_icon = nullptr;
+                light_status_2_chip = nullptr;
+                light_status_2_icon = nullptr;
+                light_status_3_chip = nullptr;
+                light_status_3_icon = nullptr;
+                light_status_4_chip = nullptr;
+                light_status_4_icon = nullptr;
+                light_swatch = nullptr;
+                light_time_label = nullptr;
+                light_value_label = nullptr;
+                id(light_brightness_arc) = nullptr;
+                id(light_secondary_arc) = nullptr;
+
+                media_battery_label = nullptr;
+                media_charge_icon_label = nullptr;
+                media_date_label = nullptr;
+                media_list_button = nullptr;
+                media_list_current_label = nullptr;
+                media_list_hint_label = nullptr;
+                media_list_mode_label = nullptr;
+                media_list_next_label = nullptr;
+                media_list_prev_label = nullptr;
+                media_main_label = nullptr;
+                media_page_cover_fallback = nullptr;
+                media_page_cover_icon_label = nullptr;
+                media_page_cover_image_widget = nullptr;
+                media_play_icon_label = nullptr;
+                media_repeat_button = nullptr;
+                media_repeat_icon_label = nullptr;
+                media_ring_host = nullptr;
+                media_second_dot = nullptr;
+                media_shuffle_button = nullptr;
+                media_shuffle_icon_label = nullptr;
+                media_source_label = nullptr;
+                media_subtitle_label = nullptr;
+                media_time_label = nullptr;
+                media_title_button = nullptr;
+                media_track_next_label = nullptr;
+                media_track_prev_label = nullptr;
+                id(media_ring_arc) = nullptr;
+                id(media_progress_arc) = nullptr;
+
+                weather_background = nullptr;
+                weather_battery_label = nullptr;
+                weather_charge_icon_label = nullptr;
+                weather_date_label = nullptr;
+                weather_day_0_label = nullptr;
+                weather_day_1_label = nullptr;
+                weather_day_2_label = nullptr;
+                weather_detail_label = nullptr;
+                weather_evening_label = nullptr;
+                weather_evening_text_a = nullptr;
+                weather_evening_text_b = nullptr;
+                weather_evening_text_d = nullptr;
+                weather_evening_text_e = nullptr;
+                weather_evening_text_n = nullptr;
+                weather_forecast_0_range_label = nullptr;
+                weather_forecast_1_range_label = nullptr;
+                weather_forecast_2_range_label = nullptr;
+                weather_humidity_value_label = nullptr;
+                weather_location_label = nullptr;
+                weather_max_label = nullptr;
+                weather_max_value_label = nullptr;
+                weather_min_label = nullptr;
+                weather_morning_label = nullptr;
+                weather_morning_text_a = nullptr;
+                weather_morning_text_g = nullptr;
+                weather_morning_text_i = nullptr;
+                weather_morning_text_m = nullptr;
+                weather_morning_text_o = nullptr;
+                weather_morning_text_r = nullptr;
+                weather_morning_text_t1 = nullptr;
+                weather_morning_text_t2 = nullptr;
+                weather_morning_text_v = nullptr;
+                weather_noon_label = nullptr;
+                weather_radar_popup = nullptr;
+                weather_radar_popup_fallback_label = nullptr;
+                weather_radar_popup_image = nullptr;
+                weather_ring_host = nullptr;
+                weather_second_dot = nullptr;
+                weather_summary_label = nullptr;
+                weather_temp_label = nullptr;
+                weather_time_label = nullptr;
+                weather_wind_value_label = nullptr;
+                id(weather_ring_arc) = nullptr;
+                id(weather_temp_track_arc) = nullptr;
+                id(weather_day_arc) = nullptr;
+                id(weather_day_morning_arc) = nullptr;
+                id(weather_day_noon_arc) = nullptr;
+                id(weather_day_evening_arc) = nullptr;
+                id(weather_day_now_arc) = nullptr;
                 id(prepare_media_picker_layout).execute();
               }
             }
@@ -9156,9 +9865,26 @@ interval:
                   id(show_light_page).execute();
                   break;
                 case ui_next::Action::LIGHT_PICKER:
-                case ui_next::Action::LIGHT_PRESETS:
                 case ui_next::Action::LIGHT_POPUP_CLOSE:
                   break;
+                case ui_next::Action::LIGHT_PRESETS: {
+                  const int source = std::clamp(id(light_source_index), 0, 3);
+                  const std::string entity =
+                    source == 0 ? id(light_slot_1_entity_text).state :
+                    source == 1 ? id(light_slot_2_entity_text).state :
+                    source == 2 ? id(light_slot_3_entity_text).state :
+                                  id(light_slot_4_entity_text).state;
+                  if (id(light_detail_loaded_entities)[source] != entity) {
+                    if (id(dual_mcu_ha_bridge_enabled) &&
+                        !id(dual_mcu_s3_rescue_mode_enabled)) {
+                      dual_mcu::link.send(
+                        dual_mcu::MessageType::SNAPSHOT_REQUEST);
+                    } else {
+                      id(refresh_light_detail_catalog).execute(source, entity);
+                    }
+                  }
+                  break;
+                }
                 case ui_next::Action::LIGHT_OPTION_0:
                 case ui_next::Action::LIGHT_OPTION_1:
                 case ui_next::Action::LIGHT_OPTION_2:
@@ -9167,49 +9893,37 @@ interval:
                 case ui_next::Action::LIGHT_OPTION_5:
                 case ui_next::Action::LIGHT_OPTION_6:
                 case ui_next::Action::LIGHT_OPTION_7:
-                case ui_next::Action::LIGHT_OPTION_8: {
-                  const int option = static_cast<int>(action) -
-                                     static_cast<int>(ui_next::Action::LIGHT_OPTION_0);
+                case ui_next::Action::LIGHT_OPTION_8:
+                case ui_next::Action::LIGHT_OPTION_9:
+                case ui_next::Action::LIGHT_OPTION_10:
+                case ui_next::Action::LIGHT_OPTION_11:
+                case ui_next::Action::LIGHT_OPTION_12:
+                case ui_next::Action::LIGHT_OPTION_13:
+                case ui_next::Action::LIGHT_OPTION_14:
+                case ui_next::Action::LIGHT_OPTION_15:
+                case ui_next::Action::LIGHT_OPTION_16:
+                case ui_next::Action::LIGHT_OPTION_17:
+                case ui_next::Action::LIGHT_OPTION_18:
+                case ui_next::Action::LIGHT_OPTION_19:
+                case ui_next::Action::LIGHT_OPTION_20:
+                case ui_next::Action::LIGHT_OPTION_21:
+                case ui_next::Action::LIGHT_OPTION_22:
+                case ui_next::Action::LIGHT_OPTION_23:
+                case ui_next::Action::LIGHT_OPTION_24:
+                case ui_next::Action::LIGHT_OPTION_25:
+                case ui_next::Action::LIGHT_OPTION_26:
+                case ui_next::Action::LIGHT_OPTION_27:
+                case ui_next::Action::LIGHT_OPTION_28:
+                case ui_next::Action::LIGHT_OPTION_29:
+                case ui_next::Action::LIGHT_OPTION_30:
+                case ui_next::Action::LIGHT_OPTION_31: {
+                  const int option =
+                    ui_next::framework.light_option_index(action);
                   if (ui_next::framework.light_popup_is_preset()) {
-                    const int dynamic_count =
-                      static_cast<int>(id(dual_mcu_wled_preset_names).size());
-                    if (id(light_source_index) == 0 && option >= 0 &&
-                        option < dynamic_count) {
-                      id(dual_mcu_wled_preset_selected) = option;
-                      id(ambiente_scene_index) = option;
-                      id(ambiente_scene_name) = id(dual_mcu_wled_preset_names)[option];
-                      // The popup selection is a single command. Return the
-                      // encoder to brightness immediately instead of leaving
-                      // it in the legacy static-scene selector, whose item
-                      // count does not describe the dynamic preset list.
-                      id(light_color_selected) = false;
-                      id(light_color_timer) = 0;
-                      id(light_pending_color_sync) = false;
-                      id(light_ui_dirty) = true;
-                      if (id(dual_mcu_ha_bridge_enabled) &&
-                          id(dual_mcu_ha_bridge_ready) &&
-                          id(dual_mcu_ha_bridge_wled_presets)) {
-                        dual_mcu::link.send_ha_action(
-                          dual_mcu::HAAction::WLED_PRESET,
-                          static_cast<uint8_t>(option), "${light_1_preset_select}");
-                      } else {
-                        id(ui_next_direct_wled_preset).execute(
-                          id(dual_mcu_wled_preset_names)[option]);
-                      }
-                    } else {
-                      const int count = scrollwheel_targets::scene_value_count(id(scene_slot_index));
-                      if (id(light_source_index) == 0 &&
-                          scrollwheel_targets::scene_slot_is_wled(id(scene_slot_index)) &&
-                          option >= 0 && option < count) {
-                        id(ambiente_scene_index) = option;
-                        id(ambiente_scene_name) = scrollwheel_targets::scene_value_name(
-                          id(scene_slot_index), id(ambiente_scene_index));
-                        id(light_color_selected) = false;
-                        id(light_color_timer) = 0;
-                        id(light_pending_color_sync) = true;
-                        id(light_sync_deadline_ms) = millis() + 30;
-                        id(light_ui_dirty) = true;
-                      }
+                    const int source = std::clamp(id(light_source_index), 0, 3);
+                    if (option >= 0 &&
+                        option < static_cast<int>(id(light_detail_labels)[source].size())) {
+                      id(activate_light_detail).execute(source, option);
                     }
                   } else if (option >= 0 && option < 4) {
                     id(select_light_source).execute(option);
@@ -9317,29 +10031,26 @@ interval:
                   : source == 1 ? id(light_slot_2_entity_text).state
                   : source == 2 ? id(light_slot_3_entity_text).state
                                 : id(light_slot_4_entity_text).state;
-                const bool current_is_wled =
-                  current_light_entity.find("wled") != std::string::npos;
-                const char *preset_names[9] = {nullptr, nullptr, nullptr, nullptr, nullptr,
-                                                nullptr, nullptr, nullptr, nullptr};
-                int preset_count = 0;
-                int selected_preset = id(ambiente_scene_index);
-                if (source == 0 && current_is_wled &&
-                    !id(dual_mcu_wled_preset_names).empty()) {
-                  preset_count = std::min(
-                    9, static_cast<int>(id(dual_mcu_wled_preset_names).size()));
-                  for (int i = 0; i < preset_count; i++)
-                    preset_names[i] = id(dual_mcu_wled_preset_names)[i].c_str();
-                  selected_preset = id(dual_mcu_wled_preset_selected);
-                } else if (source == 0 &&
-                           scrollwheel_targets::scene_slot_is_wled(id(scene_slot_index))) {
-                  preset_count = std::min(9, scrollwheel_targets::scene_value_count(id(scene_slot_index)));
-                  for (int i = 0; i < preset_count; i++) {
-                    preset_names[i] = scrollwheel_targets::scene_value_name(id(scene_slot_index), i);
-                  }
+                const bool catalog_matches =
+                  id(light_detail_loaded_entities)[source] == current_light_entity;
+                const uint8_t raw_detail_kind =
+                  catalog_matches ? id(light_detail_kinds)[source] : 0;
+                const ui_next::LightDetailKind detail_kind =
+                  raw_detail_kind == 1 ? ui_next::LightDetailKind::WLED_PRESET :
+                  raw_detail_kind == 2 ? ui_next::LightDetailKind::HUE_SCENE :
+                                         ui_next::LightDetailKind::NONE;
+                const char *detail_names[ui_next::kLightDetailMaxItems]{};
+                int detail_count = 0;
+                if (catalog_matches) {
+                  detail_count = std::min(
+                    ui_next::kLightDetailMaxItems,
+                    static_cast<int>(id(light_detail_labels)[source].size()));
+                  for (int i = 0; i < detail_count; i++)
+                    detail_names[i] = id(light_detail_labels)[source][i].c_str();
                 }
                 ui_next::framework.update_light_options(
-                  light_names, source, current_is_wled, preset_names,
-                  preset_count, selected_preset);
+                  light_names, source, detail_kind, detail_names,
+                  detail_count, id(light_detail_selected)[source]);
 
                 const bool bridge_owns_media =
                   id(dual_mcu_ha_bridge_enabled) &&
@@ -9431,6 +10142,14 @@ interval:
               action_handled = true;
             }
           } else if (id(current_page) == 1 || id(current_page) == 21) {
+            if (id(current_page) == 21 &&
+                ui_next::framework.light_popup_visible()) {
+              // The open modal owns the encoder. This keeps rotary input from
+              // leaking through to brightness while a long Hue/WLED catalog
+              // is being inspected.
+              ui_next::framework.scroll_light_popup(steps);
+              return;
+            }
             if (id(light_source_index) != 0) {
               id(light_color_selected) = false;
               id(light_pending_color_sync) = false;
@@ -9519,7 +10238,7 @@ interval:
                   const bool wants_more =
                     tab == 1 &&
                     steps > 0 &&
-                    next >= size - 1 &&
+                    next >= size - 5 &&
                     id(playlist_has_more);
                   if (next < 0) next = 0;
                   if (next >= size) next = size - 1;
@@ -9576,7 +10295,7 @@ interval:
                 const bool wants_more =
                   id(media_browser_mode) == 1 &&
                   steps > 0 &&
-                  raw_next >= size - 1 &&
+                  raw_next >= size - 5 &&
                   id(playlist_has_more);
                 if (next != *idx) {
                   *idx = next;
@@ -9770,7 +10489,43 @@ interval:
           condition:
             lambda: |-
               if (id(display_sleeping) ||
-                  id(current_page) != 2 ||
+                  (id(current_page) != 2 && id(current_page) != 22) ||
+                  !id(media_picker_visible) ||
+                  id(media_picker_tab) != 1 ||
+                  media_picker_list == nullptr) {
+                return false;
+              }
+              const int loaded =
+                static_cast<int>(id(ma_playlists_names_cache).size());
+              const int capacity = id(playlist_has_more) ? 15 : 16;
+              const int start = std::max(0, id(media_picker_window_start));
+              return loaded > start + capacity &&
+                     lv_obj_get_scroll_bottom(media_picker_list) <= 8;
+          then:
+            - lambda: |-
+                // The popup owns only 16 persistent LVGL rows. Move its
+                // virtual window in ten-entry steps and retain five rows of
+                // context. No allocation or network call occurs here.
+                const int loaded =
+                  static_cast<int>(id(ma_playlists_names_cache).size());
+                const int capacity = id(playlist_has_more) ? 15 : 16;
+                const int max_start = std::max(0, loaded - capacity);
+                const int old_start =
+                  std::clamp(id(media_picker_window_start), 0, max_start);
+                const int next_start = std::min(max_start, old_start + 10);
+                if (next_start <= old_start) return;
+                id(media_picker_window_start) = next_start;
+                id(selected_playlist_index) = std::min(
+                  loaded - 1, next_start + 5);
+                id(media_picker_scroll_reset_requested) = true;
+                id(media_picker_fast_refresh_requested) = false;
+                id(media_ui_dirty) = true;
+            - script.execute: refresh_media_picker_popup
+      - if:
+          condition:
+            lambda: |-
+              if (id(display_sleeping) ||
+                  (id(current_page) != 2 && id(current_page) != 22) ||
                   !id(media_picker_visible) ||
                   id(media_picker_tab) != 1 ||
                   !id(playlist_has_more) ||
@@ -9778,15 +10533,31 @@ interval:
                   id(playlist_autoload_inflight)) {
                 return false;
               }
+              const bool proxy_ready =
+                id(dual_mcu_library_request_proxy_available) &&
+                millis() >=
+                  id(dual_mcu_library_response_proxy_failed_until_ms);
+              const bool direct_ready =
+                id(wifi_connected) &&
+                (!id(dual_mcu_stage2_library_offload_enabled) ||
+                 id(dual_mcu_s3_library_fallback_active));
+              if (!proxy_ready && !direct_ready) return false;
               const int loaded = static_cast<int>(id(ma_playlists_names_cache).size());
               if (loaded <= 0) {
                 return true;
               }
-              if (id(selected_playlist_index) >= loaded - 1) {
+              // Five cached entries are enough to hide the HA/MQTT/UART
+              // round-trip without filling the whole catalog at startup.
+              if (id(selected_playlist_index) >= loaded - 5) {
                 return true;
               }
-              if (media_picker_list != nullptr && lv_obj_get_scroll_bottom(media_picker_list) <= 8) {
-                return true;
+              if (media_picker_list != nullptr) {
+                const int scroll_y =
+                  std::max(0, static_cast<int>(lv_obj_get_scroll_y(media_picker_list)));
+                const int last_visible =
+                  std::max(0, id(media_picker_window_start)) +
+                  (scroll_y / 44) + 3;
+                if (last_visible >= loaded - 5) return true;
               }
               return false;
           then:
@@ -9858,6 +10629,24 @@ switch:
     turn_off_action:
       - lambda: 'id(demo_mode_enabled) = false;'
       - script.execute: disable_demo_mode
+      - script.execute: refresh_settings_ui
+  - platform: template
+    name: "Wach halten"
+    id: display_keep_awake_switch
+    entity_category: config
+    icon: mdi:eye-outline
+    lambda: "return id(display_keep_awake);"
+    turn_on_action:
+      - lambda: |-
+          id(display_keep_awake) = true;
+          id(ui_last_activity_ms) = millis();
+          id(display_keep_awake_switch).publish_state(true);
+      - script.execute: apply_display_keep_awake
+    turn_off_action:
+      - lambda: |-
+          id(display_keep_awake) = false;
+          id(ui_last_activity_ms) = millis();
+          id(display_keep_awake_switch).publish_state(false);
       - script.execute: refresh_settings_ui
 
 number:
@@ -9942,6 +10731,85 @@ number:
                      !id(boost_screensaver_brightness).is_running();
           then:
             - script.execute: start_screensaver_fade
+  - platform: template
+    name: "Display Dimmverzögerung"
+    id: display_dim_delay_number
+    entity_category: config
+    icon: mdi:timer-outline
+    lambda: "return id(display_dim_delay_seconds);"
+    update_interval: 1s
+    min_value: 5
+    max_value: 120
+    step: 5
+    mode: box
+    unit_of_measurement: "s"
+    set_action:
+      - lambda: |-
+          const int latest_sleep =
+            std::min(id(display_sleep_no_playback_seconds),
+                     id(display_sleep_playback_seconds));
+          const int maximum = std::max(5, latest_sleep - 5);
+          id(display_dim_delay_seconds) =
+            std::clamp(static_cast<int>(roundf(x)), 5, maximum);
+          id(ui_last_activity_ms) = millis();
+  - platform: template
+    name: "Display Dimmhelligkeit"
+    id: display_dim_brightness_number
+    entity_category: config
+    icon: mdi:brightness-4
+    lambda: "return id(display_dim_brightness_percent);"
+    update_interval: 1s
+    min_value: 5
+    max_value: 30
+    step: 1
+    mode: slider
+    unit_of_measurement: "%"
+    set_action:
+      - lambda: |-
+          id(display_dim_brightness_percent) =
+            std::clamp(static_cast<int>(roundf(x)), 5, 30);
+          id(ui_last_activity_ms) = millis();
+      - if:
+          condition:
+            lambda: 'return id(display_charge_dimmed) && !id(display_sleeping);'
+          then:
+            - script.execute: dim_display_below_full
+  - platform: template
+    name: "Display aus ohne Playback"
+    id: display_sleep_no_playback_number
+    entity_category: config
+    icon: mdi:monitor-off
+    lambda: "return id(display_sleep_no_playback_seconds);"
+    update_interval: 1s
+    min_value: 30
+    max_value: 1800
+    step: 15
+    mode: box
+    unit_of_measurement: "s"
+    set_action:
+      - lambda: |-
+          const int minimum = std::max(30, id(display_dim_delay_seconds) + 5);
+          id(display_sleep_no_playback_seconds) =
+            std::clamp(static_cast<int>(roundf(x)), minimum, 1800);
+          id(ui_last_activity_ms) = millis();
+  - platform: template
+    name: "Display aus bei Playback"
+    id: display_sleep_playback_number
+    entity_category: config
+    icon: mdi:monitor-speaker-off
+    lambda: "return id(display_sleep_playback_seconds);"
+    update_interval: 1s
+    min_value: 60
+    max_value: 3600
+    step: 30
+    mode: box
+    unit_of_measurement: "s"
+    set_action:
+      - lambda: |-
+          const int minimum = std::max(60, id(display_dim_delay_seconds) + 5);
+          id(display_sleep_playback_seconds) =
+            std::clamp(static_cast<int>(roundf(x)), minimum, 3600);
+          id(ui_last_activity_ms) = millis();
 
 text:
   - platform: template
@@ -10082,13 +10950,17 @@ text:
     entity_category: config
     optimistic: true
     restore_value: true
-    initial_value: "light.passion_wave_light_1"
+    initial_value: "${light_1_entity}"
     min_length: 0
     max_length: 128
     mode: text
     set_action:
       - lambda: |-
           id(light_ui_dirty) = true;
+      - script.execute:
+          id: refresh_light_detail_catalog
+          slot: 0
+          entity: !lambda 'return x;'
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
@@ -10112,13 +10984,17 @@ text:
     entity_category: config
     optimistic: true
     restore_value: true
-    initial_value: "light.passion_wave_light_2"
+    initial_value: "${light_2_entity}"
     min_length: 0
     max_length: 128
     mode: text
     set_action:
       - lambda: |-
           id(light_ui_dirty) = true;
+      - script.execute:
+          id: refresh_light_detail_catalog
+          slot: 1
+          entity: !lambda 'return x;'
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
@@ -10142,13 +11018,17 @@ text:
     entity_category: config
     optimistic: true
     restore_value: true
-    initial_value: "light.passion_wave_light_3"
+    initial_value: "${light_3_entity}"
     min_length: 0
     max_length: 128
     mode: text
     set_action:
       - lambda: |-
           id(light_ui_dirty) = true;
+      - script.execute:
+          id: refresh_light_detail_catalog
+          slot: 2
+          entity: !lambda 'return x;'
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
@@ -10172,13 +11052,17 @@ text:
     entity_category: config
     optimistic: true
     restore_value: true
-    initial_value: "light.passion_wave_light_4"
+    initial_value: "${light_4_entity}"
     min_length: 0
     max_length: 128
     mode: text
     set_action:
       - lambda: |-
           id(light_ui_dirty) = true;
+      - script.execute:
+          id: refresh_light_detail_catalog
+          slot: 3
+          entity: !lambda 'return x;'
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
@@ -10553,7 +11437,7 @@ text_sensor:
     on_value:
       then:
         - lambda: |-
-            if (id(dual_mcu_ha_bridge_ready) && id(dual_mcu_ha_bridge_radar)) return;
+            if (dual_mcu::radar_client.available()) return;
             if (!x.empty() && x != "unknown" && x != "unavailable") {
               id(rain_radar_image_path_cache) = x;
             }
@@ -10913,7 +11797,6 @@ text_sensor:
             if (incoming.size() > 8192 || (first_non_ws != '[' && first_non_ws != '{')) {
               return;
             }
-            id(ma_radios_json_cache) = incoming;
             id(ma_radios_names_cache).clear();
             id(ma_radios_uris_cache).clear();
             id(ma_radios_types_cache).clear();
@@ -10968,7 +11851,6 @@ text_sensor:
             if (incoming.size() > 8192 || (first_non_ws != '[' && first_non_ws != '{')) {
               return;
             }
-            id(ma_podcasts_json_cache) = incoming;
             id(ma_podcasts_names_cache).clear();
             id(ma_podcasts_uris_cache).clear();
             id(ma_podcasts_types_cache).clear();
@@ -11149,7 +12031,6 @@ text_sensor:
                 fallback_index++;
               }
 
-              id(ma_playlist_tracks_json_cache) = incoming;
               id(track_loaded_count) = static_cast<int>(id(ma_track_titles_cache).size());
               id(track_total_available) = doc["total"] | id(track_loaded_count);
               const bool response_has_more = doc["has_more"] | false;
@@ -11180,7 +12061,6 @@ text_sensor:
                 append_track(track, fallback_index);
                 fallback_index++;
               }
-              id(ma_playlist_tracks_json_cache) = incoming;
               id(track_loaded_count) = static_cast<int>(id(ma_track_titles_cache).size());
               id(track_total_available) = id(track_loaded_count);
               id(track_has_more) = false;
@@ -11304,6 +12184,7 @@ lvgl:
     - id: page_1
       on_load:
         - lambda: |-
+            if (id(ui_next_enabled)) return;
             id(current_page) = 1;
             id(control_mode) = 0;
             if (id(light_brightness_arc) == nullptr) {
@@ -11901,6 +12782,7 @@ lvgl:
     - id: page_2
       on_load:
         - lambda: |-
+            if (id(ui_next_enabled)) return;
             id(current_page) = 2;
             if (id(control_mode) != 2) {
               id(control_mode) = 1;
@@ -13075,7 +13957,7 @@ lvgl:
             y: 242
             width: 50
             height: 22
-            text: "01/09"
+            text: "01/11"
             text_font: roboto_20
             text_color: 0xF8FAFC
         - button:
@@ -13906,6 +14788,7 @@ lvgl:
     - id: page_4
       on_load:
         - lambda: |-
+            if (id(ui_next_enabled)) return;
             id(current_page) = 4;
             id(weather_ui_dirty) = true;
             if (id(weather_ring_arc) == nullptr) {
@@ -14849,6 +15732,7 @@ lvgl:
       on_load:
         - lambda: |-
             id(current_page) = 8;
+            id(rain_radar_last_visible_ms) = millis();
             // Paint the cached frame immediately. Refresh it in the background
             // only when the successful cache is at least one minute old.
             id(rain_radar_force_refresh) = false;
@@ -15478,6 +16362,7 @@ lvgl:
       on_load:
         - lambda: |-
             id(current_page) = 9;
+            id(photo_last_visible_ms) = millis();
             lv_obj_set_style_text_align(photo_title_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(photo_counter_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(photo_fallback_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -15609,6 +16494,7 @@ lvgl:
       on_load:
         - lambda: |-
             id(current_page) = 10;
+            id(house_last_visible_ms) = millis();
             lv_obj_set_style_text_align(house_title_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(house_fallback_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
         - script.execute: refresh_house_image

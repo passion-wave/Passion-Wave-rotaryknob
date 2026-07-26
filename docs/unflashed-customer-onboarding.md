@@ -24,10 +24,11 @@ unvermeidbaren manuellen Vorgang auf: flashen, Stecker drehen, erneut flashen.
 
 1. `factory-s3.yaml` und `factory-esp32.yaml` binden ausschließlich
    zugangsdatenfreie Core-Dateien ein.
-2. `tools/build-public-release.sh` kompiliert beide Images und erstellt
-   `SHA256SUMS`.
+2. `tools/build-public-release.sh` prüft die aufgelösten schlüsselfreien
+   Konfigurationen, kompiliert beide Images und erstellt Manifeste sowie
+   `SHA256SUMS` aus derselben Version.
 3. Die GitHub Action `.github/workflows/public-firmware.yml` wiederholt den
-   Build auf jedem Factory-Tag in einem fest versionierten ESPHome-Container.
+   Build auf jedem Release-Tag in einem fest versionierten ESPHome-Container.
 4. `Passion-Wave-web/tools/import-firmware.sh` prüft die Summen, kopiert beide
    Images in getrennte Ordner und validiert Manifeste sowie Website.
 5. Erst nach erfolgreicher Website-Prüfung darf deployt werden.
@@ -45,12 +46,13 @@ Factory-Builds.
 
 1. Website in Chrome oder Edge auf einem Desktop öffnen.
 2. USB-Datenkabel anschließen und im Portdialog `ESP32-S3` wählen.
-3. Image installieren und WLAN per Improv setzen.
+3. Clean Erase bestätigen, `PassionWave Rotaryknob` installieren und WLAN per
+   Improv setzen.
 4. Stecker abziehen, um 180 Grad drehen und erneut einstecken.
-5. Im zweiten Dialog `ESP32` ohne `S3` wählen, installieren und dasselbe WLAN
-   setzen.
+5. Im zweiten Dialog `ESP32` ohne `S3` wählen, `PassionWave Rotaryknob Bridge`
+   installieren und dasselbe WLAN setzen.
 6. Home Assistant über den vorbereiteten My-Link öffnen und beide entdeckten
-   ESPHome-Geräte bestätigen.
+   ESPHome-Geräte ohne Encryption-Key-Eingabe bestätigen.
 7. Passion-Wave-App importieren, S3, Bridge, Medienplayer, Wetter und Leuchten
    in den UI-Auswahllisten festlegen.
 8. Den kompakten Funktionskatalog auf der Website abarbeiten.
@@ -69,6 +71,8 @@ Beide öffentlichen Profile enthalten:
 - `safe_mode`;
 - einen Fallback-Access-Point;
 - `improv_serial` für erneute WLAN-Provisionierung.
+- Clean-Erase-Vorgabe gegen alte Namen, Netzdaten und API-Schlüssel;
+- Onboarding-Wachschutz bis zur ersten Home-Assistant-Verbindung.
 
 Updates werden pro Prozessor veröffentlicht und nie als gemeinsames,
 chipunspezifisches Image angeboten. Fällt OTA aus, wird nur der betroffene Chip

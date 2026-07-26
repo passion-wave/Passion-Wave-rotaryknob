@@ -15,10 +15,11 @@ packages:
       house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
 
 substitutions:
-  name: "passion-wave-rotary-s3"
-  friendly_name: "Passion Wave Rotaryknob"
+  name: "passionwave-rotaryknob"
+  friendly_name: "PassionWave Rotaryknob"
   project_name: "passion-wave.rotaryknob-s3"
-  project_version: "2.0.0"
+  project_version: "2.1.0"
+  factory_onboarding_guard: "true"
   mqtt_host: "homeassistant.local"
   mqtt_username: ""
   mqtt_password: ""
@@ -46,6 +47,11 @@ esphome:
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-s3.yaml@main
   import_full_config: false
+
+# The public first-adoption API intentionally has no encryption key. Private
+# development wrappers add API encryption independently.
+api:
+  reboot_timeout: 0s
 
 wifi:
   ssid: !remove

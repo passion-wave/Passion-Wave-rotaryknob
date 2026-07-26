@@ -39,7 +39,7 @@ esphome:
     - dual_mcu_library_proxy.h
   project:
     name: "passion-wave.rotaryknob-test-esp32"
-    version: "2.0.0"
+    version: "2.1.0"
   on_boot:
     priority: -100
     then:
@@ -101,7 +101,9 @@ uart:
   data_bits: 8
   parity: NONE
   stop_bits: 1
-  rx_buffer_size: 512
+  # Absorb a complete paced state group even if Home Assistant callbacks and
+  # an S3 response briefly overlap. Control frames are still dequeued first.
+  rx_buffer_size: 4096
 
 time:
   - platform: homeassistant
@@ -356,6 +358,37 @@ globals:
     restore_value: false
   - id: bridge_wled_preset_generation
     type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  # The network MCU owns Home Assistant discovery and the authoritative
+  # commands. The display MCU receives only bounded labels plus slot/index.
+  - id: bridge_light_detail_kinds
+    type: std::array<uint8_t, 4>
+    restore_value: false
+    initial_value: '{0, 0, 0, 0}'
+  - id: bridge_light_detail_labels
+    type: std::array<std::vector<std::string>, 4>
+    restore_value: false
+  - id: bridge_light_detail_commands
+    type: std::array<std::vector<std::string>, 4>
+    restore_value: false
+  - id: bridge_light_detail_targets
+    type: std::array<std::string, 4>
+    restore_value: false
+  - id: bridge_light_detail_selected
+    type: std::array<int, 4>
+    restore_value: false
+    initial_value: '{-1, -1, -1, -1}'
+  - id: bridge_light_detail_generations
+    type: std::array<uint8_t, 4>
+    restore_value: false
+    initial_value: '{0, 0, 0, 0}'
+  - id: bridge_light_detail_resolved_mask
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_light_detail_retry_due_ms
+    type: uint32_t
     restore_value: false
     initial_value: '0'
   - id: latency_probe_sequence
@@ -839,6 +872,11 @@ text_sensor:
     update_interval: never
     entity_category: diagnostic
   - platform: template
+    id: bridge_light_detail_status
+    name: "ESP32 Light Detail Catalog"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
     id: bridge_daily_forecast_text
     name: "ESP32 Daily Forecast Conditions"
     update_interval: never
@@ -846,6 +884,11 @@ text_sensor:
   - platform: template
     id: bridge_radar_proxy_status
     name: "ESP32 Radar Proxy Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: bridge_floorplan_status
+    name: "ESP32 Floorplan Status"
     update_interval: never
     entity_category: diagnostic
   - platform: template
@@ -951,7 +994,7 @@ text_sensor:
             // decoding remain outside the encoder/UI hot path.
             dual_mcu::link.send(
               dual_mcu::MessageType::FLOORPLAN_INVALIDATED);
-            id(bridge_radar_proxy_status).publish_state(
+            id(bridge_floorplan_status).publish_state(
               std::string("Floorplan geändert: ") + x);
 
   - platform: homeassistant
@@ -1242,7 +1285,317 @@ button:
           id(encoder_difference_sensor).publish_state(0);
           dual_mcu::link.send(dual_mcu::MessageType::RESET_COUNTERS);
 
+  - platform: template
+    name: "Refresh Light Detail Catalog"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          id(bridge_light_detail_resolved_mask) = 0;
+          id(bridge_light_detail_retry_due_ms) = 0;
+          if (id(bridge_api_connected))
+            id(refresh_all_bridge_light_details).execute();
+
 script:
+  - id: refresh_all_bridge_light_details
+    mode: restart
+    then:
+      - script.execute:
+          id: refresh_bridge_light_detail
+          slot: 0
+          entity: ${light_1_entity}
+      - script.execute:
+          id: refresh_bridge_light_detail
+          slot: 1
+          entity: ${light_2_entity}
+      - script.execute:
+          id: refresh_bridge_light_detail
+          slot: 2
+          entity: ${light_3_entity}
+      - script.execute:
+          id: refresh_bridge_light_detail
+          slot: 3
+          entity: ${light_4_entity}
+
+  - id: refresh_bridge_light_detail
+    mode: queued
+    max_runs: 4
+    parameters:
+      slot: int
+      entity: std::string
+    then:
+      - if:
+          condition:
+            lambda: |-
+              if (slot < 0 || slot >= 4 || entity.rfind("light.", 0) != 0)
+                return false;
+              for (char c : entity) {
+                const bool valid =
+                  std::isalnum(static_cast<unsigned char>(c)) ||
+                  c == '_' || c == '.';
+                if (!valid) return false;
+              }
+              return id(bridge_api_connected) &&
+                     (id(bridge_light_detail_resolved_mask) &
+                      (1U << static_cast<uint8_t>(slot))) == 0;
+          then:
+            - homeassistant.action:
+                action: weather.get_forecasts
+                data:
+                  entity_id: ${ha_weather}
+                  type: daily
+                capture_response: true
+                response_template: !lambda |-
+                  return std::string("{% set e = '") + entity + "' %}"
+                    "{% set hue_entities = integration_entities('hue') %}"
+                    "{% set wled_entities = integration_entities('wled') %}"
+                    "{% set device = device_id(e) %}"
+                    "{% set siblings = device_entities(device) if device else [] %}"
+                    "{% set preset_candidates = siblings | select('match', 'select[.]') | select('search', 'preset') | list %}"
+                    "{% set preset = preset_candidates | first | default('', true) %}"
+                    "{% set ns = namespace(items=[]) %}"
+                    "{% if e in wled_entities and preset %}"
+                      "{% for option in (state_attr(preset, 'options') or [])[:32] %}"
+                        "{% set ns.items = ns.items + [{'label': option, 'command': option}] %}"
+                      "{% endfor %}"
+                      "{{ {'entity_id': e, 'kind': 'wled', 'target': preset, 'selected': states(preset), 'items': ns.items} | to_json }}"
+                    "{% elif e in hue_entities %}"
+                      "{% set room = area_id(e) %}"
+                      "{% set room_name = area_name(room) if room else '' %}"
+                      "{% set room_entities = area_entities(room) if room else [] %}"
+                      "{% for candidate in room_entities | sort %}"
+                        "{% if candidate in hue_entities and candidate[0:6] == 'scene.' and (ns.items | count) < 32 %}"
+                          "{% set label = state_attr(candidate, 'friendly_name') or candidate %}"
+                          "{% if room_name and label[0:(room_name | length) + 1] == room_name ~ ' ' %}"
+                            "{% set label = label[(room_name | length) + 1:] %}"
+                          "{% endif %}"
+                          "{% set ns.items = ns.items + [{'label': label, 'command': candidate}] %}"
+                        "{% endif %}"
+                      "{% endfor %}"
+                      "{{ {'entity_id': e, 'kind': 'hue', 'target': '', 'selected': '', 'items': ns.items} | to_json }}"
+                    "{% elif states(e) == 'unavailable' %}"
+                      "{{ {'entity_id': e, 'kind': 'retry', 'target': '', 'selected': '', 'items': []} | to_json }}"
+                    "{% else %}"
+                      "{{ {'entity_id': e, 'kind': 'none', 'target': '', 'selected': '', 'items': []} | to_json }}"
+                    "{% endif %}";
+                on_success:
+                  - lambda: |-
+                      if (slot < 0 || slot >= 4) return;
+                      auto schedule_retry = [slot]() {
+                        id(bridge_light_detail_resolved_mask) &=
+                          static_cast<uint8_t>(~(1U << static_cast<uint8_t>(slot)));
+                        const uint32_t candidate = millis() + 2000UL;
+                        const uint32_t due = id(bridge_light_detail_retry_due_ms);
+                        if (due == 0 ||
+                            static_cast<int32_t>(candidate - due) < 0)
+                          id(bridge_light_detail_retry_due_ms) = candidate;
+                      };
+                      auto payload_has_catalog = [](JsonObjectConst object) -> bool {
+                        return !object.isNull() &&
+                               object["entity_id"].is<const char *>() &&
+                               object["kind"].is<const char *>();
+                      };
+                      JsonDocument doc;
+                      JsonObjectConst catalog;
+                      if (payload_has_catalog(response)) {
+                        catalog = response;
+                      } else {
+                        JsonVariantConst payload = response["response"];
+                        if (payload.is<JsonObjectConst>() &&
+                            payload_has_catalog(payload.as<JsonObjectConst>())) {
+                          catalog = payload.as<JsonObjectConst>();
+                        } else {
+                          const char *raw = payload.as<const char *>();
+                          if (raw == nullptr || raw[0] == '\0') {
+                            payload = response["service_response"];
+                            if (payload.is<JsonObjectConst>() &&
+                                payload_has_catalog(payload.as<JsonObjectConst>())) {
+                              catalog = payload.as<JsonObjectConst>();
+                            } else {
+                              raw = payload.as<const char *>();
+                            }
+                          }
+                          if (catalog.isNull() && raw != nullptr && raw[0] != '\0') {
+                            if (deserializeJson(doc, raw)) {
+                              schedule_retry();
+                              return;
+                            }
+                            catalog = doc.as<JsonObjectConst>();
+                          }
+                        }
+                      }
+                      if (!payload_has_catalog(catalog)) {
+                        schedule_retry();
+                        return;
+                      }
+                      const char *catalog_entity = catalog["entity_id"];
+                      const char *kind_text = catalog["kind"];
+                      const char *target = catalog["target"] | "";
+                      if (catalog_entity == nullptr || kind_text == nullptr ||
+                          entity != catalog_entity) {
+                        schedule_retry();
+                        return;
+                      }
+                      if (strcmp(kind_text, "retry") == 0) {
+                        schedule_retry();
+                        return;
+                      }
+
+                      uint8_t kind = 0;
+                      if (strcmp(kind_text, "wled") == 0) kind = 1;
+                      else if (strcmp(kind_text, "hue") == 0) kind = 2;
+                      auto &labels = id(bridge_light_detail_labels)[slot];
+                      auto &commands = id(bridge_light_detail_commands)[slot];
+                      labels.clear();
+                      commands.clear();
+                      JsonArrayConst items = catalog["items"].as<JsonArrayConst>();
+                      if (!items.isNull()) {
+                        for (JsonObjectConst item : items) {
+                          if (labels.size() >= dual_mcu::LIGHT_DETAIL_MAX_ITEMS) break;
+                          const char *label = item["label"];
+                          const char *command = item["command"];
+                          if (label == nullptr || command == nullptr ||
+                              label[0] == '\0' || command[0] == '\0') continue;
+                          labels.emplace_back(label);
+                          commands.emplace_back(command);
+                        }
+                      }
+                      if (labels.empty()) kind = 0;
+                      id(bridge_light_detail_kinds)[slot] = kind;
+                      id(bridge_light_detail_targets)[slot] = target;
+                      id(bridge_light_detail_selected)[slot] = -1;
+                      const char *selected = catalog["selected"] | "";
+                      if (selected[0] != '\0') {
+                        for (size_t i = 0; i < commands.size(); i++) {
+                          if (commands[i] == selected) {
+                            id(bridge_light_detail_selected)[slot] =
+                              static_cast<int>(i);
+                            break;
+                          }
+                        }
+                      }
+                      id(bridge_light_detail_resolved_mask) |=
+                        static_cast<uint8_t>(
+                          1U << static_cast<uint8_t>(slot));
+                      if ((id(bridge_light_detail_resolved_mask) & 0x0F) == 0x0F)
+                        id(bridge_light_detail_retry_due_ms) = 0;
+                  - script.execute:
+                      id: send_bridge_light_detail_catalog
+                      slot: !lambda 'return slot;'
+                on_error:
+                  - lambda: |-
+                      if (slot < 0 || slot >= 4) return;
+                      id(bridge_light_detail_resolved_mask) &=
+                        static_cast<uint8_t>(
+                          ~(1U << static_cast<uint8_t>(slot)));
+                      const uint32_t candidate = millis() + 2000UL;
+                      const uint32_t due = id(bridge_light_detail_retry_due_ms);
+                      if (due == 0 ||
+                          static_cast<int32_t>(candidate - due) < 0)
+                        id(bridge_light_detail_retry_due_ms) = candidate;
+                  - script.execute:
+                      id: send_bridge_light_detail_catalog
+                      slot: !lambda 'return slot;'
+          else:
+            - lambda: |-
+                if (slot < 0 || slot >= 4 || !id(bridge_api_connected)) return;
+                id(bridge_light_detail_resolved_mask) |=
+                  static_cast<uint8_t>(1U << static_cast<uint8_t>(slot));
+
+  - id: send_bridge_light_detail_catalog
+    mode: queued
+    max_runs: 8
+    parameters:
+      slot: int
+    then:
+      - lambda: |-
+          if (slot < 0 || slot >= 4) return;
+          id(bridge_light_detail_generations)[slot]++;
+      - repeat:
+          count: !lambda |-
+            if (slot < 0 || slot >= 4) return 0;
+            return static_cast<int>(std::min(
+              id(bridge_light_detail_labels)[slot].size(),
+              dual_mcu::LIGHT_DETAIL_MAX_ITEMS));
+          then:
+            - lambda: |-
+                const size_t index = iteration;
+                dual_mcu::link.send_light_detail_item(
+                  static_cast<uint8_t>(slot),
+                  id(bridge_light_detail_generations)[slot],
+                  static_cast<uint8_t>(index),
+                  id(bridge_light_detail_labels)[slot][index]);
+            # Yield between records. Three full 27-scene Hue catalogs otherwise
+            # exceed the S3's bounded receive queue during a reconnect snapshot.
+            # Encoder/action records can be serviced between every label.
+            - delay: 8ms
+      - lambda: |-
+          if (slot < 0 || slot >= 4) return;
+          const auto &labels = id(bridge_light_detail_labels)[slot];
+          const size_t count = std::min(
+            labels.size(), dual_mcu::LIGHT_DETAIL_MAX_ITEMS);
+          dual_mcu::link.send_light_detail_meta(
+            static_cast<uint8_t>(slot),
+            id(bridge_light_detail_generations)[slot],
+            id(bridge_light_detail_kinds)[slot],
+            static_cast<uint8_t>(count),
+            id(bridge_light_detail_selected)[slot]);
+          std::string status;
+          for (int index = 0; index < 4; index++) {
+            if (!status.empty()) status += " · ";
+            status += "S" + std::to_string(index + 1) + ":";
+            const uint8_t kind = id(bridge_light_detail_kinds)[index];
+            status += kind == 1 ? "W" : kind == 2 ? "H" : "-";
+            status += std::to_string(
+              id(bridge_light_detail_labels)[index].size());
+          }
+          id(bridge_light_detail_status).publish_state(status);
+
+  - id: activate_bridge_light_detail
+    mode: queued
+    max_runs: 4
+    parameters:
+      slot: int
+      option: int
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return slot >= 0 && slot < 4 && option >= 0 &&
+                     option < static_cast<int>(
+                       id(bridge_light_detail_commands)[slot].size());
+          then:
+            - if:
+                condition:
+                  lambda: |-
+                    return id(bridge_light_detail_kinds)[slot] == 2 &&
+                           id(bridge_light_detail_commands)[slot][option].rfind(
+                             "scene.", 0) == 0;
+                then:
+                  - homeassistant.service:
+                      service: scene.turn_on
+                      data_template:
+                        entity_id: !lambda |-
+                          return id(bridge_light_detail_commands)[slot][option];
+            - if:
+                condition:
+                  lambda: |-
+                    return id(bridge_light_detail_kinds)[slot] == 1 &&
+                           id(bridge_light_detail_targets)[slot].rfind(
+                             "select.", 0) == 0;
+                then:
+                  - homeassistant.service:
+                      service: select.select_option
+                      data_template:
+                        entity_id: !lambda |-
+                          return id(bridge_light_detail_targets)[slot];
+                        option: !lambda |-
+                          return id(bridge_light_detail_commands)[slot][option];
+            - lambda: |-
+                id(bridge_light_detail_selected)[slot] = option;
+            - script.execute:
+                id: send_bridge_light_detail_catalog
+                slot: !lambda 'return slot;'
+
   - id: confirm_bridge_play_ready
     mode: single
     then:
@@ -1276,19 +1629,34 @@ script:
     then:
       - lambda: |-
           id(bridge_wled_preset_generation)++;
-          const uint8_t generation = id(bridge_wled_preset_generation);
+      - repeat:
+          count: !lambda |-
+            return static_cast<int>(std::min(
+              id(bridge_wled_preset_options).size(),
+              static_cast<size_t>(dual_mcu::WLED_PRESET_MAX_ITEMS)));
+          then:
+            - lambda: |-
+                const size_t index = iteration;
+                dual_mcu::link.send_wled_preset_item(
+                  0, id(bridge_wled_preset_generation),
+                  static_cast<uint8_t>(index),
+                  id(bridge_wled_preset_options)[index]);
+            - delay: 8ms
+      - lambda: |-
           const auto &options = id(bridge_wled_preset_options);
           const size_t count = std::min(
-            options.size(), static_cast<size_t>(dual_mcu::WLED_PRESET_MAX_ITEMS));
+            options.size(),
+            static_cast<size_t>(dual_mcu::WLED_PRESET_MAX_ITEMS));
           uint8_t selected = 0xFF;
           for (size_t index = 0; index < count; index++) {
-            dual_mcu::link.send_wled_preset_item(
-              0, generation, static_cast<uint8_t>(index), options[index]);
-            if (options[index] == id(bridge_wled_preset_selected_name))
+            if (options[index] == id(bridge_wled_preset_selected_name)) {
               selected = static_cast<uint8_t>(index);
+              break;
+            }
           }
           dual_mcu::link.send_wled_preset_meta(
-            0, generation, static_cast<uint8_t>(count), selected);
+            0, id(bridge_wled_preset_generation),
+            static_cast<uint8_t>(count), selected);
 
   - id: cache_bridge_library
     mode: queued
@@ -1779,11 +2147,23 @@ script:
   - id: send_bridge_snapshot
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return dual_mcu::radar_server.busy();'
+          then:
+            # A reconnect snapshot must start with BRIDGE_STATUS. Previously
+            # returning from only the following lambda skipped that status but
+            # still ran the catalog scripts below, so the S3 correctly rejected
+            # their unadvertised capability. Retry the whole snapshot instead.
+            - delay: 250ms
+            - script.execute: send_bridge_snapshot
+            - script.stop: send_bridge_snapshot
       - lambda: |-
-          if (dual_mcu::radar_server.busy()) return;
           const uint8_t status[] = {
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
-            static_cast<uint8_t>(id(bridge_mqtt_client).is_connected() ? 0x01 : 0x00),
+            static_cast<uint8_t>(
+              (id(bridge_mqtt_client).is_connected() ? 0x01 : 0x00) |
+              (id(bridge_api_connected) ? 0x02 : 0x00)),
           };
           dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS, status, sizeof(status));
           dual_mcu::MediaState media;
@@ -1796,6 +2176,8 @@ script:
           dual_mcu::link.send_media_state(media);
           dual_mcu::link.send_media_text(dual_mcu::MediaTextField::TITLE, id(bridge_media_title));
           dual_mcu::link.send_media_text(dual_mcu::MediaTextField::ARTIST, id(bridge_media_artist));
+      - delay: 8ms
+      - lambda: |-
           dual_mcu::link.send_media_text(
             dual_mcu::MediaTextField::FRIENDLY_NAME,
             id(bridge_media_friendly_name));
@@ -1806,6 +2188,8 @@ script:
           id(bridge_media_cover_proxy_status).publish_state(
             id(bridge_media_cover_url).empty()
               ? "Snapshot ohne Cover" : "Snapshot-Übertragung");
+      - delay: 8ms
+      - lambda: |-
           dual_mcu::WeatherState weather;
           weather.temperature_valid = id(bridge_weather_temperature_valid);
           weather.humidity_valid = id(bridge_weather_humidity_valid);
@@ -1823,6 +2207,8 @@ script:
               dual_mcu::bridge_forecast_cache.hourly_valid_mask != 0) {
             dual_mcu::link.send_weather_forecast(dual_mcu::bridge_forecast_cache);
           }
+      - delay: 8ms
+      - lambda: |-
           dual_mcu::RadarMeta radar;
           radar.eta_valid = id(bridge_radar_eta_valid);
           radar.eta_minutes = static_cast<int16_t>(
@@ -1845,6 +2231,8 @@ script:
               std::clamp(static_cast<int>(lroundf(speed * 10.0f)), 0, 65535));
           }
           dual_mcu::link.send_radar_meta(radar);
+      - delay: 8ms
+      - lambda: |-
           const bool light_on[] = {id(bridge_light_1_on), id(bridge_light_2_on),
                                    id(bridge_light_3_on), id(bridge_light_4_on)};
           const int brightness[] = {id(bridge_light_1_brightness), id(bridge_light_2_brightness),
@@ -1881,21 +2269,23 @@ script:
           dual_mcu::link.send(
             dual_mcu::MessageType::LIGHT_PRESET_TEXT, legacy_preset,
             static_cast<uint8_t>(legacy_preset_length + 1));
-          id(bridge_wled_preset_generation)++;
-          const uint8_t preset_generation = id(bridge_wled_preset_generation);
-          const auto &preset_options = id(bridge_wled_preset_options);
-          const size_t preset_count = std::min(
-            preset_options.size(), static_cast<size_t>(dual_mcu::WLED_PRESET_MAX_ITEMS));
-          uint8_t selected_preset = 0xFF;
-          for (size_t index = 0; index < preset_count; index++) {
-            dual_mcu::link.send_wled_preset_item(
-              0, preset_generation, static_cast<uint8_t>(index), preset_options[index]);
-            if (preset_options[index] == id(bridge_wled_preset_selected_name))
-              selected_preset = static_cast<uint8_t>(index);
-          }
-          dual_mcu::link.send_wled_preset_meta(
-            0, preset_generation, static_cast<uint8_t>(preset_count), selected_preset);
           id(bridge_last_snapshot_ms) = millis();
+      # Keep the compatibility catalog for an older S3 firmware, but use the
+      # same cooperative pacing as the generic WLED/Hue catalog.
+      - script.execute: send_bridge_wled_presets
+      - script.wait: send_bridge_wled_presets
+      - script.execute:
+          id: send_bridge_light_detail_catalog
+          slot: 0
+      - script.execute:
+          id: send_bridge_light_detail_catalog
+          slot: 1
+      - script.execute:
+          id: send_bridge_light_detail_catalog
+          slot: 2
+      - script.execute:
+          id: send_bridge_light_detail_catalog
+          slot: 3
 
   - id: execute_bridge_action
     mode: queued
@@ -1987,6 +2377,36 @@ script:
                 data_template:
                   entity_id: !lambda 'return entity;'
                   option: !lambda 'return id(bridge_wled_preset_options)[value];'
+      - if:
+          condition:
+            lambda: |-
+              return kind == static_cast<int>(dual_mcu::HAAction::SCENE_ACTIVATE) &&
+                     entity.rfind("scene.", 0) == 0;
+          then:
+            - homeassistant.service:
+                service: scene.turn_on
+                data_template:
+                  entity_id: !lambda 'return entity;'
+
+  - id: execute_bridge_text_action
+    mode: queued
+    max_runs: 4
+    parameters:
+      kind: int
+      entity: std::string
+      value: std::string
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return kind == static_cast<int>(dual_mcu::HAAction::SELECT_OPTION) &&
+                     entity.rfind("select.", 0) == 0 && !value.empty();
+          then:
+            - homeassistant.service:
+                service: select.select_option
+                data_template:
+                  entity_id: !lambda 'return entity;'
+                  option: !lambda 'return value;'
 
   - id: execute_bridge_play_media
     # A new user choice supersedes an older unresolved choice. Queuing these
@@ -2179,6 +2599,46 @@ interval:
               case dual_mcu::MessageType::HA_ACTION:
                 if (frame.length >= 3 && id(bridge_api_connected)) {
                   const int kind = frame.payload[0];
+                  if (kind == static_cast<int>(
+                                dual_mcu::HAAction::LIGHT_DETAIL_ACTIVATE)) {
+                    if (frame.length == 3) {
+                      const int slot = frame.payload[1];
+                      const int option = frame.payload[2];
+                      if (slot >= 0 && slot < 4 && option >= 0 &&
+                          option < static_cast<int>(
+                            id(bridge_light_detail_commands)[slot].size())) {
+                        id(bridge_action_count)++;
+                        id(bridge_action_count_sensor).publish_state(
+                          id(bridge_action_count));
+                        id(bridge_last_action_text).publish_state(
+                          std::string("Lichtdetail ") +
+                          std::to_string(slot) + ":" +
+                          std::to_string(option));
+                        id(activate_bridge_light_detail).execute(slot, option);
+                      }
+                    }
+                    break;
+                  }
+                  if (kind == static_cast<int>(dual_mcu::HAAction::SELECT_OPTION)) {
+                    const size_t entity_length = frame.payload[1];
+                    if (entity_length > 0 &&
+                        entity_length + 3 <= frame.length &&
+                        frame.payload[2 + entity_length] == 0) {
+                      const std::string entity = dual_mcu::Link::read_string(
+                        &frame.payload[2], entity_length);
+                      const std::string value = dual_mcu::Link::read_string(
+                        &frame.payload[3 + entity_length],
+                        frame.length - entity_length - 3);
+                      if (!entity.empty() && !value.empty()) {
+                        id(bridge_action_count)++;
+                        id(bridge_action_count_sensor).publish_state(id(bridge_action_count));
+                        id(bridge_last_action_text).publish_state(
+                          std::to_string(kind) + ":" + entity + "=" + value);
+                        id(execute_bridge_text_action).execute(kind, entity, value);
+                      }
+                    }
+                    break;
+                  }
                   const int value = frame.payload[1];
                   const std::string entity = dual_mcu::Link::read_string(
                     &frame.payload[2], frame.length - 2);
@@ -2465,22 +2925,23 @@ interval:
             }
           }
 
-          // One bulk frame every 4 ms caps radar traffic at roughly 10 kB/s.
-          // Encoder, action and state frames above always go first. Together
-          // with the receiver queue this also tolerates short LVGL stalls.
-          // Cover URLs use the same cooperative rule: at most one short frame
-          // after all latency-sensitive input and action frames.
-          dual_mcu::cover_url_sender.poll_send(dual_mcu::link);
-          static uint32_t last_radar_frame_ms = 0;
+          // One shared bulk slot every 16 ms caps the aggregate cover, radar
+          // and library stream at roughly 12 kB/s. The old code throttled only
+          // radar, while cover/library could still burst during S3 startup.
+          // Control/state frames above remain immediate and are never queued
+          // behind this background scheduler.
+          static uint32_t last_bulk_frame_ms = 0;
           const bool radar_was_busy = dual_mcu::radar_server.busy();
-          if (millis() - last_radar_frame_ms >= 4 &&
-              dual_mcu::radar_server.poll_send(dual_mcu::link)) {
-            last_radar_frame_ms = millis();
+          if (millis() - last_bulk_frame_ms >= 16) {
+            bool sent = dual_mcu::cover_url_sender.poll_send(dual_mcu::link);
+            if (!sent && dual_mcu::radar_server.busy())
+              sent = dual_mcu::radar_server.poll_send(dual_mcu::link);
+            if (!sent && !dual_mcu::radar_server.busy())
+              sent = dual_mcu::library_server.poll_send(dual_mcu::link);
+            if (sent) last_bulk_frame_ms = millis();
           }
           if (radar_was_busy && !dual_mcu::radar_server.busy())
             id(bridge_radar_proxy_status).publish_state("Bereit");
-          if (!dual_mcu::radar_server.busy())
-            dual_mcu::library_server.poll_send(dual_mcu::link);
 
           if (id(latency_probe_pending) &&
               micros() - id(latency_probe_started_us) > 1900000U) {
@@ -2549,7 +3010,27 @@ interval:
             api.connected:
           then:
             - lambda: |-
+                const bool bridge_just_connected =
+                  !id(bridge_api_connected);
                 id(bridge_api_connected) = true;
+                if (bridge_just_connected) {
+                  // Keep the last complete catalog visible across a short API
+                  // interruption. HA registry/template helpers may need a
+                  // moment after reconnect before discovery is reliable.
+                  id(bridge_light_detail_resolved_mask) = 0;
+                  id(bridge_light_detail_retry_due_ms) = millis() + 1500UL;
+                }
+                const uint32_t detail_due =
+                  id(bridge_light_detail_retry_due_ms);
+                if (detail_due != 0 &&
+                    static_cast<int32_t>(millis() - detail_due) >= 0) {
+                  // Failed response actions are retried quickly; the 30 s
+                  // guard prevents an action storm if Home Assistant remains
+                  // unavailable while individual failures can pull this
+                  // deadline forward to two seconds.
+                  id(bridge_light_detail_retry_due_ms) = millis() + 30000UL;
+                  id(refresh_all_bridge_light_details).execute();
+                }
                 if (!id(bridge_forecast_requested)) {
                   id(bridge_forecast_requested) = true;
                   id(fetch_bridge_forecast).execute();
@@ -2572,7 +3053,9 @@ interval:
           }
           const uint8_t status[] = {
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
-            static_cast<uint8_t>(id(bridge_mqtt_client).is_connected() ? 0x01 : 0x00),
+            static_cast<uint8_t>(
+              (id(bridge_mqtt_client).is_connected() ? 0x01 : 0x00) |
+              (id(bridge_api_connected) ? 0x02 : 0x00)),
           };
           dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS,
                               status, sizeof(status));

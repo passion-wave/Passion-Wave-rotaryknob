@@ -27,7 +27,7 @@ Zusätzlich meldet `scrollwheel Last Reset Reason`, ob der letzte Neustart zum B
    Wenn die IP-Adresse bekannt ist, kann der OTA/API-Logpfad direkt angesprochen werden:
 
    ```bash
-   ./tools/logs.sh --device 192.168.178.50
+   ./tools/logs.sh --device 192.0.2.10
    ```
 
 3. Auf dem Gerät die Medienseite öffnen, Playlist/Podcast auswählen und den problematischen Titel starten.

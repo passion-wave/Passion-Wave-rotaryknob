@@ -9,11 +9,12 @@ The public wording should stay as short as possible:
 
 1. Connect the Rotaryknob by USB.
 2. Open `https://www.passion-wave.com/install`.
-3. Flash and provision the detected S3.
+3. Erase, flash and provision the detected S3 as `PassionWave Rotaryknob`.
 4. Unplug, reverse USB-C and reconnect.
-5. Flash and provision the detected ESP32.
+5. Erase, flash and provision the detected ESP32 as `PassionWave Rotaryknob Bridge`.
 6. Press `Open Home Assistant`.
-7. Approve the discovered Passion Wave product.
+7. Approve both discovered PassionWave devices; the public factory profiles do
+   not require an ESPHome API encryption key.
 8. Select media, weather and optional lights from Home Assistant pickers.
 
 The customer should never copy entity IDs. Home Assistant owns entity discovery,
@@ -67,23 +68,32 @@ Each image must be built from a public factory configuration with:
 - `improv_serial` enabled;
 - `captive_portal` enabled;
 - `dashboard_import` enabled for ESPHome adoption.
+- a first-adoption guard that keeps the S3 discoverable until Home Assistant
+  has connected once.
 
 Development builds with private `secrets.yaml` values must never be published
 as website installer assets.
 
 ## Current Implementation Status
 
-- The website contains `/install/` with an ESP Web Tools install button.
-- The website contains `/firmware/rotaryknob/manifest.json`.
+- The website contains a five-stage `/install/` wizard with separate ESP Web
+  Tools install buttons for the S3 and classic ESP32.
+- The website contains the chip-specific manifests
+  `/firmware/rotaryknob/s3/manifest.json` and
+  `/firmware/rotaryknob/esp32/manifest.json`.
+- Both production factory binaries are published and their SHA-256 sums match
+  the firmware repository's `release/public/SHA256SUMS`.
 - The device defaults blueprint contains Home Assistant entity selectors for
   all `media_player` and `light` entities.
 - The firmware stores selected media and light targets persistently and shows
   Wi-Fi, Home Assistant and IP status in settings.
-- The current manifest models only one processor.
-- Neither production factory binary is published.
-- Chip verification, plug-reversal guidance, pairing and the no-code Home
-  Assistant config flow are not implemented.
+- Each manifest declares exactly one matching chip family. The wizard explains
+  the USB-C reversal and links to Home Assistant after both stages.
+- Pairing both ESPHome nodes into one logical Home Assistant product and the
+  planned no-code `passion_wave` config flow are not implemented.
 
-The installer therefore remains a development prototype. See
+The two-chip browser installer is implemented, but the complete retail
+onboarding remains a release candidate until physical clean-device validation
+and the unified Home Assistant config flow are complete. See
 [Customer product architecture](customer-product-architecture.md) for the
 release design and acceptance stages.

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 #include "esphome/components/font/font.h"
 #include "lvgl.h"
@@ -11,6 +13,15 @@
 namespace ui_next {
 
 enum class View : uint8_t { WEATHER = 0, LIGHT = 1, MEDIA = 2, TIME = 3, MORE = 4 };
+
+enum class LightDetailKind : uint8_t {
+  NONE = 0,
+  WLED_PRESET = 1,
+  HUE_SCENE = 2,
+};
+
+static constexpr int kLightDetailMaxItems = 32;
+static constexpr int kLightPopupVisibleRows = 8;
 
 enum class Action : uint8_t {
   NONE = 0,
@@ -35,6 +46,29 @@ enum class Action : uint8_t {
   LIGHT_OPTION_6,
   LIGHT_OPTION_7,
   LIGHT_OPTION_8,
+  LIGHT_OPTION_9,
+  LIGHT_OPTION_10,
+  LIGHT_OPTION_11,
+  LIGHT_OPTION_12,
+  LIGHT_OPTION_13,
+  LIGHT_OPTION_14,
+  LIGHT_OPTION_15,
+  LIGHT_OPTION_16,
+  LIGHT_OPTION_17,
+  LIGHT_OPTION_18,
+  LIGHT_OPTION_19,
+  LIGHT_OPTION_20,
+  LIGHT_OPTION_21,
+  LIGHT_OPTION_22,
+  LIGHT_OPTION_23,
+  LIGHT_OPTION_24,
+  LIGHT_OPTION_25,
+  LIGHT_OPTION_26,
+  LIGHT_OPTION_27,
+  LIGHT_OPTION_28,
+  LIGHT_OPTION_29,
+  LIGHT_OPTION_30,
+  LIGHT_OPTION_31,
   LIGHT_POPUP_CLOSE,
   MEDIA_PREVIOUS,
   MEDIA_TOGGLE,
@@ -109,6 +143,31 @@ class Framework {
   bool legacy_visible() const { return legacy_visible_; }
   View view() const { return current_view_; }
   bool light_popup_is_preset() const { return light_popup_preset_mode_; }
+  bool light_popup_visible() const { return light_popup_visible_; }
+  LightDetailKind light_detail_kind() const { return light_detail_kind_; }
+
+  bool scroll_light_popup(int steps) {
+    if (!built_ || !light_popup_visible_ || light_popup_list_ == nullptr ||
+        steps == 0)
+      return false;
+    if (!light_popup_preset_mode_) return false;
+    const int maximum_start =
+      std::max(0, light_preset_count_ - kLightPopupVisibleRows);
+    const int next = std::clamp(
+      light_popup_window_start_ + steps, 0, maximum_start);
+    if (next == light_popup_window_start_) return false;
+    light_popup_window_start_ = next;
+    render_light_popup_rows_();
+    return true;
+  }
+
+  int light_option_index(Action action) const {
+    const int row = static_cast<int>(action) -
+                    static_cast<int>(Action::LIGHT_OPTION_0);
+    if (row < 0 || row >= kLightPopupVisibleRows) return -1;
+    return light_popup_preset_mode_
+      ? light_popup_window_start_ + row : row;
+  }
 
   void set_suspended(bool suspended) {
     if (root_ == nullptr || suspended_ == suspended) return;
@@ -364,35 +423,42 @@ class Framework {
   }
 
   void update_light_options(const char *const light_names[4], int selected_light,
-                            bool current_is_wled,
-                            const char *const preset_names[9], int preset_count,
-                            int selected_preset) {
+                            LightDetailKind detail_kind,
+                            const char *const detail_names[kLightDetailMaxItems],
+                            int detail_count, int selected_detail) {
     if (!built_) return;
-    light_current_is_wled_ = current_is_wled;
+    light_detail_kind_ = detail_kind;
     light_selected_source_ = std::clamp(selected_light, 0, 3);
-    light_preset_count_ = std::clamp(preset_count, 0, 9);
-    light_selected_preset_ = std::clamp(selected_preset, 0,
-                                        std::max(0, light_preset_count_ - 1));
-    for (int i = 0; i < 9; i++) {
-      if (light_popup_rows_[i] == nullptr || light_popup_labels_[i] == nullptr) continue;
-      const bool available = light_popup_preset_mode_ ? i < light_preset_count_ : i < 4;
-      if (!available) {
-        lv_obj_add_flag(light_popup_rows_[i], LV_OBJ_FLAG_HIDDEN);
-        continue;
-      }
-      lv_obj_clear_flag(light_popup_rows_[i], LV_OBJ_FLAG_HIDDEN);
-      const char *text = light_popup_preset_mode_ ? preset_names[i] : light_names[i];
-      set_text_(light_popup_labels_[i], empty_fallback_(text, "Nicht konfiguriert"));
-      const bool active = light_popup_preset_mode_
-        ? i == light_selected_preset_ : i == light_selected_source_;
-      style_action_button_(light_popup_rows_[i], active ? kCyan : 0x171C20,
-                           active ? kAccentForeground : kWhite);
+    light_preset_count_ = std::clamp(detail_count, 0, kLightDetailMaxItems);
+    light_selected_preset_ = light_preset_count_ > 0
+      ? std::clamp(selected_detail, -1, light_preset_count_ - 1)
+      : -1;
+    for (int i = 0; i < 4; i++) {
+      const char *value =
+        empty_fallback_(light_names[i], "Nicht konfiguriert");
+      if (light_names_[i] != value) light_names_[i] = value;
     }
+    for (int i = 0; i < kLightDetailMaxItems; i++) {
+      if (i < light_preset_count_) {
+        const char *value =
+          empty_fallback_(detail_names[i], "Nicht konfiguriert");
+        if (light_detail_names_[i] != value)
+          light_detail_names_[i] = value;
+      } else {
+        light_detail_names_[i].clear();
+      }
+    }
+    light_popup_window_start_ = std::clamp(
+      light_popup_window_start_, 0,
+      std::max(0, light_preset_count_ - kLightPopupVisibleRows));
+    render_light_popup_rows_();
     if (light_popup_empty_ != nullptr) {
       if (light_popup_preset_mode_ && light_preset_count_ == 0)
         lv_obj_clear_flag(light_popup_empty_, LV_OBJ_FLAG_HIDDEN);
       else lv_obj_add_flag(light_popup_empty_, LV_OBJ_FLAG_HIDDEN);
     }
+    if (light_popup_visible_ && light_popup_preset_mode_)
+      set_text_(light_popup_title_, light_detail_title_());
   }
 
   void update_media(const char *title, const char *artist, int volume, bool playing,
@@ -560,10 +626,8 @@ class Framework {
         set_light_popup_visible_(true, false);
         break;
       case Action::LIGHT_DETAILS:
-        if (light_current_is_wled_) {
-          pending_action_ = Action::LIGHT_PRESETS;
-          set_light_popup_visible_(true, true);
-        }
+        pending_action_ = Action::LIGHT_PRESETS;
+        set_light_popup_visible_(true, true);
         break;
       case Action::LIGHT_PRESETS:
         set_light_popup_visible_(true, true);
@@ -580,6 +644,29 @@ class Framework {
       case Action::LIGHT_OPTION_6:
       case Action::LIGHT_OPTION_7:
       case Action::LIGHT_OPTION_8:
+      case Action::LIGHT_OPTION_9:
+      case Action::LIGHT_OPTION_10:
+      case Action::LIGHT_OPTION_11:
+      case Action::LIGHT_OPTION_12:
+      case Action::LIGHT_OPTION_13:
+      case Action::LIGHT_OPTION_14:
+      case Action::LIGHT_OPTION_15:
+      case Action::LIGHT_OPTION_16:
+      case Action::LIGHT_OPTION_17:
+      case Action::LIGHT_OPTION_18:
+      case Action::LIGHT_OPTION_19:
+      case Action::LIGHT_OPTION_20:
+      case Action::LIGHT_OPTION_21:
+      case Action::LIGHT_OPTION_22:
+      case Action::LIGHT_OPTION_23:
+      case Action::LIGHT_OPTION_24:
+      case Action::LIGHT_OPTION_25:
+      case Action::LIGHT_OPTION_26:
+      case Action::LIGHT_OPTION_27:
+      case Action::LIGHT_OPTION_28:
+      case Action::LIGHT_OPTION_29:
+      case Action::LIGHT_OPTION_30:
+      case Action::LIGHT_OPTION_31:
         set_light_popup_visible_(false, light_popup_preset_mode_);
         break;
       case Action::MEDIA_DETAILS:
@@ -882,16 +969,16 @@ class Framework {
     const Action option_actions[] = {
       Action::LIGHT_OPTION_0, Action::LIGHT_OPTION_1, Action::LIGHT_OPTION_2,
       Action::LIGHT_OPTION_3, Action::LIGHT_OPTION_4, Action::LIGHT_OPTION_5,
-      Action::LIGHT_OPTION_6, Action::LIGHT_OPTION_7, Action::LIGHT_OPTION_8,
+      Action::LIGHT_OPTION_6, Action::LIGHT_OPTION_7,
     };
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < kLightPopupVisibleRows; i++) {
       light_popup_rows_[i] = make_button_(light_popup_list_, 0, i * 44, 158, 40,
                                           option_actions[i], 0x171C20, kWhite, 14);
       light_popup_labels_[i] = button_label_(light_popup_rows_[i], "", fonts_.body, kWhite);
       lv_obj_add_flag(light_popup_rows_[i], LV_OBJ_FLAG_HIDDEN);
     }
     light_popup_empty_ = make_label_(light_popup_list_, 8, 74, 145, 42,
-                                     "Keine Presets\nin WLED gespeichert", fonts_.body,
+                                     "Keine Details\nverfügbar", fonts_.body,
                                      kMuted, LV_TEXT_ALIGN_CENTER);
     lv_obj_add_flag(light_popup_empty_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(light_popup_, LV_OBJ_FLAG_HIDDEN);
@@ -1137,15 +1224,69 @@ class Framework {
 
   void set_light_popup_visible_(bool visible, bool preset_mode) {
     if (light_popup_ == nullptr) return;
+    const bool mode_changed = light_popup_preset_mode_ != preset_mode;
     light_popup_visible_ = visible;
     light_popup_preset_mode_ = preset_mode;
     if (visible) {
-      set_text_(light_popup_title_, preset_mode ? "WLED PRESETS" : "LEUCHTEN");
+      if (mode_changed) {
+        light_popup_window_start_ =
+          preset_mode && light_selected_preset_ >= 0
+            ? std::clamp(
+                light_selected_preset_ - (kLightPopupVisibleRows / 2), 0,
+                std::max(
+                  0, light_preset_count_ - kLightPopupVisibleRows))
+            : 0;
+      }
+      // Never reveal the rows from the previously used popup mode. The
+      // current catalog is painted by update_light_options() on the next UI
+      // tick, keeping the modal reveal atomic instead of briefly showing the
+      // light picker underneath a preset/scene list (or vice versa).
+      if (mode_changed) {
+        for (auto *row : light_popup_rows_) {
+          if (row != nullptr) lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+        }
+      }
+      set_text_(light_popup_title_, preset_mode ? light_detail_title_() : "LEUCHTEN");
+      render_light_popup_rows_();
       lv_obj_clear_flag(light_popup_, LV_OBJ_FLAG_HIDDEN);
       lv_obj_move_foreground(light_popup_);
       lv_obj_scroll_to_y(light_popup_list_, 0, LV_ANIM_OFF);
     } else {
       lv_obj_add_flag(light_popup_, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+
+  const char *light_detail_title_() const {
+    if (light_detail_kind_ == LightDetailKind::WLED_PRESET) return "WLED PRESETS";
+    if (light_detail_kind_ == LightDetailKind::HUE_SCENE) return "HUE SZENEN";
+    return "DETAILS";
+  }
+
+  void render_light_popup_rows_() {
+    for (int row = 0; row < kLightPopupVisibleRows; row++) {
+      if (light_popup_rows_[row] == nullptr ||
+          light_popup_labels_[row] == nullptr)
+        continue;
+      const int option = light_popup_preset_mode_
+        ? light_popup_window_start_ + row : row;
+      const bool available = light_popup_preset_mode_
+        ? option >= 0 && option < light_preset_count_
+        : option >= 0 && option < 4;
+      if (!available) {
+        lv_obj_add_flag(light_popup_rows_[row], LV_OBJ_FLAG_HIDDEN);
+        continue;
+      }
+      lv_obj_clear_flag(light_popup_rows_[row], LV_OBJ_FLAG_HIDDEN);
+      const std::string &text = light_popup_preset_mode_
+        ? light_detail_names_[option] : light_names_[option];
+      set_text_(light_popup_labels_[row],
+                empty_fallback_(text.c_str(), "Nicht konfiguriert"));
+      const bool active = light_popup_preset_mode_
+        ? option == light_selected_preset_
+        : option == light_selected_source_;
+      style_action_button_(
+        light_popup_rows_[row], active ? kCyan : 0x171C20,
+        active ? kAccentForeground : kWhite);
     }
   }
 
@@ -1185,10 +1326,13 @@ class Framework {
   bool media_context_visible_{false};
   bool light_popup_visible_{false};
   bool light_popup_preset_mode_{false};
-  bool light_current_is_wled_{false};
+  LightDetailKind light_detail_kind_{LightDetailKind::NONE};
   int light_selected_source_{0};
   int light_selected_preset_{0};
   int light_preset_count_{0};
+  int light_popup_window_start_{0};
+  std::array<std::string, 4> light_names_{};
+  std::array<std::string, kLightDetailMaxItems> light_detail_names_{};
   bool media_mode_valid_{false};
   bool last_media_shuffle_{false};
   bool last_media_repeat_{false};
@@ -1205,7 +1349,7 @@ class Framework {
   lv_obj_t *nav_icon_labels_[5]{};
   lv_obj_t *nav_name_labels_[5]{};
   lv_obj_t *nav_markers_[5]{};
-  Binding bindings_[48]{};
+  Binding bindings_[96]{};
   size_t binding_count_{0};
 
   lv_obj_t *status_time_label_{nullptr};
@@ -1243,8 +1387,8 @@ class Framework {
   lv_obj_t *light_popup_{nullptr};
   lv_obj_t *light_popup_title_{nullptr};
   lv_obj_t *light_popup_list_{nullptr};
-  lv_obj_t *light_popup_rows_[9]{};
-  lv_obj_t *light_popup_labels_[9]{};
+  lv_obj_t *light_popup_rows_[kLightPopupVisibleRows]{};
+  lv_obj_t *light_popup_labels_[kLightPopupVisibleRows]{};
   lv_obj_t *light_popup_empty_{nullptr};
   lv_obj_t *media_arc_{nullptr};
   lv_obj_t *media_title_{nullptr};

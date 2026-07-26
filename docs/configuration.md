@@ -37,6 +37,11 @@ They are stored persistently on the ESPHome device.
 | Timer done effect | `number` | yes |
 | Screensaver Startverzögerung | `number` | yes |
 | Screensaver Abdunkeldauer | `number` | yes |
+| Wach halten | `switch` | yes |
+| Display Dimmverzögerung | `number` | yes |
+| Display Dimmhelligkeit | `number` | yes |
+| Display aus ohne Playback | `number` | yes |
+| Display aus bei Playback | `number` | yes |
 | Offline demo mode | `switch` | yes |
 
 ## Dynamic Home Assistant Selection
@@ -104,11 +109,22 @@ only while Wi-Fi is missing; with Wi-Fi connected the demo remains inactive.
 
 ## Display Protection
 
-On battery, the display can enter the existing full sleep path and LVGL is
-paused. On external power, the device does not fully sleep; after 15 minutes
-without touch or rotary activity it dims the backlight to a low protection
-level. The UI stays alive, and the next touch or rotary step restores normal
-brightness.
+Below 100% battery state, the display follows a two-stage idle policy. It dims
+after `Display Dimmverzögerung` (default 15 seconds) to `Display
+Dimmhelligkeit` (default 10%). Without active playback it switches off after
+`Display aus ohne Playback` (default 60 seconds); while the selected media
+player reports `playing`, it switches off after `Display aus bei Playback`
+(default 180 seconds). The timeout always measures from the last touch or
+rotary input. Timer and alarm activity prevent automatic display shutdown.
+
+The Settings page exposes the persistent developer switch `DEV: Wach halten`;
+Home Assistant exposes the same setting as `Wach halten`. While enabled, it
+blocks automatic screensaver entry, dimming, display shutdown and deep sleep.
+It is disabled by default and should remain disabled in normal battery use.
+
+At 100% on external power, the existing protection behavior remains unchanged:
+after 15 minutes without activity the backlight dims to 18% but LVGL stays
+active. Any touch or rotary step restores the normal 70% UI brightness.
 
 ## Weather Source
 

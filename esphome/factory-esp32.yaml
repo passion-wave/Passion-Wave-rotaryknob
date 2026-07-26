@@ -11,8 +11,8 @@ packages:
       house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
 
 substitutions:
-  name: "pw-rotary-bridge"
-  friendly_name: "Passion Wave Rotaryknob Bridge"
+  name: "passionwave-knob-bridge"
+  friendly_name: "PassionWave Rotaryknob Bridge"
   ha_player: "media_player.passion_wave_media"
   light_1_entity: "light.passion_wave_light_1"
   wled_preset_entity: "select.passion_wave_wled_preset_1"
@@ -35,11 +35,17 @@ esphome:
   build_path: build/passion_wave_factory_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "2.0.0"
+    version: "2.1.0"
 
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main
   import_full_config: false
+
+# The public first-adoption API intentionally has no encryption key. Private
+# development wrappers add API encryption independently.
+api:
+  id: esp32_api
+  reboot_timeout: 0s
 
 wifi:
   ssid: !remove

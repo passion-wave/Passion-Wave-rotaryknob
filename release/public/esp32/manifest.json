@@ -1,0 +1,15 @@
+{
+  "name": "PassionWave Rotaryknob Bridge",
+  "version": "2.1.0",
+  "home_assistant_domain": "esphome",
+  "new_install_prompt_erase": false,
+  "new_install_improv_wait_time": 120,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "passion-wave-rotaryknob-esp32.factory.bin", "offset": 0 }
+      ]
+    }
+  ]
+}

@@ -8,7 +8,7 @@ substitutions:
   name: "passion-wave-rotary-test-s3"
   friendly_name: "Passion Wave Rotaryknob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "2.0.0"
+  project_version: "2.1.0"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"
   dual_mcu_stage1_performance_enabled: "true"
@@ -55,7 +55,9 @@ uart:
   data_bits: 8
   parity: NONE
   stop_bits: 1
-  rx_buffer_size: 512
+  # A periodic bridge snapshot contains several independently useful state
+  # groups. Keep one complete paced group even across a short LVGL redraw.
+  rx_buffer_size: 4096
 
 globals:
   - id: dual_mcu_link_initialized
@@ -153,16 +155,26 @@ globals:
     # playlist kind is only a compatibility mirror and must not overwrite the
     # paged catalog after its bootstrap transfer.
     initial_value: '14'
-  - id: dual_mcu_wled_preset_pending_names
+  - id: dual_mcu_light_detail_pending_names
     type: std::vector<std::string>
     restore_value: false
-  - id: dual_mcu_wled_preset_pending_mask
-    type: uint16_t
+  - id: dual_mcu_light_detail_pending_mask
+    type: uint32_t
     restore_value: false
     initial_value: '0'
-  - id: dual_mcu_wled_preset_pending_generation
+  - id: dual_mcu_light_detail_pending_generation
     type: uint8_t
     restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_light_detail_pending_slot
+    type: uint8_t
+    restore_value: false
+    initial_value: '255'
+  - id: dual_mcu_light_detail_complete_slots
+    type: uint8_t
+    restore_value: false
+    # One bit per light slot. A freshly booted S3 must not treat a heartbeat's
+    # BRIDGE_STATUS as a substitute for the actual catalog snapshot.
     initial_value: '0'
   - id: latency_probe_sequence
     type: uint32_t
@@ -308,6 +320,7 @@ switch:
       - delay: 2s
       - script.execute: fetch_weather
       - script.execute: fetch_rain_eta
+      - script.execute: refresh_all_light_detail_catalogs
     turn_off_action:
       - mqtt.disable:
           id: mqtt_client
@@ -322,6 +335,9 @@ switch:
             id(dual_mcu_ha_bridge_ready)
               ? "ESP32 Bibliothek aktiv"
               : "ESP32 Bridge fehlt · Rescue aus");
+      - lambda: |-
+          if (id(dual_mcu_ha_bridge_ready))
+            dual_mcu::link.send(dual_mcu::MessageType::SNAPSHOT_REQUEST);
 
 sensor:
   - platform: template
@@ -607,8 +623,8 @@ text_sensor:
     update_interval: never
     entity_category: diagnostic
   - platform: template
-    id: dual_mcu_wled_preset_status
-    name: "S3 WLED Preset Status"
+    id: dual_mcu_light_detail_status
+    name: "S3 Light Detail Catalog"
     update_interval: never
     entity_category: diagnostic
   - platform: template
@@ -1064,6 +1080,8 @@ interval:
                     id(light_slot_3_entity_text).state == "${light_3_entity}" &&
                     id(light_slot_4_entity_text).state == "${light_4_entity}";
                   const bool was_ready = id(dual_mcu_ha_bridge_ready);
+                  const bool was_radar_available =
+                    id(dual_mcu_ha_bridge_radar);
                   const bool ready = (frame.payload[0] & 0x01) != 0 && targets_match;
                   id(dual_mcu_ha_bridge_ready) = ready;
                   id(dual_mcu_ha_bridge_extended_media) =
@@ -1078,10 +1096,20 @@ interval:
                   dual_mcu::library_client.set_available(id(dual_mcu_ha_bridge_library));
                   id(dual_mcu_library_response_proxy_available) =
                     id(dual_mcu_ha_bridge_library);
+                  // Library browsing is target-independent. A persisted
+                  // media/light target mismatch must continue to block
+                  // target-bound actions, but it must not disable bounded
+                  // playlist and track page requests through the ESP32.
+                  const bool library_requests_available =
+                    id(dual_mcu_ha_bridge_library) &&
+                    frame.length >= 2 && (frame.payload[1] & 0x01) != 0;
                   id(dual_mcu_library_request_proxy_available) =
-                    ready && frame.length >= 2 && (frame.payload[1] & 0x01) != 0;
-                  id(dual_mcu_ha_bridge_wled_presets) =
-                    ready && (frame.payload[0] & 0x40) != 0;
+                    library_requests_available;
+                  id(dual_mcu_ha_bridge_light_details) =
+                    ready && frame.length >= 2 &&
+                    (frame.payload[1] & 0x02) != 0;
+                  if (!id(dual_mcu_ha_bridge_light_details))
+                    id(dual_mcu_light_detail_complete_slots) = 0;
                   if (!ready || (frame.payload[0] & 0x08) == 0) {
                     id(dual_mcu_ha_bridge_forecast) = false;
                   }
@@ -1093,14 +1121,16 @@ interval:
                                "ESP32 HA-Bridge + Forecast aktiv" :
                                "ESP32 HA-Bridge aktiv") :
                     (targets_match ? "ESP32 wartet auf Home Assistant" :
-                                     "HA-Bridge Zielkonfiguration abweichend");
+                     library_requests_available ?
+                       "HA-Ziele abweichend · Bibliothek aktiv" :
+                       "HA-Bridge Zielkonfiguration abweichend");
                   if (id(dual_mcu_s3_status).state != status)
                     id(dual_mcu_s3_status).publish_state(status);
                   // Warm the radar cache as soon as the coprocessor bridge is
                   // ready. Opening Radar then paints immediately and merely
                   // refreshes the already visible frame in the background.
-                  if (ready && !was_ready &&
-                      id(dual_mcu_ha_bridge_radar) &&
+                  if (id(dual_mcu_ha_bridge_radar) &&
+                      !was_radar_available &&
                       !id(rain_radar_ready) &&
                       !id(rain_radar_loading)) {
                     id(dual_mcu_asset_pending_kind) =
@@ -1402,49 +1432,93 @@ interval:
                   }
                 }
                 break;
-              case dual_mcu::MessageType::WLED_PRESET_ITEM:
-                if (frame.length >= 4 && frame.payload[0] == 0 &&
-                    frame.payload[2] < dual_mcu::WLED_PRESET_MAX_ITEMS) {
+              case dual_mcu::MessageType::LIGHT_DETAIL_CATALOG_ITEM:
+                if (id(dual_mcu_ha_bridge_light_details) &&
+                    frame.length >= 4 && frame.payload[0] < 4 &&
+                    frame.payload[2] < dual_mcu::LIGHT_DETAIL_MAX_ITEMS) {
+                  const uint8_t slot = frame.payload[0];
                   const uint8_t generation = frame.payload[1];
                   const uint8_t index = frame.payload[2];
-                  if (generation != id(dual_mcu_wled_preset_pending_generation) || index == 0) {
-                    id(dual_mcu_wled_preset_pending_generation) = generation;
-                    id(dual_mcu_wled_preset_pending_mask) = 0;
-                    id(dual_mcu_wled_preset_pending_names).assign(
-                      dual_mcu::WLED_PRESET_MAX_ITEMS, std::string());
+                  if (slot != id(dual_mcu_light_detail_pending_slot) ||
+                      generation !=
+                        id(dual_mcu_light_detail_pending_generation) ||
+                      index == 0) {
+                    id(dual_mcu_light_detail_pending_slot) = slot;
+                    id(dual_mcu_light_detail_pending_generation) = generation;
+                    id(dual_mcu_light_detail_pending_mask) = 0;
+                    id(dual_mcu_light_detail_pending_names).assign(
+                      dual_mcu::LIGHT_DETAIL_MAX_ITEMS, std::string());
                   }
-                  if (generation == id(dual_mcu_wled_preset_pending_generation)) {
-                    id(dual_mcu_wled_preset_pending_names)[index] =
-                      dual_mcu::Link::read_string(&frame.payload[3], frame.length - 3);
-                    id(dual_mcu_wled_preset_pending_mask) |=
-                      static_cast<uint16_t>(1U << index);
+                  if (slot == id(dual_mcu_light_detail_pending_slot) &&
+                      generation ==
+                        id(dual_mcu_light_detail_pending_generation)) {
+                    id(dual_mcu_light_detail_pending_names)[index] =
+                      dual_mcu::Link::read_string(
+                        &frame.payload[3], frame.length - 3);
+                    id(dual_mcu_light_detail_pending_mask) |=
+                      static_cast<uint32_t>(1UL) << index;
                   }
                 }
                 break;
-              case dual_mcu::MessageType::WLED_PRESET_META:
-                if (frame.length == 4 && frame.payload[0] == 0 &&
-                    frame.payload[2] <= dual_mcu::WLED_PRESET_MAX_ITEMS) {
+              case dual_mcu::MessageType::LIGHT_DETAIL_CATALOG_META:
+                if (id(dual_mcu_ha_bridge_light_details) &&
+                    frame.length == 5 && frame.payload[0] < 4 &&
+                    frame.payload[2] <= 2 &&
+                    frame.payload[3] <= dual_mcu::LIGHT_DETAIL_MAX_ITEMS) {
+                  const uint8_t slot = frame.payload[0];
                   const uint8_t generation = frame.payload[1];
-                  const uint8_t count = frame.payload[2];
-                  const uint16_t expected_mask = count == 0
-                    ? 0 : static_cast<uint16_t>((1U << count) - 1U);
-                  if (count == 0 ||
-                      (generation == id(dual_mcu_wled_preset_pending_generation) &&
-                       (id(dual_mcu_wled_preset_pending_mask) & expected_mask) == expected_mask)) {
-                    id(dual_mcu_wled_preset_names).clear();
-                    for (uint8_t index = 0; index < count; index++)
-                      id(dual_mcu_wled_preset_names).push_back(
-                        id(dual_mcu_wled_preset_pending_names)[index]);
-                    id(dual_mcu_wled_preset_selected) =
-                      frame.payload[3] < count ? frame.payload[3] : -1;
-                    id(dual_mcu_wled_preset_status).publish_state(
-                      count == 0 ? "Keine WLED-Presets gespeichert" :
-                        std::to_string(count) + " Presets vom ESP32");
+                  const uint8_t kind = frame.payload[2];
+                  const uint8_t count = frame.payload[3];
+                  const uint32_t expected_mask =
+                    count == 0 ? 0 :
+                    count == 32 ? UINT32_MAX :
+                      (static_cast<uint32_t>(1UL) << count) - 1UL;
+                  const bool complete =
+                    count == 0 ||
+                    (slot == id(dual_mcu_light_detail_pending_slot) &&
+                     generation ==
+                       id(dual_mcu_light_detail_pending_generation) &&
+                     (id(dual_mcu_light_detail_pending_mask) &
+                       expected_mask) == expected_mask);
+                  if (complete) {
+                    auto &labels = id(light_detail_labels)[slot];
+                    auto &commands = id(light_detail_commands)[slot];
+                    labels.clear();
+                    commands.clear();
+                    labels.reserve(count);
+                    commands.shrink_to_fit();
+                    for (uint8_t index = 0; index < count; index++) {
+                      labels.push_back(
+                        id(dual_mcu_light_detail_pending_names)[index]);
+                    }
+                    id(light_detail_kinds)[slot] = count == 0 ? 0 : kind;
+                    id(light_detail_targets)[slot].clear();
+                    id(light_detail_selected)[slot] =
+                      frame.payload[4] < count ? frame.payload[4] : -1;
+                    id(light_detail_loaded_entities)[slot] =
+                      slot == 0 ? id(light_slot_1_entity_text).state :
+                      slot == 1 ? id(light_slot_2_entity_text).state :
+                      slot == 2 ? id(light_slot_3_entity_text).state :
+                                  id(light_slot_4_entity_text).state;
+                    std::string status;
+                    for (int index = 0; index < 4; index++) {
+                      if (!status.empty()) status += " · ";
+                      status += "S" + std::to_string(index + 1) + ":";
+                      const uint8_t item_kind =
+                        id(light_detail_kinds)[index];
+                      status += item_kind == 1 ? "W" :
+                                item_kind == 2 ? "H" : "-";
+                      status += std::to_string(
+                        id(light_detail_labels)[index].size());
+                    }
+                    id(dual_mcu_light_detail_status).publish_state(status);
+                    id(dual_mcu_light_detail_complete_slots) |=
+                      static_cast<uint8_t>(1U << slot);
+                    id(dual_mcu_light_detail_pending_names).clear();
+                    id(dual_mcu_light_detail_pending_names).shrink_to_fit();
+                    id(dual_mcu_light_detail_pending_mask) = 0;
                     id(light_ui_dirty) = true;
                     id(refresh_light_ui_if_needed).execute();
-                  } else {
-                    id(dual_mcu_wled_preset_status).publish_state(
-                      "Unvollständige Presetliste verworfen");
                   }
                 }
                 break;
@@ -1676,6 +1750,8 @@ interval:
                     static_cast<uint8_t>(1U << (changed_kind - 1));
                   id(dual_mcu_library_bridge_mask) &=
                     static_cast<uint8_t>(~(1U << (changed_kind - 1)));
+                  dual_mcu::library_client.notify_remote_cache_changed(
+                    static_cast<dual_mcu::LibraryKind>(changed_kind));
                   id(dual_mcu_library_last_request_ms) = 0;
                   id(dual_mcu_library_proxy_status).publish_state("Bibliothek aktualisiert");
                 }
@@ -1791,7 +1867,8 @@ interval:
               if (id(selected_podcast_index) >= static_cast<int>(completed_entries.size()))
                 id(selected_podcast_index) = std::max(0, static_cast<int>(completed_entries.size()) - 1);
             } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_PAGE) {
-              const int previous_count = id(playlist_loaded_count);
+              const int previous_count =
+                static_cast<int>(id(ma_playlists_names_cache).size());
               const size_t page_offset = completed_page.offset;
               const size_t cached_count = id(ma_playlists_names_cache).size();
               if (page_offset > cached_count) {
@@ -1813,11 +1890,14 @@ interval:
                 id(ma_playlists_item_ids_cache).push_back(entry.item_id);
                 id(ma_playlists_types_cache).push_back(entry.media_type);
               }
-              id(playlist_loaded_count) = completed_entries.size();
+              id(playlist_loaded_count) =
+                static_cast<int>(id(ma_playlists_names_cache).size());
               id(playlist_total_available) =
                   completed_page.total > 0
                       ? completed_page.total
-                      : (!completed_page.has_more ? completed_entries.size() : 0);
+                      : (!completed_page.has_more
+                           ? static_cast<int>(id(ma_playlists_names_cache).size())
+                           : 0);
               id(playlist_request_offset) = completed_page.next_offset;
               id(playlist_has_more) = completed_page.has_more;
               id(playlist_autoload_inflight) = false;
@@ -1828,19 +1908,12 @@ interval:
                   previous_count > 0 && id(playlist_loaded_count) > previous_count &&
                   id(media_picker_visible) && id(media_picker_tab) == 1)
                 id(selected_playlist_index) = previous_count;
-              if (id(selected_playlist_index) >= id(playlist_loaded_count))
-                id(selected_playlist_index) = std::max(0, id(playlist_loaded_count) - 1);
+              if (id(selected_playlist_index) >=
+                  static_cast<int>(id(ma_playlists_names_cache).size()))
+                id(selected_playlist_index) = std::max(
+                  0, static_cast<int>(id(ma_playlists_names_cache).size()) - 1);
               id(playlist_autoload_anchor_count) = 0;
               id(media_picker_more_requested) = false;
-              // Fill the bounded catalog cache in the background. The
-              // retained MQTT bootstrap intentionally contains only the
-              // first 40 playlists.
-              if (id(playlist_has_more) &&
-                  (id(playlist_total_available) == 0 ||
-                   id(playlist_loaded_count) < id(playlist_total_available)) &&
-                  id(pending_playlist_request_id).empty()) {
-                id(request_more_playlist_page).execute();
-              }
             } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_TRACKS) {
               const size_t page_offset = completed_page.offset;
               const size_t cached_count = id(ma_track_titles_cache).size();
@@ -2091,6 +2164,7 @@ interval:
             const auto kind =
               static_cast<dual_mcu::AssetKind>(dual_mcu::asset_decode_kind);
             const auto &bytes = dual_mcu::radar_client.bytes();
+            const size_t compressed_bytes = bytes.size();
             if (dual_mcu::asset_decode_success) {
               if (kind == dual_mcu::AssetKind::RADAR) {
                 id(rain_radar_active_buffer) =
@@ -2118,9 +2192,11 @@ interval:
                 id(media_ui_dirty) = true;
                 id(refresh_media_ui_if_needed).execute();
               } else if (kind == dual_mcu::AssetKind::PHOTO) {
+                id(photo_slideshow_loading) = false;
                 id(photo_slideshow_ready) = true;
                 id(refresh_photo_ui).execute();
               } else if (kind == dual_mcu::AssetKind::HOUSE) {
+                id(house_floorplan_loading) = false;
                 id(house_floorplan_ready) = true;
                 id(house_floorplan_error) = false;
                 id(refresh_house_ui).execute();
@@ -2129,11 +2205,12 @@ interval:
                 std::string("Asset aktiv: ") + dual_mcu::asset_kind_name(kind) +
                 " decode=" +
                 std::to_string(dual_mcu::asset_decode_duration_ms) + "ms");
-              id(dual_mcu_radar_proxy_bytes).publish_state(bytes.size());
+              id(dual_mcu_radar_proxy_bytes).publish_state(compressed_bytes);
               id(dual_mcu_asset_active_kind) = 0;
             } else {
               dual_mcu::radar_client.decode_failed();
             }
+            dual_mcu::radar_client.release_completed_bytes();
           }
           if (dual_mcu::radar_client.take_failure()) {
             const uint8_t error = dual_mcu::radar_client.last_error();
@@ -2160,9 +2237,11 @@ interval:
               id(media_ui_dirty) = true;
               id(refresh_media_ui_if_needed).execute();
             } else if (failed_kind == dual_mcu::AssetKind::PHOTO) {
+              id(photo_slideshow_loading) = false;
               id(photo_slideshow_ready) = false;
               id(refresh_photo_ui).execute();
             } else if (failed_kind == dual_mcu::AssetKind::HOUSE) {
+              id(house_floorplan_loading) = false;
               id(house_floorplan_ready) = false;
               id(house_floorplan_error) = true;
               id(refresh_house_ui).execute();
@@ -2192,7 +2271,9 @@ interval:
             id(dual_mcu_radar_proxy_status).publish_state(
               "Verwaisten Asset-Transfer erneut eingereiht");
           }
-          if (id(dual_mcu_ha_bridge_ready) &&
+          if (dual_mcu::radar_client.available() &&
+              id(dual_mcu_last_esp32_heartbeat_ms) != 0 &&
+              millis() - id(dual_mcu_last_esp32_heartbeat_ms) < 1500 &&
               !dual_mcu::radar_client.active() &&
               id(dual_mcu_asset_active_kind) == 0 &&
               id(dual_mcu_asset_pending_kind) != 0) {
@@ -2228,7 +2309,8 @@ interval:
             id(dual_mcu_ha_bridge_forecast) = false;
             id(dual_mcu_ha_bridge_radar) = false;
             id(dual_mcu_ha_bridge_library) = false;
-            id(dual_mcu_ha_bridge_wled_presets) = false;
+            id(dual_mcu_ha_bridge_light_details) = false;
+            id(dual_mcu_light_detail_complete_slots) = 0;
             id(dual_mcu_library_bridge_mask) = 0;
             id(dual_mcu_library_desired_mask) = 0x0E;
             id(dual_mcu_library_response_proxy_available) = false;
@@ -2247,7 +2329,12 @@ interval:
               millis() - id(dual_mcu_last_forecast_ms) > 20UL * 60UL * 1000UL) {
             id(dual_mcu_ha_bridge_forecast) = false;
           }
-          if (link_up && !id(dual_mcu_ha_bridge_ready) &&
+          const bool light_detail_snapshot_incomplete =
+            id(dual_mcu_ha_bridge_light_details) &&
+            (id(dual_mcu_light_detail_complete_slots) & 0x0F) != 0x0F;
+          if (link_up &&
+              (!id(dual_mcu_ha_bridge_ready) ||
+               light_detail_snapshot_incomplete) &&
               millis() - id(dual_mcu_last_snapshot_request_ms) >= 2000) {
             dual_mcu::link.send(dual_mcu::MessageType::SNAPSHOT_REQUEST);
             id(dual_mcu_last_snapshot_request_ms) = millis();
@@ -2327,16 +2414,20 @@ interval:
       - if:
           condition:
             lambda: |-
-              // A bootstrap page can arrive a few milliseconds before the
-              // ESP32 advertises its MQTT request proxy. Retry without user
-              // interaction instead of permanently truncating the catalog.
-              return id(playlist_paged_mode_ready) &&
-                     id(playlist_has_more) &&
+              // Opening the picker can race the ESP32 capability frame by a
+              // few milliseconds. Retry only the initial page; subsequent
+              // pages are prefetched from the user's position instead of
+              // consuming UART and heap for the complete catalog at boot.
+              return id(media_picker_visible) &&
+                     id(media_picker_tab) == 1 &&
+                     !id(playlist_paged_mode_ready) &&
                      !id(playlist_autoload_inflight) &&
                      id(pending_playlist_request_id).empty() &&
-                     id(dual_mcu_library_request_proxy_available);
+                     id(dual_mcu_library_request_proxy_available) &&
+                     millis() >=
+                       id(dual_mcu_library_response_proxy_failed_until_ms);
           then:
-            - script.execute: request_more_playlist_page
+            - script.execute: request_initial_playlist_page
       - if:
           condition:
             lambda: |-

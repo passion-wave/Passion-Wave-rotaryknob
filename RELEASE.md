@@ -1,12 +1,25 @@
-# Version 2.0.0
+# Version 2.1.0
 
-Release description: `responsiveness,nextUI`
+Release description: `reliable-onboarding,responsiveness`
 
 ## Scope
 
-Version 2.0.0 promotes the dual-processor architecture and NextUI from the
-migration branch to the coordinated product release:
+Version 2.1.0 turns the dual-processor architecture into a complete public
+two-stage release:
 
+- Home Assistant discovers two explicit nodes, `PassionWave Rotaryknob` and
+  `PassionWave Rotaryknob Bridge`;
+- chip-specific manifests require a clean erase, preventing stale private
+  names, Wi-Fi state and former API credentials from surviving a factory flash;
+- both public profiles expose a credential-free first-adoption API, while
+  private development wrappers retain encrypted API and password-protected OTA;
+- the S3 remains awake until Home Assistant has connected once, so the longer
+  two-chip installation cannot hide it before discovery;
+- manifests are generated from the same `VERSION` and build command as the
+  factory binaries and are imported downstream together;
+- the radar asset path now follows its independent ESP32 capability instead of
+  being blocked by unrelated media/light target differences;
+- radar and floorplan diagnostics no longer overwrite each other;
 - ESP32-S3 owns touch, EC1 encoder, LVGL, haptics and immediate optimistic UI;
 - ESP32 owns EC2, Home Assistant communication and network/library offload;
 - the inter-MCU UART link uses framed, prioritized and acknowledged messages;
@@ -44,20 +57,30 @@ rebuilding or renaming them and must keep one chip family per guided installer
 stage. `Passion-Wave-control` records the release order and external launch
 gates.
 
-## Branch integration
+## Version history
 
-The Version 2.0 implementation was developed on `feature/next` and
-fast-forwarded into `main` on 2026-07-25. The immutable release tag `v2.0.0`
-points to commit `6ce110b` with description `responsiveness,nextUI`.
+Version 2.1.0 is released from `main`. Version 2.0.0 remains the immutable
+architecture baseline at tag `v2.0.0`; `stable/1.2.0` remains the legacy
+single-MCU rollback point.
 
-- `main`: active Version 2.0 production line.
-- `feature/next`: retained at the same release commit for traceability.
+- `main`: active Version 2.1 production line.
+- `feature/next`: retained as Version 2.0 integration history.
 - `stable/1.2.0`: unchanged rollback point for Version 1.2.0.
 
-The integration introduced no merge commit and no conflict resolution because
-`main` was a direct ancestor of `feature/next`.
+## Verified Version 2.1 public artifacts
 
-## Verified maintenance baseline
+On 2026-07-26 both credential-free factory profiles resolved and compiled with
+ESPHome 2026.7.0. The S3 image uses 71.7% of its app partition and 57.5% of
+available runtime RAM; the ESP32 image uses 59.6% of its app partition and
+43.4% of runtime RAM. Both manifests expose one chip family, version `2.1.0`,
+the intended PassionWave name, clean erase and a 120-second Improv wait.
+
+```text
+3ff5c25b9a99d1ae6dbb4722c07312acc30a1c44cb50112eefcf6ab77e48355b  s3/passion-wave-rotaryknob-s3.factory.bin
+ea04ec704adf7951b292a57d1091633629d500c2cb0562d64bb7bf3b7cdab392  esp32/passion-wave-rotaryknob-esp32.factory.bin
+```
+
+## Previous verified maintenance baseline
 
 The immutable `v2.0.0` tag remains the release anchor. `main` additionally
 contains Version 2.0 maintenance fixes and is the source for current builds.
@@ -66,14 +89,14 @@ flashed independently by OTA and read back through the native ESPHome API:
 
 - S3 project `passion-wave.rotaryknob-test-s3`, version `2.0.0`;
 - ESP32 project `passion-wave.rotaryknob-test-esp32`, version `2.0.0`;
-- shared native Music Assistant target `media_player.move_2`;
+- shared native Music Assistant test target on both processors;
 - shared four-light target snapshot;
 - runtime status `ESP32 HA-Bridge aktiv`.
 - Music Assistant playlist paging verified with 140/140 entries on both
   processors, including automatic continuation beyond the retained
   40-entry bootstrap; inter-MCU protocol errors remained zero.
-- weather screensaver maintenance build flashed to the S3 at
-  `192.168.2.101`; the encrypted API handshake completed in 136 ms,
+- weather screensaver maintenance build flashed to the S3 test device; the
+  encrypted API handshake completed in 136 ms,
   inter-MCU protocol errors remained zero and steady scheduler windows were
   normally 13–18 ms.
 

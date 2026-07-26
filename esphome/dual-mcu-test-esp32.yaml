@@ -11,10 +11,10 @@ packages:
 # Private test-device wrapper. Factory builds include the core directly.
 substitutions:
   # Must match the S3 target so feedback and commands use the same player.
-  ha_player: "media_player.move_2"
-  light_1_entity: "light.timo_wandschalter_l1"
-  light_2_entity: "light.timo_vitrine"
-  light_3_entity: "light.wled_timo_main_2"
+  ha_player: "media_player.wohnzimmer_2"
+  light_1_entity: "light.hue_color_lamp_1_3"
+  light_2_entity: "light.ambiente"
+  light_3_entity: "light.hue_color_lamp_1_2"
   light_4_entity: "light.passion_wave_light_4"
   # The classic ESP32 owns every HTTP asset download in the dual-MCU
   # architecture. Keep these substitutions here as well as in the S3 wrapper;

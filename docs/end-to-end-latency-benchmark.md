@@ -48,16 +48,16 @@ connection.
 
 ## Running the benchmark
 
-In Home Assistant press:
+In Home Assistant press the S3 device's button whose entity-ID suffix is:
 
 ```text
-button.timo_passion_wave_rotaryknob_test_s3_run_e2e_latency_benchmark
+run_e2e_latency_benchmark
 ```
 
 For one sample use:
 
 ```text
-button.timo_passion_wave_rotaryknob_test_s3_run_e2e_latency_probe
+run_e2e_latency_probe
 ```
 
 The 25-sample benchmark keeps intermediate results local and publishes only
@@ -142,14 +142,14 @@ stability for an unproven sub-millisecond gain.
 
 ## Music Assistant start latency
 
-The test profile also provides:
+The test profile also provides a button with the entity-ID suffix:
 
 ```text
-button.timo_passion_wave_rotaryknob_test_s3_run_music_assistant_start_probe
+run_music_assistant_start_probe
 ```
 
 This starts the first cached playlist through `music_assistant.play_media` on
-the configured current player `media_player.roam_2`. Before live validation the
+the configured native Music Assistant test player. Before live validation the
 player volume was explicitly set to `0.0`.
 
 The path reports three distinct stages:
@@ -180,9 +180,9 @@ by Music Assistant queue/provider resolution and the physical player. The
 lost-callback UI fallback was reduced from four seconds to 2.5 seconds, still
 well above the measured 1.6-second cold start.
 
-After validation the test playback was stopped. `media_player.roam_2` remained
-at volume `0.0`; both UART protocol counters and the encoder overflow counter
-were zero in the final stable-state check.
+After validation the test playback was stopped. The test player remained at
+volume `0.0`; both UART protocol counters and the encoder overflow counter were
+zero in the final stable-state check.
 
 ## Encoder-to-volume software-in-the-loop benchmark
 
@@ -195,7 +195,7 @@ decoded EC1 step
   -> optimistic S3 volume state
   -> minimal LVGL arc/label paint
   -> priority VOLUME_SET frame
-  -> ESP32 media_player.volume_set on media_player.roam_2
+  -> ESP32 media_player.volume_set on the configured test player
   -> subscribed HA volume_level callback
   -> VOLUME_RESULT frame
   -> S3 confirmation
@@ -204,7 +204,7 @@ decoded EC1 step
 Run 20 autonomous samples with:
 
 ```text
-button.timo_passion_wave_rotaryknob_test_s3_run_encoder_volume_sil_benchmark
+run_encoder_volume_sil_benchmark
 ```
 
 The benchmark alternates between 0% and 2%, starts each sample only after the

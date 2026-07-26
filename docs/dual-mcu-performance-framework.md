@@ -23,11 +23,11 @@ device:
 - Bluetooth, BLE tracking, Bluetooth proxying and Improv are absent.
 
 This revision completes performance stage 1. The S3 keeps Wi-Fi, native API and
-OTA as a recovery path, but does not start MQTT or direct integration refreshes
-while the ESP32 bridge is healthy. A rejected proxy operation or a bridge loss
-activates the S3 compatibility network path automatically. After 30 seconds of
-stable bridge operation it becomes quiet again. S3 Wi-Fi must not yet be
-disabled.
+OTA for maintenance and deliberate recovery, but does not start MQTT, HTTP or
+direct integration refreshes in normal operation. A rejected proxy operation
+or bridge loss reports an explicit unavailable state; only the non-persistent
+`S3 Network Rescue Mode` activates the compiled compatibility path. S3 Wi-Fi
+remains enabled for API, OTA and that deliberate rescue path.
 
 Stage 1 also bounds S3 UART work to eight frames per 2 ms scheduling slice,
 coalesces diagnostic publication to 1 Hz, delays cover downloads until 2.5
@@ -56,7 +56,7 @@ painted before haptics and paging work. Media selection remains modal and shows
 the chosen item until the ESP32 first acknowledges queue admission and then
 reports the final Home Assistant result. A 15-second timeout replaces an
 unbounded wait. Normal playlist selection no longer calls the S3-side
-`input_select`; that legacy action is restricted to the compatibility fallback.
+`input_select`; that legacy action is restricted to deliberate Rescue mode.
 Revision `.53` treats the immediate ESP32 queue acknowledgement as the reliable
 transport confirmation. Because some Home Assistant actions do not invoke the
 optional final ESPHome callback, the modal closes after a four-second settling
@@ -75,8 +75,8 @@ touchable.
 Revision `.56` establishes the second migration boundary for the media library.
 Playlist, radio, podcast and track payloads are parsed exclusively on the
 classic ESP32 during normal operation; S3 MQTT callbacks and the old direct
-playlist selector remain compiled only as an explicit outage fallback. A
-temporarily unready ESP32 cache no longer wakes that fallback. The weather
+playlist selector remain compiled only for deliberate Rescue mode. A
+temporarily unready ESP32 cache cannot activate that path. The weather
 temperature label also reserves sufficient glyph space for an unclipped degree
 sign at the existing 88 px type size.
 Revision `.57` prebuilds the media-picker geometry outside the interaction
@@ -207,7 +207,8 @@ Every mutable value has one owner:
 - EC1 pulse acquisition and encoder authority: S3;
 - EC2 raw diagnostic count: ESP32;
 - active page, selection, display and haptic policy: S3;
-- migrated Home Assistant truth and retry state: ESP32, with direct S3 fallback;
+- migrated Home Assistant truth and retry state: ESP32, with deliberate S3
+  Rescue mode;
 - UART link statistics: local to each endpoint.
 
 Only after a future feature has an implemented ESP32 equivalent, reconnect
@@ -224,6 +225,29 @@ off the S3.
 - Coalesce UI refreshes; do not perform one network update per encoder pulse.
 - Put large decoded images and inactive assets in PSRAM.
 - Keep UART rings, DMA descriptors and realtime state in internal RAM.
+
+The Version-2.0 memory audit applies these rules concretely:
+
+- raw media-library JSON is discarded after parsing; only bounded records and
+  paging metadata remain;
+- the obsolete nine-entry S3 WLED cache is removed; the popup reads only the
+  generic 32-entry light-detail catalog;
+- the light-detail popup owns eight LVGL rows and moves a virtual window over
+  at most 32 labels, avoiding 32 permanently allocated button trees;
+- UI Next reparents the reusable media picker to the top layer and then deletes
+  the unused legacy Light, Media and Weather object trees;
+- large clock fonts contain only the digits and punctuation they render;
+- non-persistent selection and editor indices no longer write flash-backed
+  preferences;
+- the compressed UART asset buffer is released immediately after decode;
+- radar and floorplan pixel buffers are released 45 seconds after leaving
+  their page, so the next visit obtains a current image; the static photo
+  buffer is released after 30 seconds. Active or queued transfers block
+  release.
+
+This policy deliberately keeps realtime UART, encoder and LVGL working state
+in internal RAM. PSRAM placement itself is unchanged because decoded images
+still need it while visible; only their lifetime is shortened.
 
 ### ESP32
 

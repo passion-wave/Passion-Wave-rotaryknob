@@ -79,6 +79,8 @@ enum class MessageType : uint8_t {
   LIGHT_DETAIL_STATE = 50,
   LIGHT_PRESET_TEXT = 51,
   FLOORPLAN_INVALIDATED = 52,
+  LIGHT_DETAIL_CATALOG_ITEM = 53,
+  LIGHT_DETAIL_CATALOG_META = 54,
 };
 
 enum class HAAction : uint8_t {
@@ -92,6 +94,9 @@ enum class HAAction : uint8_t {
   LIGHT_ON = 11,
   LIGHT_BRIGHTNESS = 12,
   WLED_PRESET = 13,
+  SCENE_ACTIVATE = 14,
+  SELECT_OPTION = 15,
+  LIGHT_DETAIL_ACTIVATE = 16,
 };
 
 enum class MediaTextField : uint8_t {
@@ -103,6 +108,7 @@ enum class MediaTextField : uint8_t {
 enum class WeatherTextField : uint8_t { CONDITION = 1, LOCATION = 2 };
 
 static constexpr size_t WLED_PRESET_MAX_ITEMS = 9;
+static constexpr size_t LIGHT_DETAIL_MAX_ITEMS = 32;
 
 // Home Assistant forwards list-valued attributes through the ESPHome API as
 // their Python string representation, for example "['Warm', 'Police']".
@@ -422,6 +428,24 @@ class Link {
                       static_cast<uint8_t>(entity_length + 2));
   }
 
+  bool send_ha_text_action(HAAction action, const char *entity_id,
+                           const char *value) {
+    if (entity_id == nullptr || value == nullptr) return false;
+    const size_t entity_length = std::strlen(entity_id);
+    const size_t value_length = std::strlen(value);
+    if (entity_length == 0 || value_length == 0 ||
+        entity_length > 255 || entity_length + value_length + 3 > MAX_PAYLOAD)
+      return false;
+    uint8_t payload[MAX_PAYLOAD]{};
+    payload[0] = static_cast<uint8_t>(action);
+    payload[1] = static_cast<uint8_t>(entity_length);
+    std::memcpy(&payload[2], entity_id, entity_length);
+    payload[2 + entity_length] = 0;
+    std::memcpy(&payload[3 + entity_length], value, value_length);
+    return this->send(MessageType::HA_ACTION, payload,
+                      static_cast<uint8_t>(entity_length + value_length + 3));
+  }
+
   // Dedicated low-latency volume path. The configured bridge target remains
   // authoritative, while the sequence correlates local paint, UART receipt,
   // HA state confirmation, and the final S3 render.
@@ -475,6 +499,40 @@ class Link {
                              uint8_t selected) {
     const uint8_t payload[] = {slot, generation, count, selected};
     return this->send(MessageType::WLED_PRESET_META, payload, sizeof(payload));
+  }
+
+  bool send_light_detail_item(uint8_t slot, uint8_t generation, uint8_t index,
+                              const std::string &label) {
+    if (slot >= 4 || index >= LIGHT_DETAIL_MAX_ITEMS) return false;
+    const size_t label_length = std::min(label.size(), MAX_PAYLOAD - 3);
+    uint8_t payload[MAX_PAYLOAD]{};
+    payload[0] = slot;
+    payload[1] = generation;
+    payload[2] = index;
+    if (label_length > 0)
+      std::memcpy(&payload[3], label.data(), label_length);
+    return this->send(MessageType::LIGHT_DETAIL_CATALOG_ITEM, payload,
+                      static_cast<uint8_t>(label_length + 3));
+  }
+
+  bool send_light_detail_meta(uint8_t slot, uint8_t generation, uint8_t kind,
+                              uint8_t count, int selected) {
+    if (slot >= 4 || count > LIGHT_DETAIL_MAX_ITEMS) return false;
+    const uint8_t payload[] = {
+      slot, generation, kind, count,
+      static_cast<uint8_t>(
+        selected >= 0 && selected < count ? selected : 0xFF),
+    };
+    return this->send(MessageType::LIGHT_DETAIL_CATALOG_META, payload,
+                      sizeof(payload));
+  }
+
+  bool send_light_detail_activate(uint8_t slot, uint8_t index) {
+    if (slot >= 4 || index >= LIGHT_DETAIL_MAX_ITEMS) return false;
+    const uint8_t payload[] = {
+      static_cast<uint8_t>(HAAction::LIGHT_DETAIL_ACTIVATE), slot, index,
+    };
+    return this->send(MessageType::HA_ACTION, payload, sizeof(payload));
   }
 
   bool send_media_text(MediaTextField field, const std::string &text) {

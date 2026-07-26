@@ -1,8 +1,8 @@
 # Final migration roadmap
 
-This roadmap records the four dual-MCU migration milestones. The current test
-candidate is S3 `1.2.0-ui-next.98` and ESP32
-`1.2.0-ha-bridge.50`; the `.80/.39` and `.89/.45` values in the milestone
+This roadmap records the four dual-MCU migration milestones. The current
+product release is Version `2.1.0` (`reliable-onboarding,responsiveness`); internal S3
+`.98` and ESP32 `.50` counters plus `.80/.39` and `.89/.45` in the milestone
 history are rollback checkpoints. The production device
 `passion_wave_rotaryknob` remains unchanged on version 1.2.0.
 
@@ -159,6 +159,26 @@ Implementation step 3B (`.89` / `.45`):
   unchanged standalone 1.2.0 production profile;
 - native S3 API/OTA/Safe Mode and the independent ESP32 API/OTA/Safe Mode are
   unchanged.
+
+Implementation step 3C (Version 2.0 light details):
+
+- WLED preset and Hue scene discovery is owned by the classic ESP32 for all
+  four compiled light slots;
+- only generation-tagged labels and selection metadata cross to the S3, while
+  scene entity IDs and preset values remain in the authoritative ESP32 cache;
+- the S3 activates an entry by slot/index, so no arbitrary Home Assistant
+  target is accepted from the UI processor;
+- direct S3 discovery and actions are limited to standalone or deliberate
+  Rescue operation;
+- after an isolated S3 reboot, a per-slot completion mask keeps requesting
+  snapshots until all four detail catalogs have committed atomically;
+- after an ESP32/Home Assistant API reconnect, the authoritative cache is kept
+  visible, discovery is deferred by 1.5 seconds and failed response actions are
+  retried rather than committed as empty catalogs;
+- cover, radar and library transfers share a 16 ms background slot and 4 KiB
+  UART buffers, while encoder, touch and state traffic remains immediate;
+- ESP32-first/S3-second rolling OTA preserves compatibility and both
+  independent recovery routes.
 
 ## Milestone 4: Final qualification and release freeze
 

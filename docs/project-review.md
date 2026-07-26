@@ -1,13 +1,14 @@
 # Project review
 
-Stand: 2026-07-24
+Stand: 2026-07-26
 
 ## Executive assessment
 
 The project has a strong, responsive dual-MCU runtime and a substantially
-complete UI migration. It is suitable for continued test-device development.
-It is not yet ready to be sold unflashed to nontechnical customers. The gap is
-mainly release engineering and onboarding, not display design.
+complete UI migration. Credential-free profiles, two release images and the
+two-stage website installer now exist. It remains a release candidate rather
+than a retail-approved product until clean-device installation, unified
+Home Assistant onboarding and the physical endurance gates pass.
 
 Current reviewed candidate:
 
@@ -32,16 +33,15 @@ Current reviewed candidate:
 
 ### Release blockers
 
-1. **No complete dual-MCU factory release.** The website has one ESP32-S3
-   manifest, while the product requires separate S3 and ESP32 images.
-2. **No published sanitized binaries.** Current development profiles depend on
-   private Wi-Fi, MQTT, API, OTA and installation-specific entity values.
-3. **The physical flash flow is two-stage.** USB-C orientation selects the
+1. **No completed clean-device acceptance.** Both sanitized images and
+   chip-specific manifests are published locally and validate successfully,
+   but the full two-stage path still needs a physical erased-device run.
+2. **The physical flash flow is two-stage.** USB-C orientation selects the
    processor. A buyer must flash one processor, unplug, reverse the connector
    and flash the second unless future hardware lets one MCU program the other.
-4. **No single logical onboarding flow.** Home Assistant currently sees two
+3. **No single logical onboarding flow.** Home Assistant currently sees two
    ESPHome nodes and several supporting automations/packages.
-5. **The customer path still needs YAML/MQTT knowledge.** Weather, Music
+4. **The complete advanced path still needs YAML/MQTT knowledge.** Weather, Music
    Assistant paging, radar and floorplan require developer-level setup.
 
 ### High-priority engineering risks
@@ -50,8 +50,9 @@ Current reviewed candidate:
   failover, OTA and endurance qualification is still required.
 - Music Assistant track paging depends on a separately configured REST command.
   A missing or changed Music Assistant endpoint can leave lists incomplete.
-- The public installer documentation previously described a one-processor flow
-  and overstated current readiness.
+- Older control and firmware documents described a one-processor flow and
+  understated the implemented two-chip installer. They were corrected on
+  2026-07-26.
 - `home_assistant/` and `home-assistant/` coexist. This is understandable
   historically but error-prone for packaging and support.
 - The migration documents contained historical version numbers presented as
@@ -97,8 +98,7 @@ Current reviewed candidate:
   the application partition; 1,698,176 bytes remain in each OTA slot;
 - ESP32 public factory build: 1,071,383-byte image, 42.1% DRAM, 58.4% of
   the application partition;
-- successful weather-screensaver OTA to the S3 test device at
-  `192.168.2.101`;
+- successful weather-screensaver OTA to the S3 test device;
 - successful post-OTA API handshake in 136 ms; bridge snapshots resumed,
   protocol errors remained zero and observed steady scheduler windows were
   normally 13–18 ms.

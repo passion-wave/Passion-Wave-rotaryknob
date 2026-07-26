@@ -1,9 +1,10 @@
 # Dual-MCU Home Assistant Bridge
 
-Revision `1.2.0-ui-next.98` / `1.2.0-ha-bridge.50` is the current test
-workload split between both processors. The S3 still owns deterministic input
-and rendering. The classic ESP32 now owns migrated Home Assistant service calls
-and mirrors bounded media/light state records to the S3.
+Product version `2.1.0` (`reliable-onboarding,responsiveness`) is the current dual-MCU
+workload split. The internal `.98` / `.50` counters remain historical test
+checkpoints, not separate customer versions. The S3 owns deterministic input
+and rendering. The classic ESP32 owns Home Assistant discovery, service calls
+and bounded media/light state records.
 
 ## Runtime data flow
 
@@ -27,7 +28,8 @@ The bridge transports:
 - on/off and brightness for four light slots;
 - previous, play/pause, next, volume, shuffle and repeat actions;
 - light on, off and brightness actions.
-- dynamic WLED preset names, active preset and validated preset-selection actions;
+- dynamic WLED preset and Hue scene catalogs for all four slots, including the
+  active option and validated index-based activation;
 - current weather temperature, humidity, wind, condition and location;
 - five daily ranges/conditions, four hourly slots and the rain hint.
 
@@ -46,16 +48,19 @@ the Home Assistant JSON response on the classic ESP32 and sends one fixed
 The record contains five daily forecasts, four representative hours and the
 rain ETA/probability. The S3 considers forecast offload ready only after at
 least tomorrow, the following day and all four hourly slots are valid. Its
-original daily/hourly actions remain compiled and resume automatically when a
-complete bridge record has not arrived for 20 minutes. Radar image download
-remains available as the fallback path.
+original daily/hourly actions remain compiled for deliberate Rescue mode, but
+do not resume automatically when a bridge record is late. Direct radar download
+is likewise available only in Rescue mode.
 
 Bridge `.10` adds the first bulk-data migration. The classic ESP32 downloads the
 radar JPEG in a dedicated FreeRTOS task and streams it to the S3 in acknowledged
 data chunks. Protocol version 3 raises the bounded frame payload to 192 bytes,
 leaving 186 bytes per image chunk while keeping the encoded UART frame below
-the one-byte COBS boundary. It sends at most one radar chunk every 4 ms after
-encoder, action and state processing. A 64-frame receiver queue
+the one-byte COBS boundary. Version 2.0 schedules cover, radar and library data
+through one shared 16 ms bulk slot after encoder, action and state processing.
+The aggregate background stream is therefore capped at roughly 12 kB/s instead
+of allowing cover or library traffic to bypass the older radar-only throttle.
+A 64-frame receiver queue plus a 4 KiB UART receive buffer
 absorbs short LVGL stalls without dropping image chunks. Per-frame
 CRC-16, contiguous offsets, total length and an end-to-end CRC-32 protect the
 image. Every begin, data and end frame is acknowledged; a missing or damaged
@@ -105,25 +110,49 @@ fast bootstrap prefix; it is never treated as the complete catalog. The S3
 requests one list at a time and
 receives versioned binary records through the same acknowledged 42-byte chunk
 transport with contiguous offsets and end-to-end CRC-32. Only after a complete
-list has decoded successfully does the S3 suppress that list's original MQTT
-callback. A changed retained payload invalidates only its own feature bit and
-triggers a fresh transfer. Link loss clears all three bits and restores the
-original S3 MQTT route.
+list has decoded successfully does the S3 commit the new cache. A changed
+retained payload invalidates only its own feature bit and triggers a fresh
+transfer. Link loss clears readiness and reports the missing bridge; it does
+not restore the original S3 MQTT route unless Rescue mode is explicitly
+enabled.
 
 Paginated playlist and playlist-track requests still originate on the S3 in
 this compatibility stage. Their JSON responses are parsed on the ESP32 from
 bridge `.13` onward.
 
-Bridge `.12` subscribes to the configured WLED preset select on the classic
-ESP32. Home Assistant's `options` attribute is parsed into at most nine bounded
-names. Each update is sent as generation-tagged item frames followed by one
-commit record; the S3 rejects incomplete generations and retains its last
-complete list. Selecting a row sends only its index and the configured select
-entity to the ESP32. The ESP32 verifies both before resolving the option name
-and calling `select.select_option`. If the bridge is unavailable, the S3 can
-use its last complete list through the retained direct Home Assistant action.
-An empty Home Assistant option list is represented explicitly and does not
-create synthetic presets.
+Bridge `.12` introduced a slot-specific WLED preset route with nine bounded
+names. Version 2.0 replaced its S3 receiver and cache with one generic
+light-detail catalog for all four light slots. The classic ESP32 still emits
+the old frames temporarily so an ESP32-first rolling OTA can continue to serve
+an older S3. A current S3 ignores them; they neither populate nor render the
+light popup. An empty Home Assistant option list is represented explicitly and
+does not create synthetic presets.
+
+The active Version-2.0 light-detail path is:
+
+- the classic ESP32 identifies WLED and Hue entities through Home Assistant;
+- WLED discovery resolves the preset `select` on the same device;
+- Hue discovery resolves up to 32 Hue scenes from the light's assigned area;
+- command targets stay only in the authoritative ESP32 cache;
+- the UART transports only slot, generation, kind, index and bounded labels;
+- label records are cooperatively paced at 8 ms, keeping encoder/action frames
+  ahead of even three simultaneous 27-scene Hue catalogs while completing the
+  full warm-up in under one second;
+- the S3 swaps the visible list only after the matching commit record proves
+  the generation complete;
+- a four-bit completion mask makes a rebooted S3 request recovery snapshots
+  until every slot, including an intentionally empty slot, has committed;
+- the ESP32 retains its last complete catalogs across an API interruption,
+  waits 1.5 seconds after Home Assistant reconnects, and automatically retries
+  malformed or failed response actions instead of publishing a transient empty
+  result;
+- selection returns only slot and index, which the ESP32 validates before a
+  native `select.select_option` or `scene.turn_on` action.
+
+`BRIDGE_STATUS` byte 1 bit `0x02` advertises this capability. An older S3
+ignores the new records; an updated S3 keeps the compatibility route until the
+new ESP32 advertises support. This is why rolling OTA installs the ESP32 image
+first and the S3 image second.
 
 Bridge `.13` owns JSON parsing for paginated playlist and playlist-track
 responses. It accepts only request IDs belonging to the test S3 and sends
@@ -132,17 +161,17 @@ accumulates display names only after each page passes contiguous-transfer and
 CRC-32 validation. The classic ESP32 keeps only a compact global URI/item-ID
 index for playback and further track requests. This avoids the former
 cumulative name/blob duplication and its heap peak on large catalogs. A proxy
-timeout re-enables the original S3 response parser for ten seconds.
+timeout reports an explicit error. The original S3 response parser is available
+only while Rescue mode is enabled.
 
 Bridge `.14` adds index-based media selection. The S3 sends only the library
 kind and selected index; the ESP32 resolves both against its canonical cache.
 Bridge `.15` calls the native `music_assistant.play_media` action with the
 resolved URI and reports success only after Home Assistant acknowledges the
-action. Bridge `.16` targets the native Music Assistant player
-`media_player.roam_2`. Its former target `media_player.unnamed_room` is the
-generic Sonos entity: transport controls work there, but Music Assistant
-library selection does not address the MA queue. Both entities have the same
-physical `RINCON_C43875C917BC01400` identifier in this Home Assistant registry.
+action. Bridge `.16` corrected the configured target from a generic Sonos
+entity to the corresponding native Music Assistant player. Transport controls
+work on the generic entity, but Music Assistant library selection must address
+the Music Assistant queue.
 The S3 keeps a valid Home Assistant-selected runtime target across reboots.
 Only an empty value or the public factory placeholder is replaced by the
 compiled fallback. The former unconditional boot assignment could silently
@@ -152,18 +181,24 @@ player's value.
 The fast bridge path still requires the compiled S3 and ESP32 targets to match
 the persisted S3 targets. Private test wrappers therefore override the same
 native Music Assistant entity and the same four light entities in both
-profiles. The current Sonos Move test installation uses
-`media_player.move_2`; the generic Sonos entity can provide transport and
-volume but is not the correct target for Music Assistant queue replacement.
+profiles. Local entity IDs belong in private configuration and are
+intentionally omitted from this public architecture document.
+
+That target match gates only actions and target-specific state. Bounded
+playlist/track transport and page requests are target-independent capabilities:
+the picker can continue browsing while a persisted media or light target
+differs from the private wrapper. A temporary page-transport outage retains the
+last accepted offset and continuation flag; the five-entry prefetch waits
+without polling the network and resumes when the advertised capability returns.
 
 Bridge `.17` moves the two remaining outbound library page requests. S3 `.47`
 sends a fixed six-byte command containing list kind, offset, limit and selected
 playlist index. The ESP32 resolves that index against its canonical cache,
 constructs the existing request JSON and publishes it to MQTT. An immediate
 result record distinguishes accepted MQTT publishes from invalid indices or a
-disconnected broker. A rejected request opens the original S3 MQTT fallback
-for ten seconds; successful responses continue through the existing bounded
-binary list transfer.
+disconnected broker. A rejected request produces a bounded error; the original
+S3 MQTT path is available only after deliberate Rescue activation. Successful
+responses continue through the existing bounded binary list transfer.
 
 Bridge `.38` makes playlist playback an atomic queue replacement. Playlist
 selection resolves the canonical playlist URI on the ESP32 and calls
@@ -174,11 +209,14 @@ first item. S3 `.78` identifies this route explicitly as
 `PLAYLIST_PAGE`; bridge `.38` accepts both playlist kind identifiers for
 backward compatibility.
 
-The current live acceptance automatically transferred all 140 Music Assistant
-playlists, including every entry after the 40-item retained bootstrap. Both
-processors reported 140 cached playlist locators and zero protocol errors.
-Playlist tracks use the same delta-page scheme and are prefetched in bounded
-chunks while the ESP32 retains their compact global URI index.
+The paging path has been live-accepted with all 140 Music Assistant playlists,
+including every entry after the 40-item retained bootstrap. Normal interaction
+does not eagerly transfer that complete catalog: the S3 requests one bounded
+page five cached entries before the user reaches the end. This keeps startup,
+UART traffic and heap use bounded while hiding the Home Assistant/MQTT/UART
+round trip behind continued scrolling. Playlist tracks use the same delta-page
+scheme and are prefetched in bounded chunks while the ESP32 retains their
+compact global URI index.
 
 S3 `.56` turns that proven path into a hard normal-operation boundary. The S3
 ignores retained playlist, radio, podcast and track JSON while the bridge owns
@@ -198,9 +236,9 @@ The S3 activates the bridge only when all conditions are true:
 4. bridge status remains fresher than 1.6 seconds.
 
 If any condition fails, `dual_mcu_ha_bridge_ready` becomes false immediately.
-Existing S3 Home Assistant services remain compiled and resume as the action
-fallback. Dynamic target changes therefore never send an action to the wrong
-entity.
+Existing S3 Home Assistant services remain compiled but resume only in
+deliberate Rescue mode. Dynamic target changes therefore never send an action
+to the wrong entity.
 
 The S3's direct Home Assistant state components remain present during this
 compatibility revision, but their media/light callbacks yield while the bridge
@@ -228,14 +266,15 @@ later normal S3 Wi-Fi, requires a separate regression gate.
 | `RADAR_BEGIN` | ESP32 → S3 | transfer ID and optional content length |
 | `RADAR_CHUNK` | ESP32 → S3 | offset plus up to 42 JPEG bytes |
 | `RADAR_END` | ESP32 → S3 | final byte count and end-to-end CRC-32 |
-| `RADAR_ERROR` | ESP32 → S3 | bounded error code that activates S3 fallback |
+| `RADAR_ERROR` | ESP32 → S3 | bounded error code; Rescue remains explicit |
 | `RADAR_ACK` | S3 → ESP32 | accepted transfer ID and next byte offset |
 | `LIBRARY_REQUEST` | S3 → ESP32 | request bootstrap or paginated library cache |
 | `LIBRARY_BEGIN/CHUNK/END` | ESP32 → S3 | bounded list transfer with total and CRC-32 |
 | `LIBRARY_ACK` | S3 → ESP32 | accepted transfer ID and next byte offset |
-| `LIBRARY_CHANGED/ERROR` | ESP32 → S3 | invalidate one cache or activate fallback |
-| `WLED_PRESET_ITEM` | ESP32 → S3 | generation-tagged bounded preset name |
-| `WLED_PRESET_META` | ESP32 → S3 | atomically commit count and active preset |
+| `LIBRARY_CHANGED/ERROR` | ESP32 → S3 | invalidate one cache or report an error |
+| `LIGHT_DETAIL_CATALOG_ITEM` | ESP32 → S3 | slot/generation/index plus bounded WLED or Hue label |
+| `LIGHT_DETAIL_CATALOG_META` | ESP32 → S3 | atomically commit kind, count and active index |
+| `HA_ACTION: LIGHT_DETAIL_ACTIVATE` | S3 → ESP32 | activate authoritative catalog slot/index |
 | `MEDIA_LIBRARY_PLAY` | S3 → ESP32 | select a cached media URI by kind/index |
 | `MEDIA_LIBRARY_PLAY_RESULT` | ESP32 → S3 | report the acknowledged HA action result |
 | `LIBRARY_PAGE_FETCH` | S3 → ESP32 | request playlist/track paging without S3 MQTT |
@@ -256,7 +295,7 @@ On the S3:
 - `S3 Forecast Conditions Received`;
 - `S3 Radar Proxy Status` and `S3 Radar Proxy Bytes`.
 - `S3 Library Proxy Status`.
-- `S3 WLED Preset Status`.
+- `S3 Light Detail Catalog` (`W` = WLED, `H` = Hue, `-` = no supported detail).
 
 On the ESP32:
 
@@ -269,6 +308,10 @@ On the ESP32:
 - `ESP32 Radar Proxy Status`.
 - `ESP32 Library Proxy Status`.
 - `ESP32 WLED Preset Status`.
+- `ESP32 Light Detail Catalog` with the authoritative count for all four slots.
+- `Refresh Light Detail Catalog`, a diagnostic button that invalidates only
+  the discovery state and starts a fresh Home Assistant registry lookup. The
+  last complete popup remains visible while that lookup is running.
 
 ## Manual acceptance test
 
@@ -283,10 +326,14 @@ On the ESP32:
    the ESP32 action counter must increase for controls initiated on the knob.
 5. Toggle a selected light and change brightness. Home Assistant and the S3 UI
    must converge.
-6. Restart only the ESP32. The S3 must remain operable, temporarily use direct
-   service fallback, then return to bridge-ready after reconnect.
+6. Restart only the ESP32. The S3 local UI and EC1 input must remain operable,
+   display unavailable network state and return to bridge-ready after reconnect
+   without starting MQTT or direct actions.
 7. Set one S3 target to a different entity. Bridge readiness must turn off and
-   the direct S3 route must remain functional.
+   no target-bound network action may be sent until targets match again or
+   Rescue mode is deliberately enabled. Playlist browsing must remain active:
+   scroll beyond the 40-entry bootstrap and confirm that the next bounded page
+   still arrives through the ESP32.
 8. Change the weather entity state in Home Assistant. Temperature, humidity,
    wind, condition and location must converge while protocol errors stay zero.
 9. Open the temperature context. It must show 08/13/19/23 o'clock plus compact
@@ -310,39 +357,59 @@ On the ESP32:
 13. Open the media picker and compare playlists, radios and podcasts with the
     existing Music Assistant lists. `S3 Library Proxy Status` must report all
     three received lists in sequence and both protocol counters must stay zero.
-14. Open Light details for a WLED entity. Its saved Home Assistant preset
-    options must appear in the popup and the active option must be highlighted.
-    Select a preset and confirm the ESP32 action counter increases once. With
-    no WLED presets saved, both diagnostics and the popup must report the empty
-    state without protocol errors.
-15. After boot, confirm `S3 Playlist Cache Entries` and
-    `ESP32 Playlist Cache Entries` converge to the same full catalog count
-    without pressing `Weitere laden`. Scroll beyond the retained bootstrap
-    boundary, select a playlist and confirm the title pages load automatically.
-    Paging metadata must remain intact and both protocol counters must stay at
-    zero. Selecting a transferred track must start the same URI as before.
-15. Confirm `ESP32 Bridge Time Synced` becomes on within 15 seconds and
+14. Open Light details for a WLED entity in each of the four configurable
+    slots. Its saved Home Assistant preset options must appear in the popup.
+    Select a preset and confirm exactly one `select.select_option` action is
+    executed by the ESP32. The WLED integration and the preset select are
+    resolved from the Home Assistant device registry, not from the slot number
+    or entity-name text.
+15. Open Light details for a Hue entity. Only Hue scenes assigned to the
+    selected light's Home Assistant area must appear. Select one and confirm
+    exactly one `scene.turn_on` action is executed by the ESP32. A Hue light
+    without an area, and a normal light without supported details, must show
+    the empty-state text without protocol errors.
+    Compare `ESP32 Light Detail Catalog` and `S3 Light Detail Catalog`; all
+    four slot kinds and counts must be identical.
+    Restart only the S3 while the ESP32 remains online. The S3 must request
+    another snapshot and converge without restarting the ESP32. Reset the
+    diagnostic counters after boot synchronization; both must remain zero
+    across the following 60-second recovery snapshot.
+    Then interrupt and restore only the ESP32 API connection. The existing
+    detail rows must remain visible during the interruption and both catalog
+    diagnostics must reconverge automatically. `Refresh Light Detail Catalog`
+    provides the same lookup on demand without rebooting either MCU.
+16. After boot, open the playlist picker and scroll with touch and encoder
+    beyond the retained bootstrap and at least two page boundaries. Five
+    entries before each S3 cache boundary, confirm that one bounded page is
+    requested and `S3 Playlist Cache Entries` increases by the received page.
+    The visible list must not stop or jump when the response arrives. Paging
+    metadata must remain intact and both protocol counters must stay at zero.
+    Selecting a transferred track must start the same URI as before.
+17. Confirm `ESP32 Bridge Time Synced` becomes on within 15 seconds and
     `ESP32 Bridge Time Age` repeatedly returns near zero. On the ESP32,
     `S3 Time Sync Acknowledged` must also be on and its acknowledgement age
     must return near zero every ten seconds. The centered clock, alarms, timer
     and screensaver clock must continue without a visible jump.
-16. Compare `S3 Battery Percentage via Bridge` and `S3 Battery Voltage via
+18. Compare `S3 Battery Percentage via Bridge` and `S3 Battery Voltage via
     Bridge` on the ESP32 device with the local S3 battery values. Disconnect
     and reconnect external power; `S3 External Power via Bridge` must follow
     within 16 seconds while both UART protocol counters remain unchanged.
-17. Exercise previous and next from the legacy media control entry point. Each
+19. Exercise previous and next from the legacy media control entry point. Each
     press must increase `ESP32 HA Bridge Actions` exactly once. Press `all
     lights off` only in a prepared test scene; it must add one bridge action
-    per configured light and must not require S3 Wi-Fi. Repeat after stopping
-    the ESP32 and confirm the direct S3 rescue services still work.
+    per configured light and must not require S3 feature networking. Repeat
+    after stopping the ESP32: no direct command may be sent until
+    `S3 Network Rescue Mode` is deliberately enabled; then verify the rescue
+    service and disable Rescue again.
 
 ## Performance stage 1
 
-Revision `.55` / `.21` makes the migrated ESP32 route the normal operating
-path. The S3 retains associated Wi-Fi, API and OTA components for recovery, but
-keeps its MQTT client disabled while the bridge is healthy. Bridge loss or a
-proxy rejection activates the direct compatibility path; a stable bridge
-disables it again after 30 seconds. UI-side UART work is bounded, repeated
+Revision `.55` / `.21` made the migrated ESP32 route the normal operating
+path. In current Version 2.0, the S3 retains Wi-Fi, API and OTA components for
+maintenance and deliberate rescue, but keeps MQTT/HTTP and direct integration
+actions disabled unless `S3 Network Rescue Mode` is enabled. Bridge loss or a
+proxy rejection alone does not activate that path. UI-side UART work is
+bounded, repeated
 diagnostic states are coalesced and bulk image decode waits for an idle window.
 The decorative second-dot redraw is disabled in this profile because its
 display flush introduced a measured recurring scheduler gap near 120 ms.
@@ -352,7 +419,7 @@ view visible for a four-second settling window after acceptance. An explicit
 error wins; an absent optional final callback no longer produces a false
 timeout. If even bridge acceptance is absent, the modal stays protected until
 the 15-second timeout and displays `START UNKLAR`. Playlist selector updates
-run on the S3 only when the ESP32 request proxy is unavailable.
+run on the S3 only in deliberate Rescue mode.
 
 Acceptance tests and latency limits are in
 [`stage1-responsiveness-test-catalog.md`](stage1-responsiveness-test-catalog.md).

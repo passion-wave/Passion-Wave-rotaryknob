@@ -4,9 +4,8 @@ This guide installs the Passion Wave Rotaryknob firmware in ESPHome and links it
 to Home Assistant.
 
 The intended public no-expert path is
-`https://www.passion-wave.com/install/`. As of 2026-07-24 this path is a
-prototype, not a retail-ready installer: the final device has two processors
-and the current public manifest covers only one image.
+`https://www.passion-wave.com/install/`. Version 2.1 provides two chip-specific
+stages and matching factory images.
 
 The customer still needs a USB data cable and a supported browser because Web
 Serial talks directly to the selected ESP32 over USB. Use Chrome or Edge on desktop.
@@ -20,28 +19,28 @@ This is the intended after-purchase flow:
    that exposes the ESP32-S3.
 2. Open `https://www.passion-wave.com/install/`.
 3. Press `Install Rotaryknob`.
-4. Let the installer verify that the connected chip is the ESP32-S3 and flash
-   the S3 factory image.
+4. Let the installer perform a clean erase, verify the ESP32-S3 and flash
+   `PassionWave Rotaryknob`.
 5. Provision Wi-Fi and verify the S3.
 6. Unplug the cable, reverse the USB-C plug and reconnect it.
-7. Let the installer verify that the connected chip is the classic ESP32 and
-   flash the bridge factory image.
+7. Let the installer perform a clean erase, verify the classic ESP32 and flash
+   `PassionWave Rotaryknob Bridge`.
 8. Provision Wi-Fi and verify both processors.
-9. Open Home Assistant and complete the Passion Wave config flow.
+9. Open Home Assistant and add both discovered ESPHome nodes. Public first
+   adoption does not ask for an API encryption key.
 
 Wi-Fi credentials entered in this flow are sent over USB to the device. They are
 not sent to Passion Wave.
 
-This browser path is technically possible and the website repository already
-contains an installer page and a single firmware manifest. Before it can be
-advertised for real customers, two factory manifests must be published:
+The website repository contains the installer page and both factory manifests:
 
 ```text
 https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json
 https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest.json
 ```
 
-Both binaries must be built from sanitized public factory configurations:
+Both published binaries are built from sanitized public factory
+configurations. Every new release must preserve these requirements:
 
 - no private Wi-Fi credentials;
 - no private MQTT credentials;
@@ -51,6 +50,9 @@ Both binaries must be built from sanitized public factory configurations:
 - `improv_serial` enabled for browser Wi-Fi setup;
 - `captive_portal` enabled as fallback provisioning path;
 - `dashboard_import` enabled for ESPHome adoption.
+- automatic clean erase enabled in both Web Tools manifests through
+  `new_install_prompt_erase: false`;
+- S3 deep sleep held back until the first Home Assistant API connection.
 
 The installer must identify the chip before writing and refuse the wrong image.
 The detailed target structure is documented in
@@ -136,7 +138,8 @@ Settings page, enables or disables this offline promo behavior.
 
 After the device connects, open:
 
-`Settings` -> `Devices & services` -> `ESPHome` -> `Passion Wave Rotaryknob`.
+`Settings` -> `Devices & services` -> `ESPHome`. Add both `PassionWave
+Rotaryknob` and `PassionWave Rotaryknob Bridge`.
 
 The simplest path is to import the device defaults blueprint first. It uses
 Home Assistant entity pickers, so the user does not type entity IDs manually:
@@ -151,9 +154,8 @@ Create one automation from that blueprint and select:
 - one `media_player` entity. Home Assistant lists all media players. Choose a
   Music Assistant capable player if playlist, radio or podcast browsing should
   be available. For a Sonos speaker, choose its native Music Assistant entity
-  (for example `media_player.move_2`) rather than the generic Sonos integration
-  entity. The latter supports basic transport and volume but does not own the
-  Music Assistant queue.
+  rather than the generic Sonos integration entity. The latter supports basic
+  transport and volume but does not own the Music Assistant queue.
 - four `light` entities. Home Assistant lists all light entities.
 
 The blueprint writes the selected entity IDs and friendly names into the
@@ -188,6 +190,11 @@ device page if the blueprint is not used:
 - `scrollwheel Timer Done Haptic Effect`
 - `Screensaver Startverzögerung` (10–600 s, Standard 30 s)
 - `Screensaver Abdunkeldauer` (100 % auf 10 %, 30–1800 s, Standard 300 s)
+- `Wach halten` (Dev-Schalter, Standard aus)
+- `Display Dimmverzögerung` (5–120 s, Standard 15 s)
+- `Display Dimmhelligkeit` (5–30 %, Standard 10 %)
+- `Display aus ohne Playback` (30–1800 s, Standard 60 s)
+- `Display aus bei Playback` (60–3600 s, Standard 180 s)
 
 The settings are stored persistently on the ESPHome device.
 

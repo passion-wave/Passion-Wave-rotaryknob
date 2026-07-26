@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "factory-v*"
+      - "v*"
 
 permissions:
   contents: read
@@ -17,19 +17,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Reject tracked secrets
         run: test ! -e esphome/secrets.yaml
-      - name: Compile S3 factory image
-        run: esphome compile esphome/factory-s3.yaml
-      - name: Compile ESP32 factory image
-        run: esphome compile esphome/factory-esp32.yaml
-      - name: Assemble release
-        run: |
-          mkdir -p release/s3 release/esp32
-          cp esphome/.esphome/build/passion_wave_factory_s3/build/firmware.factory.bin release/s3/passion-wave-rotaryknob-s3.factory.bin
-          cp esphome/.esphome/build/passion_wave_factory_esp32/build/firmware.factory.bin release/esp32/passion-wave-rotaryknob-esp32.factory.bin
-          cd release
-          sha256sum s3/*.bin esp32/*.bin > SHA256SUMS
+      - name: Validate, compile and assemble public release
+        env:
+          ESPHOME_COMMAND: esphome
+        run: tools/build-public-release.sh release/public
       - uses: actions/upload-artifact@v4
         with:
           name: passion-wave-dual-mcu-factory
-          path: release/
+          path: release/public/
           if-no-files-found: error

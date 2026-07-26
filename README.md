@@ -3,21 +3,22 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current coordinated release: **2.0.0 — `responsiveness,nextUI`**.
+Current coordinated release: **2.1.0 — `reliable-onboarding,responsiveness`**.
 
-Version 2.0.0 preserves the 1.2.0 functional baseline while promoting the
-two-processor performance architecture, NextUI and the ungeflashed-device
-factory pipeline. Historical migration revisions remain documented for
-traceability.
+Version 2.1.0 publishes the complete two-processor installer, gives both
+factory nodes stable customer-facing names, removes API-key prompts from public
+first adoption and keeps the S3 discoverable until Home Assistant has connected
+once. It also decouples the radar asset bridge from media/light target
+selection, preserving the ESP32-offloaded low-latency path.
 
-Version 2.0 is now integrated into `main`. The former integration branch
+Version 2.1 builds on the integrated Version 2.0 architecture. The former integration branch
 `feature/next` is retained at the same release commit; `stable/1.2.0` remains
 the unchanged rollback branch.
 
 ## Current architecture
 
 - ESP32-S3: EC1 encoder, touch, LVGL rendering, haptics, local optimistic UI and
-  a compatibility network path.
+  an explicitly activated, non-persistent network rescue path.
 - ESP32: Home Assistant API actions/state, weather, Music Assistant library,
   radar/floorplan/network assets and EC2 diagnostics.
 - Inter-processor link: 2 Mbit/s framed UART with COBS, CRC, priorities,
@@ -25,8 +26,9 @@ the unchanged rollback branch.
 - Home Assistant: optional automation blueprints for device targets and Music
   Assistant library paging.
 
-Both processors retain independent OTA update paths. The S3 compatibility path
-must remain enabled until the final recovery and endurance gates are passed.
+Both processors retain independent OTA update paths. Normal operation keeps
+network feature ownership on the ESP32; the S3 compatibility route starts only
+through `S3 Network Rescue Mode`.
 
 ## Repository layout
 
@@ -59,12 +61,21 @@ Rotating the encoder while the screensaver is visible raises the backlight to
 and then restarts the configured fade. Rotary input never leaves the
 screensaver or reaches a control on the page behind it.
 
+Below 100% battery state, a separate two-stage idle policy dims the display to
+10% after 15 seconds, then switches it off after 60 seconds without playback or
+180 seconds with playback. Home Assistant exposes all four values as persistent
+configuration numbers. The Settings entry `DEV: Wach halten` and the matching
+Home Assistant switch disable screensaver, dimming, shutdown and deep sleep for
+development sessions.
+
 ## Installation status
 
-The repository now supplies separate credential-free S3 and ESP32 factory
-profiles, reproducible release artifacts and independent OTA paths. The public
-browser flow lives in `Passion-Wave-web`; private test credentials remain only
-in the development wrappers. Maintainers should follow
+The repository supplies separate credential-free S3 and ESP32 factory
+profiles, reproducible release artifacts, generated chip-specific manifests
+and independent OTA paths. A clean factory install erases stale device
+identity data and exposes `PassionWave Rotaryknob` plus `PassionWave
+Rotaryknob Bridge` without asking the buyer for an API encryption key. Private
+test credentials remain only in the development wrappers. Maintainers should follow
 [Installation](docs/installation.md) and
 [Unflashed customer onboarding](docs/unflashed-customer-onboarding.md).
 
@@ -83,7 +94,9 @@ copy entity IDs, MQTT credentials or YAML.
 
 ## Documentation
 
-- [Version 2.0 release](RELEASE.md)
+- [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
+- [Version 2.1 release](RELEASE.md)
+- [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
 - [Project review](docs/project-review.md)
 - [Customer product architecture](docs/customer-product-architecture.md)

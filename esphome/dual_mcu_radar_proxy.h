@@ -497,6 +497,12 @@ class RadarProxyClient {
     this->completed_ = false;
     return value;
   }
+  // The decode worker owns the completed bytes only until it reports done.
+  // Release the compressed transfer immediately afterwards; the decoded
+  // OnlineImage pixel buffer remains valid and independent.
+  void release_completed_bytes() {
+    if (!this->active()) this->bytes_.clear();
+  }
   AssetKind completed_kind() const { return this->completed_kind_; }
   bool take_failure() {
     const bool value = this->failure_pending_;

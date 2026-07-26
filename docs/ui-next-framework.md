@@ -22,13 +22,13 @@ root (transparent, persistent)
 └── five-button curved navigation rail
 ```
 
-Only one primary view is visible. Navigation changes hidden flags and styles;
-it does not destroy objects or load images. The utility launchers temporarily
-hide the black primary panel while retaining the right rail over the complete
-legacy 1.2.0 page. The media picker is the deliberate exception: because it is
-a modal selection surface, the rail is hidden while the picker is open and is
-restored on close or selection. Selecting a primary rail item returns
-immediately to UI Next.
+Only one primary view is visible. Navigation between active UI-Next views
+changes hidden flags and styles and does not rebuild their objects. After
+framework construction, the reusable media picker is moved to the top layer
+and the unused legacy Light, Media and Weather object trees are deleted. The
+specialty pages remain available to the utility launchers. The media picker is
+modal, so the rail is hidden while it is open and restored on close or
+selection. Selecting a primary rail item returns immediately to UI Next.
 
 Revision `.87` reserves the complete media content width for title and artist.
 Artwork remains available in the automatic full-screen cover view, but no
@@ -79,7 +79,7 @@ adding work to the render loop.
 | View | Main interaction | Existing function source |
 | --- | --- | --- |
 | Wetter | temperature arc, condition/wind symbols, humidity, hourly context plus two daily summaries | weather globals and radar page |
-| Licht | selected light, brightness, on/off, source picker, WLED presets | four dynamic light slots |
+| Licht | selected light, brightness, on/off, source picker, WLED presets and Hue scenes | four dynamic light slots |
 | Medien | title, artist, progress, transport, volume, options | media cache and HA media actions |
 | Zeit | timer start/reset and alarm toggle | existing timer/alarm state machines |
 | Mehr | radar, photos, house and settings | complete legacy utility pages |
@@ -88,13 +88,34 @@ The rail therefore exposes exactly five stable concepts while every 1.2.0
 function remains reachable. On the Light view, tapping the large percentage
 toggles the selected light. Tapping its name opens a pre-allocated selector
 for all four configured light slots. The top-left `LICHT` caption is omitted as
-the selected rail entry already supplies that context. `Detail` opens a WLED
-preset selector when the selected entity is a WLED light. The classic ESP32
-subscribes to the Home Assistant select, transfers up to nine dynamic preset
-names plus the active selection, and executes validated selections. If no
-preset options are configured, the modal states that explicitly instead of
-presenting invented choices. Non-WLED lights retain the complete legacy detail
-editor.
+the selected rail entry already supplies that context. `Detail` opens one
+consistent, pre-allocated popup for device-specific actions:
+
+- for WLED lights it resolves the preset `select` belonging to the same Home
+  Assistant device and lists up to 32 saved presets;
+- for Hue lights it resolves the selected light's Home Assistant area and
+  lists up to 32 Hue scenes from that room.
+
+In the Version-2.0 dual-MCU profile, the classic ESP32 resolves all catalogs
+after its Home Assistant API connects. It keeps the authoritative scene entity
+IDs or preset values and transfers only generation-tagged labels, item count,
+kind and selected index to the S3. The S3 commits a catalog only after every
+item of one generation has arrived; opening the popup therefore needs neither
+a network round trip nor incremental row construction. Selecting a row sends
+only slot and index back to the ESP32. The ESP32 validates both against its
+cache and executes `select.select_option` for WLED or `scene.turn_on` for Hue.
+Only eight popup rows exist as LVGL objects. Encoder movement advances their
+virtual window through all 32 catalog entries, keeping heap use and repaint
+work bounded independently of the number of presets.
+
+The former direct S3 discovery/action implementation remains compiled only for
+the standalone profile and deliberate `S3 Network Rescue Mode`. The fast
+bridge path requires identical compiled light targets in both MCU profiles; a
+runtime target deviation disables bridge ownership instead of ever addressing
+the wrong light. If no matching details exist, the modal states that
+explicitly instead of presenting invented choices. Switching between the
+light picker and details first hides the old row set, so the dropdown is
+revealed atomically without stale content.
 
 With bridge `.13`, paginated playlist and track response JSON is no longer
 parsed on the display processor while the proxy is healthy. UI Next receives a
@@ -106,6 +127,13 @@ media page and UI Next page 22. Rotation changes only the selected row, keeps
 the highlighted row visible and may request the next bounded page near the
 list end; it cannot change volume or the primary navigation while the picker
 is open.
+
+The picker retains 16 LVGL row objects and moves this virtual window through
+the cached playlists instead of allocating a widget per catalog entry. Touch
+scrolling advances the window with five rows of context. Touch and encoder both
+prefetch exactly one bounded playlist page five cached entries before the end;
+an asynchronous response preserves the current scroll position. This avoids a
+visible stop without eagerly filling the complete catalog at startup.
 
 Revision `.44` makes the legacy media picker a true modal input surface for UI
 Next. Hidden rail hit-testing is disabled on touch-down, the release fallback
@@ -176,10 +204,8 @@ buttons are invalidated. Discrete buttons continue to use release events so
 swipes cannot trigger them accidentally.
 
 Each right-rail touch target still extends beyond the physical edge, but its
-surface remains black and invisible. A narrow cyan marker at x=356 identifies
-the selected destination, except on Media and Time where the round display edge
-makes it resemble an unrelated vertical separator. Those two views therefore
-use only their cyan icon and neutral-white name as the active state. In every row,
+surface remains transparent and invisible. No separate edge marker is drawn;
+the selected destination uses the active icon and text colours. In every row,
 inactive entries use a darker neutral. Icon and title use
 separate fixed-size label boxes aligned with `LEFT_MID` on the same centerline,
 so differing icon and text font metrics cannot shift individual entries
