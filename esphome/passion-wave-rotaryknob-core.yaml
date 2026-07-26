@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave Rotaryknob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "2.1.0"
+  project_version: "2.1.1"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "false"
   # Stage 1 leaves Wi-Fi/API/OTA available on the S3, but keeps application

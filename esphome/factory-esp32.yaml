@@ -35,7 +35,7 @@ esphome:
   build_path: build/passion_wave_factory_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "2.1.0"
+    version: "2.1.1"
 
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main
@@ -54,8 +54,9 @@ wifi:
     ssid: "Passion Wave Setup Bridge"
     password: "passion-wave"
 
+# ESP Web Tools owns Wi-Fi provisioning inside its dialog. Keep next_url
+# unset so Home Assistant is only opened by the final website step.
 improv_serial:
-  next_url: https://www.passion-wave.com/install/connected.html?stage=bridge-done&ip={{ip_address}}&name={{device_name}}&version={{esphome_version}}
 
 mqtt:
   broker: "homeassistant.local"

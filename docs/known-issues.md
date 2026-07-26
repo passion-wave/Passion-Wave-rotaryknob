@@ -9,49 +9,88 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
 
 ## Offen
 
-### PW-FW-001: Playlist-Paging endete am sichtbaren Listenfenster
-
-- **Status:** Auf S3 und ESP32 geflasht; automatisierter Paging-Test bestanden,
-  manueller Scrolltest ausstehend
-- **Betroffen:** S3-Medienauswahl in `Passion-Wave-rotaryknob`
-- **Fehlerbild:** Die Playlist-Liste endete beim Touch-Scrollen am Ende des
-  bereits gerenderten Fensters. In UI Next wurde keine Folgeseite angefordert;
-  eingetroffene Seiten konnten außerdem die Scrollposition zurücksetzen.
-- **Erwartet:** Touch und Encoder bewegen sich ohne sichtbare Unterbrechung
-  durch einen Katalog, der größer als Bootstrap und erste Seite ist.
-- **Ursache:** Der 200-ms-Paging-Pfad akzeptierte nur die Legacy-Medienseite
-  `2`, nicht die UI-Next-Seite `22`. Die 16 persistenten LVGL-Zeilen hatten
-  für Touch keine Fensterfortschaltung. Zusätzlich enthielt der Seitenzähler
-  nur die zuletzt empfangene Seitengröße statt des gesamten S3-Caches. Die
-  erste Korrektur reichte auf Geräten mit gespeicherten Laufzeitzielen nicht:
-  Die aus dem ESP32 gemeldete Paging-Fähigkeit wurde an die Übereinstimmung
-  aller Media- und Lichtziele gekoppelt. Bei einer Abweichung kam der
-  40-Einträge-Bootstrap an, der S3 sperrte aber Folgeseiten und löschte
-  `has_more`. Der sichtbare letzte Bootstrap-Eintrag war `Ektschen`.
-- **Behebung:** Paging gilt nun für beide Medienseiten. Das virtuelle Fenster
-  wird mit fünf überlappenden Zeilen fortgeschaltet, eine Folgeseite bereits
-  fünf Cache-Einträge vor dem Ende angefordert und der Gesamtzähler aus dem
-  akkumulierten Cache gebildet. Asynchrone Antworten behalten die aktuelle
-  Touch-Position. Bibliothekstransport und Seitenanforderungen sind unabhängig
-  von zielgebundenen Media-/Lichtaktionen freigegeben. Ein vorübergehend
-  fehlender Transport bewahrt Offset und `has_more`, wartet ohne wiederholte
-  Netzwerkanfragen und setzt nach Wiederkehr automatisch fort. Es wird bewusst
-  nicht der vollständige Katalog im Hintergrund geladen. Meldet der ESP32 eine
-  asynchron fertiggestellte Seite mit `LIBRARY_CHANGED`, wird ein passender,
-  zuvor mit „noch nicht bereit“ abgewiesener UART-Retry sofort freigegeben.
-  Seitenanforderung und 10-s-Retry können dadurch nicht mehr dauerhaft
-  phasengleich in einem Livelock bleiben. Startet der S3 während eines
-  Stop-and-wait-Transfers neu, verwirft der ESP32 den verwaisten Sendeslot nun
-  nach zwei Sekunden ohne bestätigten Fortschritt. Die nächste Seitenanfrage
-  wird damit ohne ESP32-Neustart wieder angenommen.
-- **Abnahme:** Der kontrollierte Gerätetest am 2026-07-26 übertrug nach dem
-  40er-Bootstrap zwei aufeinanderfolgende 24er-Seiten über
-  Home Assistant → MQTT → ESP32 → UART → S3. Beide Caches wuchsen stabil auf
-  64 und anschließend 88 Einträge; der ESP32 meldete dabei null
-  UART-Protokollfehler. Test `D04` noch mit Touch und Encoder durchführen; erst
-  danach in `Behoben` verschieben.
+Derzeit sind keine bestätigten, reproduzierbaren Softwarefehler offen.
+Physische Release-Abnahmen bleiben Qualitätsgates und werden nicht als
+Softwarefehler geführt.
 
 ## Behoben
+
+### PW-REL-002: Bridge-Flash öffnete die WLAN-Provisionierung nicht zuverlässig
+
+- **Status:** Behoben in Version 2.1.1
+- **Betroffen:** Öffentlicher ESP32-Bridge-Installer und Factory-Onboarding
+- **Fehlerbild:** Nach dem Schreiben der Bridge-Firmware erschien nicht in
+  jedem Installationslauf die erwartete WLAN-Auswahl.
+- **Ursache:** ESP Web Tools öffnet Improv nur nach einem Factory-Erase
+  automatisch. Ein bereits als Passion-Wave-Firmware erkannter Prozessor wurde
+  dagegen als Update behandelt und durfte gespeicherte oder leere NVS-
+  WLAN-Daten behalten. Die Website erklärte außerdem den erforderlichen
+  `Next`-Schritt nach 100 Prozent nicht deutlich genug.
+- **Behebung:** Der öffentliche Ersteinrichtungsbutton klassifiziert jede
+  Verbindung ausdrücklich als Factory-Installation. Damit erfolgen Clean
+  Erase, Neustart, Improv-Erkennung und WLAN-Dialog deterministisch. ESP Web
+  Tools ist auf Version 10.4.0 fixiert; die Wartezeit bleibt 120 Sekunden.
+  Der Assistent schaltet nicht anhand eines Flash-Events weiter, sondern erst
+  nach expliziter WLAN-Bestätigung. Ein separater Bridge-WLAN-Button kann
+  Improv nach einem USB-Reconnect öffnen, ohne erneut zu flashen. Beide
+  Factory-Builds prüfen in CI Improv Serial und UART0-Logger mit 115200 Baud.
+
+### PW-WEB-001: ESP-Web-Tools-Abzweigungen unterbrachen den Installationsfluss
+
+- **Status:** Behoben in Version 2.1.1
+- **Betroffen:** Beide öffentlichen Factory-Manifeste und Improv-Profile
+- **Fehlerbild:** Nach der WLAN-Eingabe bot der Dialog direkte Sprünge zum
+  Gerät oder zu Home Assistant an, obwohl der zweite Prozessor beziehungsweise
+  der geführte Abschluss noch fehlte.
+- **Ursache:** `improv_serial.next_url` und `home_assistant_domain` erzeugten
+  zusätzliche Aktionen im ESP-Web-Tools-Dialog.
+- **Behebung:** Beide Felder sind aus Factory-Profilen, Manifestgenerator und
+  ausgelieferten Manifesten entfernt. Home Assistant wird ausschließlich im
+  fünften Website-Schritt geöffnet.
+
+### PW-WEB-002: Website hatte keine englische Standardfassung
+
+- **Status:** Behoben in Version 2.1.1
+- **Betroffen:** `Passion-Wave-web`
+- **Fehlerbild:** Produkt, Installer, Hilfe und Rechtstexte waren nur deutsch,
+  wodurch der öffentliche Einstieg kein internationales Release abbildete.
+- **Behebung:** Alle sieben kanonischen HTML-Seiten verwenden Englisch und
+  `lang="en"`. Die Site-Prüfung erzwingt diese Vorgabe für neue Seiten.
+
+### PW-WEB-003: Kein öffentlicher Rückkanal für Fehlerberichte
+
+- **Status:** Behoben in Version 2.1.1
+- **Betroffen:** Website und GitHub-Repository
+- **Fehlerbild:** Käufer fanden keinen eindeutigen Weg für reproduzierbare
+  Problemberichte.
+- **Behebung:** Installer, Hilfe und Footer verlinken den aktivierten GitHub-
+  Issue-Tracker. Ein strukturiertes Bug-Formular fragt Bereich, Version,
+  Reproduktion und Diagnosen ab und verlangt die Bestätigung, dass Schlüssel
+  und persönliche Daten entfernt wurden.
+
+### PW-FW-001: Playlist-Paging endete am sichtbaren Listenfenster
+
+- **Status:** Behoben im Version-2.1.1-Quellstand; automatisierter
+  Gerätetransporttest bestanden
+- **Betroffen:** S3-Medienauswahl in `Passion-Wave-rotaryknob`
+- **Fehlerbild:** Die Playlist-Liste endete beim Touch-Scrollen am letzten
+  Eintrag des 40er-Bootstrap-Fensters (`Ektschen`).
+- **Ursache:** UI-Next-Seite 22, virtuelles Touch-Fenster, akkumulierter
+  Cache-Zähler und die von Media-/Lichtzielabgleich unabhängige
+  Paging-Fähigkeit waren nicht durchgängig verbunden. Asynchrone Antworten und
+  verwaiste Stop-and-wait-Slots konnten den Fortschritt zusätzlich blockieren.
+- **Behebung:** Touch und Encoder verschieben das virtuelle Fenster mit fünf
+  überlappenden Zeilen. Die nächste Seite wird fünf Cache-Einträge vor dem Ende
+  angefordert, Antworten erhalten die Scrollposition, und `has_more` sowie
+  Offset überleben einen vorübergehend fehlenden Transport. Bibliothekspaging
+  ist von zielgebundenen Aktionen entkoppelt; fertige asynchrone Seiten lösen
+  blockierte UART-Retries sofort, und verwaiste Sendeslots laufen nach zwei
+  Sekunden ab.
+- **Abnahme:** Der Gerätetest übertrug nach dem 40er-Bootstrap zwei
+  aufeinanderfolgende 24er-Seiten über Home Assistant → MQTT → ESP32 → UART →
+  S3. Die Caches wuchsen auf 64 und 88 Einträge, ohne UART-Protokollfehler.
+  Touch-/Encoder-Test `D04` bleibt ein physisches Release-Gate, ist aber kein
+  noch offener Implementierungsfehler.
 
 ### PW-REL-001: Öffentlicher Installer lieferte Altgerät mit Schlüsselabfrage
 

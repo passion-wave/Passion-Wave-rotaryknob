@@ -27,7 +27,8 @@ entities directly.
 - One visible primary action per stage.
 - No copied entity IDs.
 - No manual YAML editing for normal buyers.
-- Wi-Fi is asked by the browser immediately after flashing.
+- After writing completes, the browser's `Next` action opens Wi-Fi
+  provisioning before the website allows the next processor stage.
 - Home Assistant choices are asked inside Home Assistant because it knows the
   user's entities.
 - Advanced ESPHome, secrets and factory-binary details stay in maintainer docs,
@@ -70,6 +71,7 @@ Each image must be built from a public factory configuration with:
 - `dashboard_import` enabled for ESPHome adoption.
 - a first-adoption guard that keeps the S3 discoverable until Home Assistant
   has connected once.
+- no Improv `next_url`; the website owns stage progression.
 
 Development builds with private `secrets.yaml` values must never be published
 as website installer assets.
@@ -89,6 +91,9 @@ as website installer assets.
   Wi-Fi, Home Assistant and IP status in settings.
 - Each manifest declares exactly one matching chip family. The wizard explains
   the USB-C reversal and links to Home Assistant after both stages.
+- Public factory buttons force clean installation even if an older Passion
+  Wave firmware identifies as the same project. A separate bridge button
+  reopens Improv without reflashing if serial reconnection fails.
 - Pairing both ESPHome nodes into one logical Home Assistant product and the
   planned no-code `passion_wave` config flow are not implemented.
 

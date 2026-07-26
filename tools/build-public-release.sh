@@ -46,6 +46,17 @@ grep -q 'friendly_name: PassionWave Rotaryknob Bridge$' \
   "${resolved_dir}/factory-esp32.yaml"
 grep -q 'name_add_mac_suffix: true' "${resolved_dir}/factory-s3.yaml"
 grep -q 'name_add_mac_suffix: true' "${resolved_dir}/factory-esp32.yaml"
+grep -q '^improv_serial:' "${resolved_dir}/factory-s3.yaml"
+grep -q '^improv_serial:' "${resolved_dir}/factory-esp32.yaml"
+grep -q '^  baud_rate: 115200$' "${resolved_dir}/factory-s3.yaml"
+grep -q '^  baud_rate: 115200$' "${resolved_dir}/factory-esp32.yaml"
+grep -q '^  hardware_uart: UART0$' "${resolved_dir}/factory-s3.yaml"
+grep -q '^  hardware_uart: UART0$' "${resolved_dir}/factory-esp32.yaml"
+if grep -q 'next_url:' \
+    "${resolved_dir}/factory-s3.yaml" "${resolved_dir}/factory-esp32.yaml"; then
+  echo "Public factory Improv must not expose a next_url." >&2
+  exit 1
+fi
 
 cp "${repo_dir}/esphome/.esphome/build/passion_wave_factory_s3/build/firmware.factory.bin" \
   "${output_dir}/s3/passion-wave-rotaryknob-s3.factory.bin"
@@ -58,7 +69,6 @@ cat > "${output_dir}/s3/manifest.json" <<EOF
 {
   "name": "PassionWave Rotaryknob",
   "version": "${version}",
-  "home_assistant_domain": "esphome",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 120,
   "builds": [
@@ -76,7 +86,6 @@ cat > "${output_dir}/esp32/manifest.json" <<EOF
 {
   "name": "PassionWave Rotaryknob Bridge",
   "version": "${version}",
-  "home_assistant_domain": "esphome",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 120,
   "builds": [

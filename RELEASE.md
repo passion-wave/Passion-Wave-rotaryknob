@@ -1,14 +1,19 @@
-# Version 2.1.0
+# Version 2.1.1
 
-Release description: `reliable-onboarding,responsiveness`
+Release description: `deterministic-onboarding,international-support`
 
 ## Scope
 
-Version 2.1.0 turns the dual-processor architecture into a complete public
-two-stage release:
+Version 2.1.1 hardens the complete public two-stage release:
 
 - Home Assistant discovers two explicit nodes, `PassionWave Rotaryknob` and
   `PassionWave Rotaryknob Bridge`;
+- public factory buttons always perform a clean install so ESP Web Tools opens
+  Improv Wi-Fi provisioning after both processor flashes;
+- the Improv and manifest metadata no longer expose premature device or Home
+  Assistant links during the two-stage wizard;
+- the public website defaults to English and exposes a structured GitHub issue
+  form for support;
 - chip-specific manifests require a clean erase, preventing stale private
   names, Wi-Fi state and former API credentials from surviving a factory flash;
 - both public profiles expose a credential-free first-adoption API, while
@@ -59,7 +64,7 @@ gates.
 
 ## Version history
 
-Version 2.1.0 is released from `main`. Version 2.0.0 remains the immutable
+Version 2.1.1 is released from `main`. Version 2.0.0 remains the immutable
 architecture baseline at tag `v2.0.0`; `stable/1.2.0` remains the legacy
 single-MCU rollback point.
 
@@ -67,17 +72,19 @@ single-MCU rollback point.
 - `feature/next`: retained as Version 2.0 integration history.
 - `stable/1.2.0`: unchanged rollback point for Version 1.2.0.
 
-## Verified Version 2.1 public artifacts
+## Verified Version 2.1.1 public artifacts
 
 On 2026-07-26 both credential-free factory profiles resolved and compiled with
 ESPHome 2026.7.0. The S3 image uses 71.7% of its app partition and 57.5% of
 available runtime RAM; the ESP32 image uses 59.6% of its app partition and
-43.4% of runtime RAM. Both manifests expose one chip family, version `2.1.0`,
+43.4% of runtime RAM. Both manifests expose one chip family, version `2.1.1`,
 the intended PassionWave name, clean erase and a 120-second Improv wait.
+Neither manifest offers an intermediate Home Assistant link, and neither
+Improv profile exposes a `next_url`.
 
 ```text
-3ff5c25b9a99d1ae6dbb4722c07312acc30a1c44cb50112eefcf6ab77e48355b  s3/passion-wave-rotaryknob-s3.factory.bin
-ea04ec704adf7951b292a57d1091633629d500c2cb0562d64bb7bf3b7cdab392  esp32/passion-wave-rotaryknob-esp32.factory.bin
+ad35aac10506d328ce2078b3f7f9e3e264b3fa4094052f444b47bd7c92969937  s3/passion-wave-rotaryknob-s3.factory.bin
+caf235a93a5e3f1ec527f36aa9f6288286561958de0d6ce50f3fc11eefb1a54e  esp32/passion-wave-rotaryknob-esp32.factory.bin
 ```
 
 ## Previous verified maintenance baseline

@@ -3,13 +3,15 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current coordinated release: **2.1.0 — `reliable-onboarding,responsiveness`**.
+Current coordinated release: **2.1.1 — `deterministic-onboarding,international-support`**.
 
-Version 2.1.0 publishes the complete two-processor installer, gives both
+Version 2.1.1 keeps the complete two-processor installer, gives both
 factory nodes stable customer-facing names, removes API-key prompts from public
-first adoption and keeps the S3 discoverable until Home Assistant has connected
-once. It also decouples the radar asset bridge from media/light target
-selection, preserving the ESP32-offloaded low-latency path.
+first adoption, and now forces every public installer run through clean erase
+and Improv Wi-Fi provisioning. Direct Home Assistant/device jumps were removed
+from the firmware dialog, the website defaults to English, and a structured
+GitHub issue path is available. The S3 remains discoverable until Home
+Assistant has connected once.
 
 Version 2.1 builds on the integrated Version 2.0 architecture. The former integration branch
 `feature/next` is retained at the same release commit; `stable/1.2.0` remains

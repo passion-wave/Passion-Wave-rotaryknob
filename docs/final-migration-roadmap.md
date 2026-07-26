@@ -1,7 +1,7 @@
 # Final migration roadmap
 
 This roadmap records the four dual-MCU migration milestones. The current
-product release is Version `2.1.0` (`reliable-onboarding,responsiveness`); internal S3
+product release is Version `2.1.1` (`deterministic-onboarding,international-support`); internal S3
 `.98` and ESP32 `.50` counters plus `.80/.39` and `.89/.45` in the milestone
 history are rollback checkpoints. The production device
 `passion_wave_rotaryknob` remains unchanged on version 1.2.0.

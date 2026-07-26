@@ -39,7 +39,7 @@ esphome:
     - dual_mcu_library_proxy.h
   project:
     name: "passion-wave.rotaryknob-test-esp32"
-    version: "2.1.0"
+    version: "2.1.1"
   on_boot:
     priority: -100
     then:

@@ -4,7 +4,7 @@ This guide installs the Passion Wave Rotaryknob firmware in ESPHome and links it
 to Home Assistant.
 
 The intended public no-expert path is
-`https://www.passion-wave.com/install/`. Version 2.1 provides two chip-specific
+`https://www.passion-wave.com/install/`. Version 2.1.1 provides two chip-specific
 stages and matching factory images.
 
 The customer still needs a USB data cable and a supported browser because Web
@@ -21,11 +21,14 @@ This is the intended after-purchase flow:
 3. Press `Install Rotaryknob`.
 4. Let the installer perform a clean erase, verify the ESP32-S3 and flash
    `PassionWave Rotaryknob`.
-5. Provision Wi-Fi and verify the S3.
+5. At 100 percent keep the ESP Web Tools dialog open, press `Next`, provision
+   Wi-Fi and verify the S3.
 6. Unplug the cable, reverse the USB-C plug and reconnect it.
 7. Let the installer perform a clean erase, verify the classic ESP32 and flash
    `PassionWave Rotaryknob Bridge`.
-8. Provision Wi-Fi and verify both processors.
+8. Keep the dialog open, press `Next`, provision Wi-Fi and verify both
+   processors. If the browser does not reconnect Improv automatically, use the
+   separate bridge Wi-Fi button; it reconnects without another flash.
 9. Open Home Assistant and add both discovered ESPHome nodes. Public first
    adoption does not ask for an API encryption key.
 
@@ -52,6 +55,8 @@ configurations. Every new release must preserve these requirements:
 - `dashboard_import` enabled for ESPHome adoption.
 - automatic clean erase enabled in both Web Tools manifests through
   `new_install_prompt_erase: false`;
+- no `home_assistant_domain` or Improv `next_url`; Home Assistant opens only in
+  the final guided step;
 - S3 deep sleep held back until the first Home Assistant API connection.
 
 The installer must identify the chip before writing and refuse the wrong image.

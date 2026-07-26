@@ -18,7 +18,7 @@ substitutions:
   name: "passionwave-rotaryknob"
   friendly_name: "PassionWave Rotaryknob"
   project_name: "passion-wave.rotaryknob-s3"
-  project_version: "2.1.0"
+  project_version: "2.1.1"
   factory_onboarding_guard: "true"
   mqtt_host: "homeassistant.local"
   mqtt_username: ""
@@ -62,8 +62,9 @@ wifi:
 
 captive_portal:
 
+# ESP Web Tools owns Wi-Fi provisioning inside its dialog. Keep next_url
+# unset so the customer cannot leave the guided two-processor flow early.
 improv_serial:
-  next_url: https://www.passion-wave.com/install/?stage=s3-done&ip={{ip_address}}&name={{device_name}}&version={{esphome_version}}
 
 mqtt:
   broker: "homeassistant.local"

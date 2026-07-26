@@ -1,6 +1,6 @@
 # S3 network dependency inventory
 
-The current product release is Version `2.1.0`
+The current product release is Version `2.1.1`
 (`responsiveness,nextUI`). Internal revisions `.98/.50`, `.80/.39` and
 `.83/.45` below are historical migration checkpoints, not customer-facing
 versions. The production device remains on its unchanged 1.2.0 configuration.

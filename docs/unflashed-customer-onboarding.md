@@ -46,11 +46,11 @@ Factory-Builds.
 
 1. Website in Chrome oder Edge auf einem Desktop öffnen.
 2. USB-Datenkabel anschließen und im Portdialog `ESP32-S3` wählen.
-3. Clean Erase bestätigen, `PassionWave Rotaryknob` installieren und WLAN per
-   Improv setzen.
+3. `PassionWave Rotaryknob` installieren, nach 100 Prozent `Next` wählen und
+   WLAN per Improv setzen. Der Factory-Assistent erzwingt Clean Erase.
 4. Stecker abziehen, um 180 Grad drehen und erneut einstecken.
 5. Im zweiten Dialog `ESP32` ohne `S3` wählen, `PassionWave Rotaryknob Bridge`
-   installieren und dasselbe WLAN setzen.
+   installieren, `Next` wählen und dasselbe WLAN setzen.
 6. Home Assistant über den vorbereiteten My-Link öffnen und beide entdeckten
    ESPHome-Geräte ohne Encryption-Key-Eingabe bestätigen.
 7. Passion-Wave-App importieren, S3, Bridge, Medienplayer, Wetter und Leuchten
@@ -72,6 +72,7 @@ Beide öffentlichen Profile enthalten:
 - einen Fallback-Access-Point;
 - `improv_serial` für erneute WLAN-Provisionierung.
 - Clean-Erase-Vorgabe gegen alte Namen, Netzdaten und API-Schlüssel;
+- keine direkten Geräte-/Home-Assistant-Sprünge im Improv-Dialog;
 - Onboarding-Wachschutz bis zur ersten Home-Assistant-Verbindung.
 
 Updates werden pro Prozessor veröffentlicht und nie als gemeinsames,
