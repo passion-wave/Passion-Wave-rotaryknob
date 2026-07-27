@@ -11,7 +11,7 @@
       },
       "user": {
         "title": "Set up PassionWave Rotaryknob",
-        "description": "Connect an ESPHome bridge to Music Assistant. The next step optionally limits the media entries shown on the device.",
+        "description": "Connect an ESPHome bridge to Music Assistant. All playlists, radio stations and podcasts are included automatically and can be limited later under Configure.",
         "data": {
           "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
           "music_assistant_config_entry_id": "Music Assistant instance",

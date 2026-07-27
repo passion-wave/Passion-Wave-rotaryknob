@@ -146,6 +146,9 @@ The PassionWave Options Flow provides searchable multiple-selection fields for
 visible playlists, radios and podcasts. `Alle automatisch` is the default and
 follows the complete Music Assistant library. Remove that value to show only
 selected entries. An empty selection hides the corresponding category.
+The initial setup does not interrupt onboarding with this optional filter:
+after Bridge, Music Assistant instance and player are selected, the Config
+Entry is created with all three categories set to `Alle automatisch`.
 
 Only stable Music Assistant URIs are stored as a visibility filter. Names,
 ordering and playlist contents still come from Music Assistant. Add, remove,

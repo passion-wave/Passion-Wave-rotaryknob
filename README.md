@@ -81,8 +81,10 @@ hardware acceptance.
    WLAN and confirm their two ESPHome endpoints in Home Assistant. Never mix
    V2 and V3 on the two chips of one device.
 5. Add one PassionWave Config Entry for the physical Rotaryknob. Select its
-   Bridge registration, Music Assistant instance, player and optional visible
-   media entries. Use the remaining blueprint only for the four light slots.
+   Bridge registration, Music Assistant instance and player. The complete
+   Music Assistant library is enabled automatically; optional visibility
+   filters remain available under **Configure**. Use the remaining blueprint
+   only for the four light slots.
 6. Verify encoder, touch, media paging, weather, radar, floorplan, UART status
    and both OTA paths with the acceptance list in
    [Managed deployment](docs/managed-deployment.md).

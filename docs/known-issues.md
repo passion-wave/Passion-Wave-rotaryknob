@@ -9,6 +9,27 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
 
 ## Offen
 
+### PW-HA-001: Verbindungszuordnung erschien als leeres Formular
+
+- **Status:** Im Quellstand behoben; Home-Assistant-Neustart und
+  Onboarding-Abnahme ausstehend
+- **Betroffen:** Zuordnung von Bridge, Music-Assistant-Instanz und Medienplayer
+  in der PassionWave-Ersteinrichtung unter Home Assistant 2026.7.4
+- **Fehlerbild:** Home Assistant zeigte nur die englische Überschrift
+  `Set up PassionWave Rotaryknob` und eine Submit-Schaltfläche. Die drei
+  gefilterten Registry-Selektoren wurden vollständig unterdrückt.
+- **Behebung:** Der Flow erzeugt die Optionen explizit aus Config-Entry-,
+  Entity- und State-Registry und rendert sie über denselben stabilen
+  Select-Selector wie die zuvor erfolgreich geprüfte S3-/Bridge-Auswahl.
+  Nach der Zuordnung wird der Eintrag direkt mit der vollständigen
+  Music-Assistant-Bibliothek über `__all__` erstellt. Die optionale
+  Einschränkung bleibt unter **Konfigurieren** möglich.
+- **Abnahme:** Home Assistant neu starten, den angefangenen Flow verwerfen und
+  PassionWave erneut hinzufügen. Alle drei Auswahlfelder müssen sichtbar sein;
+  nach ihrer Bestätigung muss der Config Entry unmittelbar erstellt werden.
+  Anschließend müssen Playlist, Radio und Podcast ohne zusätzliche
+  Filterkonfiguration geladen werden.
+
 ### PW-SEC-002: Home Assistant verlangt beim Factory-Onboarding einen Schlüssel
 
 - **Status:** Im Quellstand 3.0.0-beta.3 behoben; End-to-End-Abnahme ausstehend

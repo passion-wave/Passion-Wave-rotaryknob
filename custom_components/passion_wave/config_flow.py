@@ -9,7 +9,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     device_registry as dr,
@@ -46,7 +46,9 @@ from .pairing import (
 )
 
 
-def _connection_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+def _connection_schema(
+    hass: HomeAssistant, defaults: dict[str, Any] | None = None
+) -> vol.Schema:
     values = defaults or {}
 
     def required(key: str) -> vol.Marker:
@@ -56,22 +58,41 @@ def _connection_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             else vol.Required(key)
         )
 
+    registry = er.async_get(hass)
+
+    def entity_label(entry: er.RegistryEntry) -> str:
+        state = hass.states.get(entry.entity_id)
+        if state and (friendly_name := state.attributes.get("friendly_name")):
+            return str(friendly_name)
+        return entry.name or entry.original_name or entry.entity_id
+
+    registration_options: list[selector.SelectOptionDict] = [
+        {"value": entry.entity_id, "label": entity_label(entry)}
+        for entry in registry.entities.values()
+        if entry.platform == "esphome"
+        and entry.original_name == BRIDGE_REGISTRATION_ORIGINAL_NAME
+    ]
+    ma_entry_options: list[selector.SelectOptionDict] = [
+        {"value": entry.entry_id, "label": entry.title}
+        for entry in hass.config_entries.async_entries("music_assistant")
+    ]
+    media_player_options: list[selector.SelectOptionDict] = [
+        {"value": entry.entity_id, "label": entity_label(entry)}
+        for entry in registry.entities.values()
+        if entry.platform == "music_assistant"
+        and entry.domain == "media_player"
+    ]
+
     return vol.Schema(
         {
-            required(CONF_BRIDGE_REGISTRATION_ENTITY): selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain="text",
-                    integration="esphome",
-                )
+            required(CONF_BRIDGE_REGISTRATION_ENTITY): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=registration_options)
             ),
-            required(CONF_MA_CONFIG_ENTRY_ID): selector.ConfigEntrySelector(
-                selector.ConfigEntrySelectorConfig(integration="music_assistant")
+            required(CONF_MA_CONFIG_ENTRY_ID): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=ma_entry_options)
             ),
-            required(CONF_MEDIA_PLAYER): selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain="media_player",
-                    integration="music_assistant",
-                )
+            required(CONF_MEDIA_PLAYER): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=media_player_options)
             ),
         }
     )
@@ -300,18 +321,23 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if device
                     else registration.entity_id
                 )
-                self._pending_data = user_input
-                try:
-                    self._catalogs = await _async_load_catalogs(
-                        self, user_input[CONF_MA_CONFIG_ENTRY_ID]
-                    )
-                except HomeAssistantError:
-                    self._library_error = True
-                return await self.async_step_library()
+                # A new device must work without another optional setup page.
+                # Start with the complete Music Assistant library; users can
+                # narrow the visible entries later through the options flow.
+                return self.async_create_entry(
+                    title=self._entry_title,
+                    data={
+                        **user_input,
+                        **{
+                            key: [SHOW_ALL]
+                            for key in LIBRARY_FILTER_KEYS.values()
+                        },
+                    },
+                )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_connection_schema(user_input),
+            data_schema=_connection_schema(self.hass, user_input),
             errors=errors,
         )
 
@@ -378,7 +404,7 @@ class PassionWaveOptionsFlow(config_entries.OptionsFlow):
         defaults = {**self._entry.data, **self._entry.options}
         return self.async_show_form(
             step_id="init",
-            data_schema=_connection_schema(user_input or defaults),
+            data_schema=_connection_schema(self.hass, user_input or defaults),
             errors=errors,
         )
 
