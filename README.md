@@ -3,7 +3,7 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current Home Assistant integration beta: **3.0.0-beta.6**. The unchanged
+Current Home Assistant integration beta: **3.0.0-beta.7**. The unchanged
 device firmware remains **3.0.0-beta.3 — `secure-zero-psk-pairing`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone

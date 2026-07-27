@@ -1,9 +1,11 @@
 """Focused tests for the PassionWave customer target flow."""
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from custom_components.passion_wave.config_flow import (
+    PassionWaveConfigFlow,
     _connection_schema,
     _current_s3_light_defaults,
     _lights_schema,
@@ -138,6 +140,25 @@ def test_connection_schema_exposes_all_customer_assignments():
     assert result[CONF_BRIDGE_REGISTRATION_ENTITY] == "text.registration"
     assert result[CONF_MA_CONFIG_ENTRY_ID] == "ma-entry"
     assert result[CONF_MEDIA_PLAYER] == "media_player.living_room"
+
+
+def test_connection_form_routes_submit_to_connection_step():
+    """Submitting assignments must not restart the user/pairing step."""
+    registry = SimpleNamespace(entities={})
+    hass = SimpleNamespace(
+        states=FakeStates({}),
+        config_entries=FakeConfigEntries([]),
+    )
+    flow = PassionWaveConfigFlow()
+    flow.hass = hass
+
+    with patch(
+        "custom_components.passion_wave.config_flow.er.async_get",
+        return_value=registry,
+    ):
+        result = asyncio.run(flow.async_step_connection())
+
+    assert result["step_id"] == "connection"
 
 
 def test_light_schema_supports_order_and_empty_positions():

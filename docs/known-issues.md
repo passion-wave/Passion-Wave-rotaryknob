@@ -56,6 +56,23 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
   **Konfigurieren** wechseln und eine gewählte Lichtentität umbenennen. Anzeige
   und Zielsteuerung müssen ohne Blueprint oder Neustart folgen.
 
+### PW-HA-004: Zuordnungsdialog sprang zurück zur sicheren Kopplung
+
+- **Status:** In 3.0.0-beta.7 behoben; Live-Abnahme ausstehend
+- **Betroffen:** Übergang von Display-/Bridge-/Music-Assistant-Zuordnung zu
+  den vier Lichtplätzen
+- **Fehlerbild:** Nach Bestätigung von Music Assistant und Player erschien
+  erneut **Securely connect the Rotaryknob**.
+- **Ursache:** `async_step_connection()` gab sein Formular fälschlich mit
+  `step_id="user"` zurück. Home Assistant leitete die Antwort deshalb wieder
+  an `async_step_user()` und startete die Discovery-/Pairing-Entscheidung neu.
+- **Behebung:** Der Dialog besitzt nun den eigenen Schritt `connection`;
+  Submit wird dadurch deterministisch an `async_step_connection()` geleitet
+  und öffnet anschließend `lights`.
+- **Abnahme:** PassionWave neu hinzufügen, Zuordnung bestätigen, vier
+  Lichtplätze konfigurieren und prüfen, dass kein Pairing-Schritt erneut
+  erscheint.
+
 ### PW-SEC-002: Home Assistant verlangt beim Factory-Onboarding einen Schlüssel
 
 - **Status:** Im Quellstand 3.0.0-beta.3 behoben; End-to-End-Abnahme ausstehend

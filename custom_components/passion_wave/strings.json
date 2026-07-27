@@ -9,7 +9,7 @@
           "bridge_host": "Bridge / ESP32"
         }
       },
-      "user": {
+      "connection": {
         "title": "PassionWave Rotaryknob einrichten",
         "description": "Ordne das Display und die Bridge dieses Rotaryknob sowie Music Assistant zu. Alle Zuordnungen können später am PassionWave-Eintrag unter „Konfigurieren“ geändert werden.",
         "data": {

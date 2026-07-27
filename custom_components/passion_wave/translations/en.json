@@ -9,7 +9,7 @@
           "bridge_host": "Bridge / ESP32"
         }
       },
-      "user": {
+      "connection": {
         "title": "Set up PassionWave Rotaryknob",
         "description": "Assign this Rotaryknob display and bridge plus Music Assistant. Every assignment can be changed later from Configure on the PassionWave entry.",
         "data": {

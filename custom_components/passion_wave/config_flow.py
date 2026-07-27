@@ -414,7 +414,7 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_lights()
 
         return self.async_show_form(
-            step_id="user",
+            step_id="connection",
             data_schema=_connection_schema(self.hass, user_input),
             errors=errors,
         )
