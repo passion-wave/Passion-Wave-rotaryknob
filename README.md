@@ -3,11 +3,12 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current beta: **3.0.0-beta.3 — `secure-zero-psk-pairing`**.
+Current Home Assistant integration beta: **3.0.0-beta.5**. The unchanged
+device firmware remains **3.0.0-beta.3 — `secure-zero-psk-pairing`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone
 Single-MCU entrypoint, MQTT media transport, S3 application-network fallback,
-Music Assistant setup blueprint and YAML media helper have been removed.
+All setup blueprints and the YAML media helper have been removed.
 Both processors of a physical Rotaryknob must be updated together after the
 Home Assistant integration is installed.
 
@@ -81,10 +82,10 @@ hardware acceptance.
    WLAN and confirm their two ESPHome endpoints in Home Assistant. Never mix
    V2 and V3 on the two chips of one device.
 5. Add one PassionWave Config Entry for the physical Rotaryknob. Select its
-   Bridge registration, Music Assistant instance and player. The complete
-   Music Assistant library is enabled automatically; optional visibility
-   filters remain available under **Configure**. Use the remaining blueprint
-   only for the four light slots.
+   Display/S3, Bridge registration, Music Assistant instance, player and four
+   ordered light positions. The complete Music Assistant library is enabled
+   automatically; all assignments and optional visibility filters remain
+   available under **Configure**.
 6. Verify encoder, touch, media paging, weather, radar, floorplan, UART status
    and both OTA paths with the acceptance list in
    [Managed deployment](docs/managed-deployment.md).
@@ -99,7 +100,6 @@ are in [Installation](docs/installation.md).
   installed-endpoint entrypoints, local C++ components and assets.
 - `custom_components/passion_wave/`: installable Home Assistant Custom
   Integration, Config Flow and bounded media services.
-- `home_assistant/blueprints/`: Home Assistant automation blueprints.
 - `home_assistant/packages/`: advanced optional YAML packages.
 - `home_assistant/pyscript/`: advanced floorplan renderer.
 - `docs/`: architecture, installation, migration, validation and product plan.
@@ -156,9 +156,11 @@ Copy `custom_components/passion_wave` to Home Assistant's
 under **Settings > Devices & services**. Create one config entry per physical
 Rotaryknob and select:
 
-1. its Bridge entity **PassionWave Integration Entry ID**;
-2. the Music Assistant integration instance;
-3. the Music Assistant media player used for browsing and playback.
+1. its ESPHome Display/S3 entry;
+2. its Bridge entity **PassionWave Integration Entry ID**;
+3. the Music Assistant integration instance and player used for browsing and
+   playback;
+4. zero to four lights in the order shown on the display.
 
 The integration writes only its stable Config Entry ID to the Bridge. Playlist,
 radio and podcast rows are not entered manually: they are loaded from the
@@ -172,9 +174,10 @@ default, so existing entries keep their current behavior. Removing it limits
 the device to the selected Music Assistant URIs; an empty selection hides that
 category. Ordering and media contents continue to come from Music Assistant.
 
-The remaining Dynamic Targets blueprint is currently retained for the four
-light slots. The V3 media-library path does not depend on a blueprint, package,
-MQTT broker or manually copied encryption key. See
+The integration writes target IDs and friendly names to the selected display
+and follows player presentation changes. It also preserves selections when a
+target entity is renamed. V3 does not depend on a blueprint, package, MQTT
+broker or manually copied encryption key. See
 [Native API migration](docs/native-api-migration.md).
 
 ## Documentation

@@ -60,8 +60,10 @@ The integration stores its Config Entry ID in the Bridge entity
 configuration value. The Bridge never needs the Music Assistant Config Entry
 ID or media-player entity as manually editable strings.
 
-The Dynamic Targets blueprint remains available for light-slot selection.
-It is independent of playlist loading.
+The same PassionWave Config Entry owns the Display/S3, Bridge, Music Assistant
+player and four ordered light slots. Open **Configure** on that entry to change
+any assignment later. The integration writes entity IDs and current friendly
+names to the selected display and follows Home Assistant entity renames.
 
 ## Offline / Promo Demo Mode
 

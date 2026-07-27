@@ -17,11 +17,12 @@ The public wording should stay as short as possible:
 8. Select the matching S3 and Bridge. PassionWave provisions and stores an
    individual key for each endpoint and creates both ESPHome entries without
    exposing a key to the customer.
-9. Select media, weather and optional lights from Home Assistant pickers.
+9. Select the display, Bridge, playback device and up to four ordered lights in
+   the PassionWave Config Flow.
 
 The customer should never copy entity IDs. Home Assistant owns entity discovery,
-so the blueprint selectors list the compatible `media_player` and `light`
-entities directly.
+so the integration lists compatible targets directly and stores all
+assignments on one logical Rotaryknob Config Entry.
 
 ## Simplicity Rules
 
@@ -47,10 +48,10 @@ entities directly.
 
 ## What Still Requires Confirmation
 
-Home Assistant must ask the local user to confirm device setup, blueprint import
-and automation creation. That is intentional security behavior because a public
-website cannot be allowed to configure a private Home Assistant installation
-without user approval.
+Home Assistant must ask the local user to confirm device and integration setup.
+That is intentional security behavior because a public website cannot be
+allowed to configure a private Home Assistant installation without user
+approval.
 
 ## Public Factory Firmware Requirements
 
@@ -88,8 +89,8 @@ as website installer assets.
   `/firmware/rotaryknob/esp32/manifest-3.0.0-beta.3.json`.
 - Both production factory binaries are published and their SHA-256 sums match
   the firmware repository's `release/public/SHA256SUMS`.
-- The device defaults blueprint contains Home Assistant entity selectors for
-  all `media_player` and `light` entities.
+- The PassionWave Config Flow contains Home Assistant-backed selectors for the
+  S3, Bridge, Music Assistant player and four ordered light positions.
 - The firmware stores selected media and light targets persistently and shows
   Wi-Fi, Home Assistant and IP status in settings.
 - Each manifest declares exactly one matching chip family. The wizard explains
@@ -97,8 +98,8 @@ as website installer assets.
 - Public factory buttons force clean installation even if an older Passion
   Wave firmware identifies as the same project. A separate bridge button
   reopens Improv without reflashing if serial reconnection fails.
-- Pairing both ESPHome endpoints into one logical Home Assistant product and the
-  planned no-code `passion_wave` config flow are not implemented.
+- Pairing both ESPHome endpoints into one logical Home Assistant product and
+  no-code target reconfiguration are implemented by `passion_wave`.
 
 The two-chip browser installer is implemented, but the complete retail
 onboarding remains a release candidate until physical clean-device validation

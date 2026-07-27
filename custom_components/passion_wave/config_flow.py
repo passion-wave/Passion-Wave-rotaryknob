@@ -12,7 +12,6 @@ from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
-    device_registry as dr,
     entity_registry as er,
     selector,
 )
@@ -25,13 +24,14 @@ from .const import (
     CONF_BRIDGE_REGISTRATION_UNIQUE_ID,
     CONF_MA_CONFIG_ENTRY_ID,
     CONF_MEDIA_PLAYER,
+    CONF_S3_CONFIG_ENTRY_ID,
     CONF_S3_HOST,
-    CONF_VISIBLE_PLAYLISTS,
-    CONF_VISIBLE_PODCASTS,
-    CONF_VISIBLE_RADIOS,
     DOMAIN,
+    LIGHT_ENTITY_ORIGINAL_NAMES,
+    LIGHT_SLOT_KEYS,
     LIBRARY_FILTER_KEYS,
     LIBRARY_SELECTION_LIMIT,
+    MEDIA_ENTITY_ORIGINAL_NAME,
     SHOW_ALL,
     S3_PROJECT_NAME,
 )
@@ -51,10 +51,12 @@ def _connection_schema(
 ) -> vol.Schema:
     values = defaults or {}
 
-    def required(key: str) -> vol.Marker:
+    def required(key: str, options: list[selector.SelectOptionDict]) -> vol.Marker:
         return (
             vol.Required(key, default=values[key])
             if key in values
+            else vol.Required(key, default=options[0]["value"])
+            if len(options) == 1
             else vol.Required(key)
         )
 
@@ -72,6 +74,18 @@ def _connection_schema(
         if entry.platform == "esphome"
         and entry.original_name == BRIDGE_REGISTRATION_ORIGINAL_NAME
     ]
+    s3_entry_ids = {
+        entry.config_entry_id
+        for entry in registry.entities.values()
+        if entry.platform == "esphome"
+        and entry.original_name == MEDIA_ENTITY_ORIGINAL_NAME
+        and entry.config_entry_id
+    }
+    s3_entry_options: list[selector.SelectOptionDict] = [
+        {"value": entry.entry_id, "label": entry.title}
+        for entry in hass.config_entries.async_entries("esphome")
+        if entry.entry_id in s3_entry_ids
+    ]
     ma_entry_options: list[selector.SelectOptionDict] = [
         {"value": entry.entry_id, "label": entry.title}
         for entry in hass.config_entries.async_entries("music_assistant")
@@ -79,21 +93,77 @@ def _connection_schema(
     media_player_options: list[selector.SelectOptionDict] = [
         {"value": entry.entity_id, "label": entity_label(entry)}
         for entry in registry.entities.values()
-        if entry.platform == "music_assistant"
-        and entry.domain == "media_player"
+        if entry.platform == "music_assistant" and entry.domain == "media_player"
     ]
 
     return vol.Schema(
         {
-            required(CONF_BRIDGE_REGISTRATION_ENTITY): selector.SelectSelector(
+            required(
+                CONF_S3_CONFIG_ENTRY_ID, s3_entry_options
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=s3_entry_options)
+            ),
+            required(
+                CONF_BRIDGE_REGISTRATION_ENTITY, registration_options
+            ): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=registration_options)
             ),
-            required(CONF_MA_CONFIG_ENTRY_ID): selector.SelectSelector(
+            required(
+                CONF_MA_CONFIG_ENTRY_ID, ma_entry_options
+            ): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=ma_entry_options)
             ),
-            required(CONF_MEDIA_PLAYER): selector.SelectSelector(
+            required(CONF_MEDIA_PLAYER, media_player_options): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=media_player_options)
             ),
+        }
+    )
+
+
+def _lights_schema(
+    hass: HomeAssistant, defaults: dict[str, Any] | None = None
+) -> vol.Schema:
+    """Build four stable, user-readable light-slot selectors."""
+    values = defaults or {}
+    registry = er.async_get(hass)
+    options: list[selector.SelectOptionDict] = [
+        {"value": "", "label": "Nicht belegt / Not assigned"}
+    ]
+    for entry in registry.entities.values():
+        if entry.domain != "light" or entry.disabled_by is not None:
+            continue
+        state = hass.states.get(entry.entity_id)
+        friendly_name = state.attributes.get("friendly_name") if state else None
+        options.append(
+            {
+                "value": entry.entity_id,
+                "label": str(
+                    friendly_name
+                    or entry.name
+                    or entry.original_name
+                    or entry.entity_id
+                ),
+            }
+        )
+    options[1:] = sorted(options[1:], key=lambda item: item["label"].casefold())
+    known_values = {option["value"] for option in options}
+    for key in LIGHT_SLOT_KEYS:
+        configured = values.get(key, "")
+        if configured and configured not in known_values:
+            options.append(
+                {
+                    "value": configured,
+                    "label": f"Nicht mehr verfügbar · {configured}",
+                }
+            )
+            known_values.add(configured)
+
+    return vol.Schema(
+        {
+            vol.Required(key, default=values.get(key, "")): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options)
+            )
+            for key in LIGHT_SLOT_KEYS
         }
     )
 
@@ -117,15 +187,11 @@ async def _async_load_catalogs(
             blocking=True,
             return_response=True,
         )
-        page = normalize_library_page(
-            response, media_type, 0, LIBRARY_SELECTION_LIMIT
-        )
+        page = normalize_library_page(response, media_type, 0, LIBRARY_SELECTION_LIMIT)
         return media_type, page["items"]
 
     return dict(
-        await asyncio.gather(
-            *(load(media_type) for media_type in LIBRARY_FILTER_KEYS)
-        )
+        await asyncio.gather(*(load(media_type) for media_type in LIBRARY_FILTER_KEYS))
     )
 
 
@@ -138,9 +204,7 @@ def _library_schema(
     def field(media_type: str) -> tuple[vol.Marker, selector.SelectSelector]:
         key = LIBRARY_FILTER_KEYS[media_type]
         configured = values.get(key, [SHOW_ALL])
-        selected = (
-            [configured] if isinstance(configured, str) else list(configured)
-        )
+        selected = [configured] if isinstance(configured, str) else list(configured)
         options: list[selector.SelectOptionDict] = [
             {"value": SHOW_ALL, "label": "Alle automatisch / All automatically"}
         ]
@@ -196,10 +260,41 @@ def _registration_entry(
     return entry
 
 
+def _s3_config_entry_is_valid(hass: HomeAssistant, entry_id: str) -> bool:
+    """Validate that the selected ESPHome entry owns the display contract."""
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is None or entry.domain != "esphome":
+        return False
+    return any(
+        entity.platform == "esphome"
+        and entity.config_entry_id == entry_id
+        and entity.original_name == MEDIA_ENTITY_ORIGINAL_NAME
+        for entity in er.async_get(hass).entities.values()
+    )
+
+
+def _current_s3_light_defaults(hass: HomeAssistant, entry_id: str) -> dict[str, str]:
+    """Adopt existing firmware targets during blueprint-to-flow migration."""
+    defaults = dict.fromkeys(LIGHT_SLOT_KEYS, "")
+    names_to_keys = dict(zip(LIGHT_ENTITY_ORIGINAL_NAMES, LIGHT_SLOT_KEYS, strict=True))
+    for entity in er.async_get(hass).entities.values():
+        key = names_to_keys.get(entity.original_name)
+        if (
+            key is None
+            or entity.platform != "esphome"
+            or entity.config_entry_id != entry_id
+        ):
+            continue
+        state = hass.states.get(entity.entity_id)
+        if state is not None and state.state.startswith("light."):
+            defaults[key] = state.state
+    return defaults
+
+
 class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle the PassionWave config flow."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the two-step flow."""
@@ -221,8 +316,7 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         discovered = await async_discover_endpoints(self.hass)
         self._discovered_endpoints = {item.host: item for item in discovered}
         if has_registration and not any(
-            not endpoint_is_configured(self.hass, endpoint)
-            for endpoint in discovered
+            not endpoint_is_configured(self.hass, endpoint) for endpoint in discovered
         ):
             return await self.async_step_connection(user_input)
         return await self.async_step_pair()
@@ -239,9 +333,7 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "endpoint_unavailable"
             else:
                 try:
-                    await async_secure_pair_endpoint(
-                        self.hass, s3, S3_PROJECT_NAME
-                    )
+                    await async_secure_pair_endpoint(self.hass, s3, S3_PROJECT_NAME)
                     await async_secure_pair_endpoint(
                         self.hass, bridge, BRIDGE_PROJECT_NAME
                     )
@@ -256,8 +348,7 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     for _ in range(20):
                         if any(
                             entry.platform == "esphome"
-                            and entry.original_name
-                            == BRIDGE_REGISTRATION_ORIGINAL_NAME
+                            and entry.original_name == BRIDGE_REGISTRATION_ORIGINAL_NAME
                             for entry in er.async_get(self.hass).entities.values()
                         ):
                             return await self.async_step_connection()
@@ -303,42 +394,53 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             registration = _registration_entry(
                 registry, user_input[CONF_BRIDGE_REGISTRATION_ENTITY]
             )
-            if registration is None:
+            if not _s3_config_entry_is_valid(
+                self.hass, user_input[CONF_S3_CONFIG_ENTRY_ID]
+            ):
+                errors["base"] = "invalid_s3_device"
+            elif registration is None:
                 errors["base"] = "invalid_bridge_registration_entity"
             else:
                 await self.async_set_unique_id(registration.unique_id)
                 self._abort_if_unique_id_configured()
-                user_input[CONF_BRIDGE_REGISTRATION_UNIQUE_ID] = (
-                    registration.unique_id
-                )
-                device = (
-                    dr.async_get(self.hass).async_get(registration.device_id)
-                    if registration.device_id
-                    else None
+                user_input[CONF_BRIDGE_REGISTRATION_UNIQUE_ID] = registration.unique_id
+                s3_entry = self.hass.config_entries.async_get_entry(
+                    user_input[CONF_S3_CONFIG_ENTRY_ID]
                 )
                 self._entry_title = (
-                    (device.name_by_user or device.name)
-                    if device
-                    else registration.entity_id
+                    s3_entry.title if s3_entry else registration.entity_id
                 )
-                # A new device must work without another optional setup page.
-                # Start with the complete Music Assistant library; users can
-                # narrow the visible entries later through the options flow.
-                return self.async_create_entry(
-                    title=self._entry_title,
-                    data={
-                        **user_input,
-                        **{
-                            key: [SHOW_ALL]
-                            for key in LIBRARY_FILTER_KEYS.values()
-                        },
-                    },
-                )
+                self._pending_data = user_input
+                return await self.async_step_lights()
 
         return self.async_show_form(
             step_id="user",
             data_schema=_connection_schema(self.hass, user_input),
             errors=errors,
+        )
+
+    async def async_step_lights(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Assign the four customer-facing light positions."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title=self._entry_title,
+                data={
+                    **self._pending_data,
+                    **user_input,
+                    **{key: [SHOW_ALL] for key in LIBRARY_FILTER_KEYS.values()},
+                },
+            )
+        return self.async_show_form(
+            step_id="lights",
+            data_schema=_lights_schema(
+                self.hass,
+                _current_s3_light_defaults(
+                    self.hass,
+                    self._pending_data[CONF_S3_CONFIG_ENTRY_ID],
+                ),
+            ),
         )
 
     async def async_step_library(
@@ -387,25 +489,40 @@ class PassionWaveOptionsFlow(config_entries.OptionsFlow):
                 er.async_get(self.hass),
                 user_input[CONF_BRIDGE_REGISTRATION_ENTITY],
             )
-            if registration is None:
+            if not _s3_config_entry_is_valid(
+                self.hass, user_input[CONF_S3_CONFIG_ENTRY_ID]
+            ):
+                errors["base"] = "invalid_s3_device"
+            elif registration is None:
                 errors["base"] = "invalid_bridge_registration_entity"
             else:
-                user_input[CONF_BRIDGE_REGISTRATION_UNIQUE_ID] = (
-                    registration.unique_id
-                )
+                user_input[CONF_BRIDGE_REGISTRATION_UNIQUE_ID] = registration.unique_id
                 self._pending_data = user_input
-                try:
-                    self._catalogs = await _async_load_catalogs(
-                        self, user_input[CONF_MA_CONFIG_ENTRY_ID]
-                    )
-                except HomeAssistantError:
-                    self._library_error = True
-                return await self.async_step_library()
+                return await self.async_step_lights()
         defaults = {**self._entry.data, **self._entry.options}
         return self.async_show_form(
             step_id="init",
             data_schema=_connection_schema(self.hass, user_input or defaults),
             errors=errors,
+        )
+
+    async def async_step_lights(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Update the four light positions before optional media filters."""
+        defaults = {**self._entry.data, **self._entry.options}
+        if user_input is not None:
+            self._pending_data.update(user_input)
+            try:
+                self._catalogs = await _async_load_catalogs(
+                    self, self._pending_data[CONF_MA_CONFIG_ENTRY_ID]
+                )
+            except HomeAssistantError:
+                self._library_error = True
+            return await self.async_step_library()
+        return self.async_show_form(
+            step_id="lights",
+            data_schema=_lights_schema(self.hass, defaults),
         )
 
     async def async_step_library(

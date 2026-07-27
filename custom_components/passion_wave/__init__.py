@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import voluptuous as vol
@@ -9,14 +10,18 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_ENTITY_ID
 from homeassistant.core import (
+    Event,
+    EventStateChangedData,
     HomeAssistant,
     ServiceCall,
     ServiceResponse,
     SupportsResponse,
+    callback,
 )
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     ATTR_CONFIG_ENTRY_ID,
@@ -28,12 +33,22 @@ from .const import (
     CONF_BRIDGE_REGISTRATION_UNIQUE_ID,
     CONF_MA_CONFIG_ENTRY_ID,
     CONF_MEDIA_PLAYER,
+    CONF_S3_CONFIG_ENTRY_ID,
     DEFAULT_PAGE_SIZE,
     DOMAIN,
+    LIGHT_ENTITY_ORIGINAL_NAMES,
+    LIGHT_LABEL_ORIGINAL_NAMES,
+    LIGHT_SLOT_KEYS,
     LIBRARY_FILTER_KEYS,
     LIBRARY_SELECTION_LIMIT,
     MAX_LIBRARY_PAGE_SIZE,
     MAX_TRACK_PAGE_SIZE,
+    MEDIA_ENTITY_ORIGINAL_NAME,
+    MEDIA_LABEL_ORIGINAL_NAME,
+    MEDIA_RUNTIME_ARTIST_ORIGINAL_NAME,
+    MEDIA_RUNTIME_COVER_URL_ORIGINAL_NAME,
+    MEDIA_RUNTIME_STATE_ORIGINAL_NAME,
+    MEDIA_RUNTIME_TITLE_ORIGINAL_NAME,
     SERVICE_GET_LIBRARY,
     SERVICE_GET_PLAYLIST_TRACKS,
     SHOW_ALL,
@@ -100,6 +115,128 @@ async def _async_sync_bridge(
     )
 
 
+def _s3_text_entities(
+    hass: HomeAssistant,
+    entry: PassionWaveConfigEntry,
+) -> dict[str, str]:
+    """Resolve all firmware-owned S3 texts with one registry pass."""
+    s3_entry_id = _entry_value(entry, CONF_S3_CONFIG_ENTRY_ID)
+    return {
+        registry_entry.original_name: registry_entry.entity_id
+        for registry_entry in er.async_get(hass).entities.values()
+        if registry_entry.platform == "esphome"
+        and registry_entry.config_entry_id == s3_entry_id
+        and registry_entry.original_name
+    }
+
+
+def _friendly_name(hass: HomeAssistant, entity_id: str) -> str:
+    """Return the customer-visible Home Assistant entity name."""
+    if not entity_id:
+        return ""
+    state = hass.states.get(entity_id)
+    if state and (friendly_name := state.attributes.get("friendly_name")):
+        return str(friendly_name)
+    registry_entry = er.async_get(hass).async_get(entity_id)
+    if registry_entry:
+        return (
+            registry_entry.name
+            or registry_entry.original_name
+            or registry_entry.entity_id
+        )
+    return entity_id
+
+
+async def _async_set_s3_text_values(
+    hass: HomeAssistant,
+    entry: PassionWaveConfigEntry,
+    values: dict[str, str],
+) -> None:
+    """Write changed values concurrently to firmware-owned S3 texts."""
+    calls = []
+    text_entities = _s3_text_entities(hass, entry)
+    for original_name, value in values.items():
+        if (entity_id := text_entities.get(original_name)) is None:
+            raise HomeAssistantError(
+                f"The selected PassionWave display is missing {original_name}"
+            )
+        current = hass.states.get(entity_id)
+        if current is not None and current.state == value:
+            continue
+        calls.append(
+            hass.services.async_call(
+                "text",
+                "set_value",
+                {CONF_ENTITY_ID: entity_id, "value": value},
+                blocking=True,
+            )
+        )
+    if calls:
+        await asyncio.gather(*calls)
+
+
+async def _async_sync_media_runtime(
+    hass: HomeAssistant, entry: PassionWaveConfigEntry
+) -> None:
+    """Mirror the selected player's current presentation state to the S3."""
+    media_player = _entry_value(entry, CONF_MEDIA_PLAYER)
+    state = hass.states.get(media_player)
+    await _async_set_s3_text_values(
+        hass,
+        entry,
+        {
+            MEDIA_RUNTIME_STATE_ORIGINAL_NAME: (
+                state.state[:32] if state else "unavailable"
+            ),
+            MEDIA_RUNTIME_TITLE_ORIGINAL_NAME: str(
+                (state.attributes.get("media_title") or "") if state else ""
+            )[:160],
+            MEDIA_RUNTIME_ARTIST_ORIGINAL_NAME: str(
+                (
+                    state.attributes.get("media_artist")
+                    or state.attributes.get("media_album_artist")
+                    or ""
+                )
+                if state
+                else ""
+            )[:160],
+            MEDIA_RUNTIME_COVER_URL_ORIGINAL_NAME: str(
+                (
+                    state.attributes.get("entity_picture")
+                    or state.attributes.get("entity_picture_local")
+                    or state.attributes.get("media_image_url")
+                    or ""
+                )
+                if state
+                else ""
+            )[:255],
+        },
+    )
+
+
+async def _async_sync_targets(
+    hass: HomeAssistant, entry: PassionWaveConfigEntry
+) -> None:
+    """Apply every customer-facing target owned by one PassionWave entry."""
+    await _async_sync_bridge(hass, entry)
+    media_player = _entry_value(entry, CONF_MEDIA_PLAYER)
+    target_values = {
+        MEDIA_ENTITY_ORIGINAL_NAME: media_player,
+        MEDIA_LABEL_ORIGINAL_NAME: _friendly_name(hass, media_player),
+    }
+    for key, entity_original_name, label_original_name in zip(
+        LIGHT_SLOT_KEYS,
+        LIGHT_ENTITY_ORIGINAL_NAMES,
+        LIGHT_LABEL_ORIGINAL_NAMES,
+        strict=True,
+    ):
+        light_entity = _entry_value(entry, key) or ""
+        target_values[entity_original_name] = light_entity
+        target_values[label_original_name] = _friendly_name(hass, light_entity)
+    await _async_set_s3_text_values(hass, entry, target_values)
+    await _async_sync_media_runtime(hass, entry)
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Register the bounded PassionWave service API."""
 
@@ -113,9 +250,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         if isinstance(configured, str):
             configured = [configured]
         allowed = (
-            None
-            if configured is None or SHOW_ALL in configured
-            else tuple(configured)
+            None if configured is None or SHOW_ALL in configured else tuple(configured)
         )
         if allowed == ():
             return {
@@ -139,9 +274,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             return_response=True,
         )
         if allowed is not None:
-            return filter_library_page(
-                response, media_type, offset, limit, allowed
-            )
+            return filter_library_page(response, media_type, offset, limit, allowed)
         return normalize_library_page(response, media_type, offset, limit)
 
     async def async_get_playlist_tracks(call: ServiceCall) -> ServiceResponse:
@@ -180,9 +313,58 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     return True
 
 
-async def async_setup_entry(
+async def async_migrate_entry(
     hass: HomeAssistant, entry: PassionWaveConfigEntry
 ) -> bool:
+    """Adopt targets previously written by the retired blueprint."""
+    if entry.version >= 2:
+        return True
+
+    registry = er.async_get(hass)
+    candidates: dict[str, str] = {}
+    for registry_entry in registry.entities.values():
+        if (
+            registry_entry.platform == "esphome"
+            and registry_entry.config_entry_id
+            and registry_entry.original_name == MEDIA_ENTITY_ORIGINAL_NAME
+        ):
+            candidates[registry_entry.config_entry_id] = registry_entry.entity_id
+
+    selected_s3: str | None = None
+    configured_player = _entry_value(entry, CONF_MEDIA_PLAYER)
+    for config_entry_id, entity_id in candidates.items():
+        state = hass.states.get(entity_id)
+        if state is not None and state.state == configured_player:
+            selected_s3 = config_entry_id
+            break
+    if selected_s3 is None and len(candidates) == 1:
+        selected_s3 = next(iter(candidates))
+    if selected_s3 is None:
+        return False
+
+    data = dict(entry.data)
+    data[CONF_S3_CONFIG_ENTRY_ID] = selected_s3
+    for key, original_name in zip(
+        LIGHT_SLOT_KEYS, LIGHT_ENTITY_ORIGINAL_NAMES, strict=True
+    ):
+        value = ""
+        for registry_entry in registry.entities.values():
+            if (
+                registry_entry.platform == "esphome"
+                and registry_entry.config_entry_id == selected_s3
+                and registry_entry.original_name == original_name
+            ):
+                state = hass.states.get(registry_entry.entity_id)
+                if state is not None and state.state.startswith("light."):
+                    value = state.state
+                break
+        data[key] = value
+
+    hass.config_entries.async_update_entry(entry, data=data, version=2)
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) -> bool:
     """Set up one physical PassionWave system."""
     dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
@@ -190,14 +372,67 @@ async def async_setup_entry(
         manufacturer="PassionWave",
         model="Rotaryknob Dual MCU",
         name="PassionWave Rotaryknob",
-        sw_version="3.0.0-beta.2",
+        sw_version="3.0.0-beta.5",
     )
     try:
-        await _async_sync_bridge(hass, entry)
+        await _async_sync_targets(hass, entry)
     except HomeAssistantError as err:
         raise ConfigEntryNotReady(
-            "Waiting for the selected ESPHome bridge"
+            "Waiting for the selected PassionWave processors"
         ) from err
+
+    @callback
+    def async_media_state_changed(
+        event: Event[EventStateChangedData],
+    ) -> None:
+        """Schedule a bounded media presentation update."""
+        hass.async_create_task(
+            _async_sync_media_runtime(hass, entry),
+            "Sync PassionWave media presentation",
+        )
+
+    entry.async_on_unload(
+        async_track_state_change_event(
+            hass,
+            [_entry_value(entry, CONF_MEDIA_PLAYER)],
+            async_media_state_changed,
+        )
+    )
+
+    @callback
+    def async_entity_registry_updated(event: Event[dict[str, Any]]) -> None:
+        """Keep renamed customer targets and their labels in sync."""
+        old_entity_id = event.data.get("old_entity_id")
+        entity_id = event.data.get("entity_id")
+        configured_keys = (CONF_MEDIA_PLAYER, *LIGHT_SLOT_KEYS)
+        if old_entity_id:
+            changed_key = next(
+                (
+                    key
+                    for key in configured_keys
+                    if _entry_value(entry, key) == old_entity_id
+                ),
+                None,
+            )
+            if changed_key and entity_id:
+                options = dict(entry.options)
+                options[changed_key] = entity_id
+                hass.config_entries.async_update_entry(entry, options=options)
+                return
+        if entity_id and any(
+            _entry_value(entry, key) == entity_id for key in configured_keys
+        ):
+            hass.async_create_task(
+                _async_sync_targets(hass, entry),
+                "Refresh PassionWave target labels",
+            )
+
+    entry.async_on_unload(
+        hass.bus.async_listen(
+            er.EVENT_ENTITY_REGISTRY_UPDATED,
+            async_entity_registry_updated,
+        )
+    )
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
@@ -205,7 +440,7 @@ async def async_setup_entry(
 async def _async_update_listener(
     hass: HomeAssistant, entry: PassionWaveConfigEntry
 ) -> None:
-    await _async_sync_bridge(hass, entry)
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(

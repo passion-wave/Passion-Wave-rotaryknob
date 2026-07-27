@@ -37,7 +37,6 @@ esphome/
 components/
 home_assistant/
   custom_components/passion_wave/
-  blueprints/                 # compatibility only
 tests/
 release/
   manifest-s3.json
@@ -89,8 +88,9 @@ Its config flow should:
 5. expose diagnostics, repairs and reconfiguration in the UI.
 
 The integration replaces brittle entity-name searches, copied MQTT credentials,
-manual REST commands, packages and Pyscript as core requirements. Blueprints
-remain a compatibility path for existing installations.
+manual REST commands, setup blueprints, packages and Pyscript as core
+requirements. Existing target values are migrated into the Config Entry before
+the retired blueprint is removed.
 
 ## Buyer journey
 

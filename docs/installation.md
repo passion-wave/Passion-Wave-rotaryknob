@@ -161,50 +161,24 @@ Native API session is encrypted without exposing the key to the customer.
 Authenticated OTA still requires the managed deployment step described in
 [ESPHome API security lifecycle](api-security-lifecycle.md).
 
-The simplest path is to import the device defaults blueprint first. It uses
-Home Assistant entity pickers, so the user does not type entity IDs manually:
+The PassionWave Config Flow is the only customer configuration path. Select:
 
-```text
-home_assistant/blueprints/automation/passion_wave/rotaryknob_device_defaults.yaml
-```
+- the ESPHome Rotaryknob S3/display entry;
+- the matching Bridge registration entity;
+- the Music Assistant instance and playback device. For Sonos, choose its
+  native Music Assistant entity rather than the generic Sonos entity;
+- four light positions in the order shown on the display. A position may be
+  left as **Not assigned**.
 
-Create one automation from that blueprint and select:
+The integration writes selected entity IDs and friendly names into the
+firmware-owned S3 text entities. It also relays media state, title, artist and
+cover changes and preserves assignments when a Home Assistant target is
+renamed. Open **Settings > Devices & services > PassionWave > Configure** to
+change the device, playback or light assignments later. No blueprint, entity
+ID entry or manual ESPHome text editing is part of normal onboarding.
 
-- the ESPHome Rotaryknob S3/display device, not the ESP32 Bridge;
-- one `media_player` entity. Home Assistant lists all media players. Choose a
-  Music Assistant capable player if playlist, radio or podcast browsing should
-  be available. For a Sonos speaker, choose its native Music Assistant entity
-  rather than the generic Sonos integration entity. The latter supports basic
-  transport and volume but does not own the Music Assistant queue.
-- four `light` entities. Home Assistant lists all light entities.
+The remaining device settings are exposed directly by ESPHome:
 
-The blueprint writes the selected entity IDs and friendly names into the
-Rotaryknob text entities and reapplies them after Home Assistant starts or
-automations are reloaded. It also relays media state, title, artist and cover
-data whenever the selected media player changes. Those relay values drive the
-Play/Pause icon, cover image and media cover screensaver for dynamically
-selected media players.
-
-Without this blueprint, the firmware still controls and tracks the media player
-stored in `Rotaryknob Media Entity ID`. It polls Home Assistant through
-`homeassistant.action` plus a `response_template`, so Play/Pause state, title,
-artist, volume, progress and cover images work for dynamic media targets without
-an extra automation. Use the blueprint when the customer should pick entities
-from friendly Home Assistant selectors instead of typing entity IDs.
-
-Manual fallback: these ESPHome entities can still be edited directly on the
-device page if the blueprint is not used:
-
-- `Rotaryknob Media Entity ID`
-- `Rotaryknob Media Label`
-- `Rotaryknob Light Slot 1 Entity ID`
-- `Rotaryknob Light Slot 1 Label`
-- `Rotaryknob Light Slot 2 Entity ID`
-- `Rotaryknob Light Slot 2 Label`
-- `Rotaryknob Light Slot 3 Entity ID`
-- `Rotaryknob Light Slot 3 Label`
-- `Rotaryknob Light Slot 4 Entity ID`
-- `Rotaryknob Light Slot 4 Label`
 - `scrollwheel Vibration`
 - `scrollwheel Rotary Haptic Effect`
 - `scrollwheel Timer Done Haptic Effect`
@@ -231,10 +205,11 @@ Copy `custom_components/passion_wave` into
 `/config/custom_components/passion_wave`, restart Home Assistant and add
 **PassionWave** under **Settings > Devices & services**.
 
-Create one Config Entry per physical Rotaryknob. Select its Bridge entity
-**PassionWave Integration Entry ID**, Music Assistant instance and Music
-Assistant player. The integration synchronizes its stable Config Entry ID to
-the Bridge and bounds every library/track page before it reaches firmware.
+Create one Config Entry per physical Rotaryknob. Select its Display/S3, Bridge
+entity **PassionWave Integration Entry ID**, Music Assistant instance, Music
+Assistant player and four light positions. The integration synchronizes its
+stable Config Entry ID to the Bridge and all customer targets to the display,
+then bounds every library/track page before it reaches firmware.
 Playlist entries themselves are maintained in Music Assistant, not duplicated
 in PassionWave. No blueprint, YAML media package, MQTT broker, token or copied
 encryption key is required.

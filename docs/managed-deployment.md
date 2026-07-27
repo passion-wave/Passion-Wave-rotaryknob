@@ -158,8 +158,10 @@ devices.
 7. Enable **Allow the device to perform Home Assistant actions** on both ESP32
    Bridge entries. The S3 does not require application-action permission.
 8. Add one PassionWave Config Entry per physical Rotaryknob and bind it to that
-   device's Bridge registration entity, Music Assistant instance and player.
-9. Use the Dynamic Targets blueprint only for the four light slots.
+   device's Display/S3, Bridge registration entity, Music Assistant instance,
+   player and four ordered light positions.
+9. Reopen **Configure** on the PassionWave entry for every later target change;
+   no blueprint or manual ESPHome text edit is part of the customer path.
 
 Each physical Rotaryknob and PassionWave Config Entry is isolated by its stable
 entry ID. There are no shared MQTT topics or Music Assistant setup automations,
