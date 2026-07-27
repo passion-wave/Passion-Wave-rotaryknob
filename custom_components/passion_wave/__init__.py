@@ -8,7 +8,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_ENTITY_ID
+from homeassistant.const import CONF_ENTITY_ID, Platform
 from homeassistant.core import (
     Event,
     EventStateChangedData,
@@ -36,6 +36,7 @@ from .const import (
     CONF_S3_CONFIG_ENTRY_ID,
     DEFAULT_PAGE_SIZE,
     DOMAIN,
+    INTEGRATION_VERSION,
     LIGHT_ENTITY_ORIGINAL_NAMES,
     LIGHT_LABEL_ORIGINAL_NAMES,
     LIGHT_SLOT_KEYS,
@@ -62,6 +63,8 @@ from .media import (
 )
 
 type PassionWaveConfigEntry = config_entries.ConfigEntry[dict[str, Any]]
+
+PLATFORMS = (Platform.BINARY_SENSOR, Platform.SELECT, Platform.SENSOR)
 
 _LIBRARY_SCHEMA = vol.Schema(
     {
@@ -372,7 +375,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
         manufacturer="PassionWave",
         model="Rotaryknob Dual MCU",
         name="PassionWave Rotaryknob",
-        sw_version="3.0.0-beta.5",
+        sw_version=INTEGRATION_VERSION,
     )
     try:
         await _async_sync_targets(hass, entry)
@@ -434,6 +437,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
         )
     )
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
@@ -447,4 +451,4 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: PassionWaveConfigEntry
 ) -> bool:
     """Unload a PassionWave entry."""
-    return True
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

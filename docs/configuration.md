@@ -65,6 +65,13 @@ player and four ordered light slots. Open **Configure** on that entry to change
 any assignment later. The integration writes entity IDs and current friendly
 names to the selected display and follows Home Assistant entity renames.
 
+The logical PassionWave device also exposes five configuration entities:
+`Wiedergabegerät` and `Lichtplatz 1` through `Lichtplatz 4`. They provide quick
+changes directly from the device page. `S3-Verbindung`, `Bridge-Verbindung` and
+`Integrationsversion` are diagnostic entities. Structural reassignment of S3,
+Bridge or Music Assistant and the optional media filters remain in the guided
+**Configure** flow.
+
 ## Offline / Promo Demo Mode
 
 When the device boots without a Wi-Fi connection, it enters a local demo mode

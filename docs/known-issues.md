@@ -32,7 +32,8 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
 
 ### PW-HA-003: Lichtzuordnung lag außerhalb der PassionWave-Integration
 
-- **Status:** In 3.0.0-beta.5 umgesetzt; Live-Abnahme ausstehend
+- **Status:** Config Flow in 3.0.0-beta.5 umgesetzt; native Geräte-Entities in
+  3.0.0-beta.6 ergänzt; Live-Abnahme ausstehend
 - **Betroffen:** Neukunden-Onboarding und spätere Zieländerungen
 - **Fehlerbild:** Display, Bridge und Music Assistant wurden im PassionWave
   Config Flow zugeordnet, die vier Lichtplätze aber weiterhin über einen
@@ -48,6 +49,9 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
 - **Kundenweg:** **Einstellungen > Geräte & Dienste > PassionWave >
   Konfigurieren** öffnet Geräte/Wiedergabe, Lichtplätze und optionale
   Medienfilter immer in derselben Reihenfolge.
+- **Geräteseite:** Das logische PassionWave-Gerät stellt zusätzlich
+  `Wiedergabegerät`, `Lichtplatz 1–4`, `S3-Verbindung`,
+  `Bridge-Verbindung` und `Integrationsversion` als native Entities bereit.
 - **Abnahme:** Config Entry anlegen, vier Lichter prüfen, einen Lichtplatz über
   **Konfigurieren** wechseln und eine gewählte Lichtentität umbenennen. Anzeige
   und Zielsteuerung müssen ohne Blueprint oder Neustart folgen.

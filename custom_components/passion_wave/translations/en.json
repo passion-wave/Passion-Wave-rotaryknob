@@ -90,5 +90,37 @@
         }
       }
     }
+  },
+  "entity": {
+    "select": {
+      "playback_device": {
+        "name": "Playback device"
+      },
+      "light_position_1": {
+        "name": "Light position 1"
+      },
+      "light_position_2": {
+        "name": "Light position 2"
+      },
+      "light_position_3": {
+        "name": "Light position 3"
+      },
+      "light_position_4": {
+        "name": "Light position 4"
+      }
+    },
+    "binary_sensor": {
+      "s3_connection": {
+        "name": "S3 connection"
+      },
+      "bridge_connection": {
+        "name": "Bridge connection"
+      }
+    },
+    "sensor": {
+      "integration_version": {
+        "name": "Integration version"
+      }
+    }
   }
 }

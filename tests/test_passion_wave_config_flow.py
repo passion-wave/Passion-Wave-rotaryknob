@@ -21,6 +21,7 @@ from custom_components.passion_wave.const import (
     LIGHT_ENTITY_ORIGINAL_NAMES,
     MEDIA_ENTITY_ORIGINAL_NAME,
 )
+from custom_components.passion_wave.entity import target_options
 
 
 class FakeStates:
@@ -192,3 +193,31 @@ def test_existing_s3_light_targets_become_onboarding_defaults():
         CONF_LIGHT_SLOT_3: "light.customer_3",
         CONF_LIGHT_SLOT_4: "light.customer_4",
     }
+
+
+def test_device_select_options_disambiguate_duplicate_friendly_names():
+    """Device-page selects stay understandable without losing stable IDs."""
+    first = _entity("light.first", platform="hue")
+    second = _entity("light.second", platform="matter")
+    registry = SimpleNamespace(
+        entities={first.entity_id: first, second.entity_id: second}
+    )
+    hass = SimpleNamespace(
+        config=SimpleNamespace(language="de"),
+        states=FakeStates(
+            {
+                first.entity_id: _state("off", "Leselicht"),
+                second.entity_id: _state("on", "Leselicht"),
+            }
+        ),
+    )
+
+    with patch(
+        "custom_components.passion_wave.entity.er.async_get",
+        return_value=registry,
+    ):
+        options = target_options(hass, domain="light", include_unassigned=True)
+
+    assert options["Nicht belegt"] == ""
+    assert options["Leselicht · light.first"] == "light.first"
+    assert options["Leselicht · light.second"] == "light.second"

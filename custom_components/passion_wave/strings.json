@@ -90,5 +90,37 @@
         }
       }
     }
+  },
+  "entity": {
+    "select": {
+      "playback_device": {
+        "name": "Wiedergabegerät"
+      },
+      "light_position_1": {
+        "name": "Lichtplatz 1"
+      },
+      "light_position_2": {
+        "name": "Lichtplatz 2"
+      },
+      "light_position_3": {
+        "name": "Lichtplatz 3"
+      },
+      "light_position_4": {
+        "name": "Lichtplatz 4"
+      }
+    },
+    "binary_sensor": {
+      "s3_connection": {
+        "name": "S3-Verbindung"
+      },
+      "bridge_connection": {
+        "name": "Bridge-Verbindung"
+      }
+    },
+    "sensor": {
+      "integration_version": {
+        "name": "Integrationsversion"
+      }
+    }
   }
 }
