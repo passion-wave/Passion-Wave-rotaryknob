@@ -1,31 +1,22 @@
 substitutions:
   name: "passion-wave-rotary-test-esp32"
   friendly_name: "Passion Wave Rotaryknob Test ESP32"
+  passion_wave_config_entry_id: ""
   # Native Music Assistant counterpart of the Sonos entity
-  # media_player.unnamed_room (same RINCON unique ID).
-  ha_player: "media_player.roam_2"
-  light_1_entity: "light.buero_monitor_wled"
-  wled_preset_entity: "select.buero_monitor_wled_preset"
+  ha_player: "media_player.passion_wave_media"
+  light_1_entity: "light.passion_wave_light_1"
+  wled_preset_entity: "select.passion_wave_wled_preset"
   light_2_entity: "light.passion_wave_light_2"
   light_3_entity: "light.passion_wave_light_3"
   light_4_entity: "light.passion_wave_light_4"
   light_4_preset_select: "select.passion_wave_wled_preset"
   ha_weather: "weather.forecast_home"
   ha_base_url: "http://homeassistant.local:8123"
-  rain_radar_image_url: "http://homeassistant.local:8123/local/passion-wave/radar.jpg"
+  rain_radar_image_url: "http://homeassistant.local:8123/local/scrollwheel/rain_radar_z1.jpg"
   photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
   photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
   photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
-  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
-  playlist_json_sensor: "passion_wave/media/playlists"
-  radio_json_sensor: "passion_wave/media/radios"
-  podcast_json_sensor: "passion_wave/media/podcasts"
-  playlist_page_json_sensor: "passion_wave/media/playlists/state"
-  playlist_tracks_json_sensor: "passion_wave/media/playlist_tracks/state"
-  playlist_request_topic: "passion_wave/media/playlists/request"
-  playlist_tracks_request_topic: "passion_wave/media/playlist_tracks/request"
-  floorplan_revision_topic: "passion_wave/floorplan/revision"
-  s3_device_name: "passion-wave-rotary-test-s3"
+  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan-render/live.png"
   latency_request_entity: "input_button.passion_wave_latency_request"
 
 esphome:
@@ -39,7 +30,7 @@ esphome:
     - dual_mcu_library_proxy.h
   project:
     name: "passion-wave.rotaryknob-test-esp32"
-    version: "2.1.1"
+    version: "3.0.0-beta.0"
   on_boot:
     priority: -100
     then:
@@ -63,21 +54,9 @@ esp32:
 logger:
   level: INFO
 
-mqtt:
-  id: bridge_mqtt_client
-  broker: "homeassistant.local"
-  username: ""
-  password: ""
-  discovery: false
-  reboot_timeout: 0s
-  log_topic: null
-
 api:
   id: esp32_api
   reboot_timeout: 0s
-
-ota:
-  - platform: esphome
 
 wifi:
   power_save_mode: none
@@ -140,6 +119,10 @@ globals:
     restore_value: false
     initial_value: '0'
   - id: bridge_api_connected
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_library_bootstrap_requested
     type: bool
     restore_value: false
     initial_value: 'false'
@@ -265,6 +248,9 @@ globals:
     type: std::string
     restore_value: false
   - id: bridge_radar_image_path
+    type: std::string
+    restore_value: false
+  - id: bridge_floorplan_image_path
     type: std::string
     restore_value: false
   - id: bridge_radar_eta_minutes
@@ -860,6 +846,25 @@ sensor:
             const uint8_t payload[] = {3, static_cast<uint8_t>(id(bridge_light_4_on)), static_cast<uint8_t>(id(bridge_light_4_brightness))};
             dual_mcu::link.send(dual_mcu::MessageType::LIGHT_STATE, payload, sizeof(payload));
 
+text:
+  - platform: template
+    id: bridge_passion_wave_config_entry_text
+    name: "PassionWave Integration Entry ID"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${passion_wave_config_entry_id}"
+    min_length: 0
+    max_length: 64
+    entity_category: config
+    set_action:
+      - lambda: 'id(bridge_library_bootstrap_requested) = false;'
+      - if:
+          condition:
+            lambda: 'return id(bridge_api_connected) && !x.empty();'
+          then:
+            - script.execute: refresh_bridge_library_native
+
 text_sensor:
   - platform: template
     id: coprocessor_status
@@ -927,64 +932,9 @@ text_sensor:
             id(bridge_latency_ha_roundtrip_sensor).publish_state(
               elapsed_us / 1000.0f);
 
-  - platform: mqtt_subscribe
-    id: bridge_playlists_json_raw
-    topic: ${playlist_json_sensor}
-    internal: true
-    on_value:
-      then:
-        - script.execute:
-            id: cache_bridge_library
-            kind: '1'
-            payload: !lambda 'return x;'
-
-  - platform: mqtt_subscribe
-    id: bridge_radios_json_raw
-    topic: ${radio_json_sensor}
-    internal: true
-    on_value:
-      then:
-        - script.execute:
-            id: cache_bridge_library
-            kind: '2'
-            payload: !lambda 'return x;'
-
-  - platform: mqtt_subscribe
-    id: bridge_podcasts_json_raw
-    topic: ${podcast_json_sensor}
-    internal: true
-    on_value:
-      then:
-        - script.execute:
-            id: cache_bridge_library
-            kind: '3'
-            payload: !lambda 'return x;'
-
-  - platform: mqtt_subscribe
-    id: bridge_playlist_page_json_raw
-    topic: ${playlist_page_json_sensor}
-    internal: true
-    on_value:
-      then:
-        - script.execute:
-            id: cache_bridge_library_page
-            kind: '4'
-            payload: !lambda 'return x;'
-
-  - platform: mqtt_subscribe
-    id: bridge_playlist_tracks_json_raw
-    topic: ${playlist_tracks_json_sensor}
-    internal: true
-    on_value:
-      then:
-        - script.execute:
-            id: cache_bridge_library_page
-            kind: '5'
-            payload: !lambda 'return x;'
-
-  - platform: mqtt_subscribe
+  - platform: homeassistant
     id: bridge_floorplan_revision
-    topic: ${floorplan_revision_topic}
+    entity_id: pyscript.passion_wave_floorplan_revision
     internal: true
     on_value:
       then:
@@ -1143,11 +1093,25 @@ text_sensor:
 
   - platform: homeassistant
     id: bridge_radar_image_path_text
-    entity_id: sensor.scrollwheel_rain_radar_image_path
+    entity_id: pyscript.passion_wave_radar_asset_url
     internal: true
     on_value:
       then:
         - lambda: 'id(bridge_radar_image_path) = x;'
+
+  - platform: homeassistant
+    id: bridge_floorplan_image_path_text
+    entity_id: pyscript.passion_wave_floorplan_revision
+    attribute: asset_url
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(bridge_floorplan_image_path) = x;
+            dual_mcu::link.send(
+              dual_mcu::MessageType::FLOORPLAN_INVALIDATED);
+            id(bridge_floorplan_status).publish_state(
+              "Floorplan-URL über Home Assistant aktualisiert");
 
   - platform: homeassistant
     id: bridge_light_1_state_text
@@ -1658,6 +1622,273 @@ script:
             0, id(bridge_wled_preset_generation),
             static_cast<uint8_t>(count), selected);
 
+  - id: refresh_bridge_library_native
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return !id(bridge_api_connected) ||
+                     id(bridge_passion_wave_config_entry_text).state.empty();
+          then:
+            - script.stop: refresh_bridge_library_native
+      - lambda: 'id(bridge_library_bootstrap_requested) = true;'
+      - script.execute:
+          id: fetch_bridge_library_native
+          kind: '4'
+          offset: '0'
+          limit: '40'
+      - delay: 100ms
+      - script.execute:
+          id: fetch_bridge_library_native
+          kind: '2'
+          offset: '0'
+          limit: '40'
+      - delay: 100ms
+      - script.execute:
+          id: fetch_bridge_library_native
+          kind: '3'
+          offset: '0'
+          limit: '40'
+
+  - id: fetch_bridge_library_native
+    mode: parallel
+    max_runs: 4
+    parameters:
+      kind: int
+      offset: int
+      limit: int
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return !id(bridge_api_connected) ||
+                     id(bridge_passion_wave_config_entry_text).state.empty() ||
+                     kind < 1 || kind > 4 || offset < 0 ||
+                     limit < 1 || limit > 100;
+          then:
+            - script.stop: fetch_bridge_library_native
+      - homeassistant.action:
+          action: passion_wave.get_library
+          data_template:
+            config_entry_id: !lambda |-
+              return id(bridge_passion_wave_config_entry_text).state;
+            media_type: !lambda |-
+              return kind == 2 ? "radio" :
+                     kind == 3 ? "podcast" : "playlist";
+            offset: !lambda 'return std::to_string(offset);'
+            limit: !lambda 'return std::to_string(limit);'
+          capture_response: true
+          on_success:
+            - lambda: |-
+                JsonObjectConst root =
+                  response["response"].as<JsonObjectConst>();
+                if (root.isNull())
+                  root = response["service_response"].as<JsonObjectConst>();
+                if (root.isNull()) root = response;
+                JsonArrayConst items = root["items"].as<JsonArrayConst>();
+                if (items.isNull()) {
+                  id(bridge_library_proxy_status).publish_state(
+                    "Native API: Liste fehlt");
+                  return;
+                }
+
+                const char *fallback_type =
+                  kind == 2 ? "radio" :
+                  kind == 3 ? "podcast" : "playlist";
+                std::vector<dual_mcu::LibraryEntry> entries;
+                entries.reserve(std::min<size_t>(
+                  items.size(), dual_mcu::LIBRARY_MAX_ENTRIES));
+                int fallback_index = offset + 1;
+                for (JsonObjectConst item : items) {
+                  if (entries.size() >= dual_mcu::LIBRARY_MAX_ENTRIES)
+                    break;
+                  dual_mcu::LibraryEntry entry;
+                  const char *name = item["name"] | item["title"] | "";
+                  const char *uri = item["uri"] | item["id"] | "";
+                  const char *item_id =
+                    item["item_id"] | item["playlist_item_id"] | "";
+                  const char *media_type =
+                    item["media_type"] | item["type"] | fallback_type;
+                  entry.name = name == nullptr || name[0] == '\0'
+                    ? std::string("Eintrag ") +
+                        std::to_string(fallback_index)
+                    : name;
+                  entry.uri = uri == nullptr ? "" : uri;
+                  entry.item_id = item_id == nullptr ? "" : item_id;
+                  entry.media_type =
+                    media_type == nullptr || media_type[0] == '\0'
+                      ? fallback_type : media_type;
+                  entries.push_back(std::move(entry));
+                  fallback_index++;
+                }
+
+                const bool has_more =
+                  entries.size() >= static_cast<size_t>(limit);
+                if (kind == 4) {
+                  const uint16_t total_hint = static_cast<uint16_t>(
+                    std::min(offset + static_cast<int>(entries.size()),
+                             65535));
+                  if (!dual_mcu::library_server.set_page(
+                        dual_mcu::LibraryKind::PLAYLIST_PAGE, entries,
+                        static_cast<uint16_t>(offset), total_hint,
+                        has_more)) {
+                    id(bridge_library_proxy_status).publish_state(
+                      "Native API: Paging-Reihenfolge ungültig");
+                    return;
+                  }
+                } else {
+                  const auto library_kind =
+                    static_cast<dual_mcu::LibraryKind>(kind);
+                  if (!dual_mcu::library_server.set(
+                        library_kind, entries)) {
+                    id(bridge_library_proxy_status).publish_state(
+                      "Native API: Cache zu groß");
+                    return;
+                  }
+                  if (kind == 1)
+                    dual_mcu::library_server.set_page(
+                      dual_mcu::LibraryKind::PLAYLIST_PAGE, entries,
+                      0, static_cast<uint16_t>(entries.size()),
+                      has_more);
+                }
+
+                id(bridge_library_proxy_status).publish_state(
+                  std::string("Native API ") +
+                  (kind == 1 ? "Playlists" :
+                   kind == 2 ? "Radios" :
+                   kind == 3 ? "Podcasts" : "Playlist-Seite") +
+                  ": " + std::to_string(entries.size()) + " Einträge");
+                const uint8_t changed[] = {
+                  static_cast<uint8_t>(
+                    kind == 4
+                      ? dual_mcu::LibraryKind::PLAYLIST_PAGE
+                      : static_cast<dual_mcu::LibraryKind>(kind))};
+                dual_mcu::link.send(
+                  dual_mcu::MessageType::LIBRARY_CHANGED,
+                  changed, sizeof(changed));
+          on_error:
+            - lambda: |-
+                id(bridge_library_proxy_status).publish_state(
+                  std::string("Native API Fehler: ") + error);
+
+  - id: fetch_bridge_playlist_tracks_native
+    mode: restart
+    parameters:
+      playlist_id: string
+      offset: int
+      limit: int
+      generation: int
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return !id(bridge_api_connected) || playlist_id.empty() ||
+                     id(bridge_passion_wave_config_entry_text).state.empty() ||
+                     offset < 0 || offset > 65535 ||
+                     limit < 1 || limit > 64;
+          then:
+            - script.stop: fetch_bridge_playlist_tracks_native
+      - homeassistant.action:
+          action: passion_wave.get_playlist_tracks
+          data_template:
+            config_entry_id: !lambda |-
+              return id(bridge_passion_wave_config_entry_text).state;
+            playlist_id: !lambda |-
+              return playlist_id;
+            offset: !lambda 'return std::to_string(offset);'
+            limit: !lambda 'return std::to_string(limit);'
+          capture_response: true
+          on_success:
+            - lambda: |-
+                JsonVariantConst content = response["content"];
+                DynamicJsonDocument parsed(12288);
+                JsonVariantConst root = response;
+                if (content.is<const char *>()) {
+                  const char *raw = content.as<const char *>();
+                  if (raw == nullptr || deserializeJson(parsed, raw)) {
+                    id(bridge_library_proxy_status).publish_state(
+                      "Native API: Track-Antwort ungültig");
+                    return;
+                  }
+                  root = parsed.as<JsonVariantConst>();
+                } else if (!content.isNull()) {
+                  root = content;
+                }
+                if (root["response"].is<JsonObjectConst>())
+                  root = root["response"];
+                if (root["service_response"].is<JsonObjectConst>())
+                  root = root["service_response"];
+                if (root["result"].is<JsonObjectConst>())
+                  root = root["result"];
+                JsonArrayConst items = root["items"].as<JsonArrayConst>();
+                if (items.isNull() && root.is<JsonArrayConst>())
+                  items = root.as<JsonArrayConst>();
+                if (items.isNull()) {
+                  id(bridge_library_proxy_status).publish_state(
+                    "Native API: Track-Liste fehlt");
+                  return;
+                }
+
+                std::vector<dual_mcu::LibraryEntry> entries;
+                entries.reserve(std::min<size_t>(
+                  items.size(), dual_mcu::LIBRARY_MAX_ENTRIES));
+                int fallback_index = offset + 1;
+                for (JsonObjectConst item : items) {
+                  if (entries.size() >= dual_mcu::LIBRARY_MAX_ENTRIES)
+                    break;
+                  dual_mcu::LibraryEntry entry;
+                  const char *title = item["name"] | item["title"] | "";
+                  const char *uri = item["uri"] | item["id"] | "";
+                  entry.name = title == nullptr || title[0] == '\0'
+                    ? std::string("Titel ") +
+                        std::to_string(fallback_index)
+                    : title;
+                  entry.uri = uri == nullptr ? "" : uri;
+                  JsonArrayConst artists =
+                    item["artists"].as<JsonArrayConst>();
+                  if (!artists.isNull() && artists.size() > 0) {
+                    const char *artist = artists[0]["name"] | "";
+                    entry.item_id = artist == nullptr ? "" : artist;
+                  }
+                  entry.media_type = "track";
+                  entries.push_back(std::move(entry));
+                  fallback_index++;
+                }
+
+                const int response_offset = root["offset"] | offset;
+                const int response_total = root["total"] |
+                  (offset + static_cast<int>(entries.size()));
+                const bool has_more = root["has_more"] |
+                  (entries.size() >= static_cast<size_t>(limit));
+                if (!dual_mcu::library_server.set_page(
+                      dual_mcu::LibraryKind::PLAYLIST_TRACKS, entries,
+                      static_cast<uint16_t>(
+                        std::clamp(response_offset, 0, 65535)),
+                      static_cast<uint16_t>(
+                        std::clamp(response_total, 0, 65535)),
+                      has_more,
+                      static_cast<uint16_t>(
+                        std::clamp(generation, 0, 65535)))) {
+                  id(bridge_library_proxy_status).publish_state(
+                    "Native API: Track-Reihenfolge ungültig");
+                  return;
+                }
+                id(bridge_library_proxy_status).publish_state(
+                  std::string("Native API Track-Seite ") +
+                  std::to_string(response_offset) + ": " +
+                  std::to_string(entries.size()) + " Einträge");
+                const uint8_t changed[] = {
+                  static_cast<uint8_t>(
+                    dual_mcu::LibraryKind::PLAYLIST_TRACKS)};
+                dual_mcu::link.send(
+                  dual_mcu::MessageType::LIBRARY_CHANGED,
+                  changed, sizeof(changed));
+          on_error:
+            - lambda: |-
+                id(bridge_library_proxy_status).publish_state(
+                  std::string("Native Track-API Fehler: ") + error);
+
   - id: cache_bridge_library
     mode: queued
     parameters:
@@ -1747,7 +1978,7 @@ script:
                 "Veraltete Titelliste verworfen");
               return;
             }
-          } else if (request_id.rfind("${s3_device_name}", 0) != 0) {
+          } else if (request_id.rfind(App.get_name(), 0) != 0) {
             return;
           }
           JsonArray items = kind == 4 ? doc["items"].as<JsonArray>()
@@ -2162,8 +2393,7 @@ script:
           const uint8_t status[] = {
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
             static_cast<uint8_t>(
-              (id(bridge_mqtt_client).is_connected() ? 0x01 : 0x00) |
-              (id(bridge_api_connected) ? 0x02 : 0x00)),
+              id(bridge_api_connected) ? 0x02 : 0x00),
           };
           dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS, status, sizeof(status));
           dual_mcu::MediaState media;
@@ -2725,52 +2955,38 @@ interval:
                         (static_cast<uint16_t>(frame.payload[7]) << 8)
                     : 0;
                   uint8_t result = 1;
-                  std::string payload;
-                  std::string request_id;
                   if ((kind == 4 || kind == 5) && limit > 0 && limit <= 64) {
-                    if (!id(bridge_mqtt_client).is_connected()) {
+                    if (!id(bridge_api_connected)) {
                       result = 2;
+                    } else if (kind == 4 &&
+                               !id(bridge_passion_wave_config_entry_text).state.empty()) {
+                      id(fetch_bridge_library_native).execute(
+                        4, offset, limit);
+                      result = 0;
+                    } else if (kind == 4) {
+                      result = 6;
                     } else {
-                      DynamicJsonDocument doc(384);
-                      request_id = std::string("${s3_device_name}-uart-") +
-                                   std::to_string(kind) + "-" +
-                                   std::to_string(context) + "-" +
-                                   std::to_string(millis());
-                      doc["request_id"] = request_id;
-                      doc["device"] = "${s3_device_name}";
-                      doc["offset"] = offset;
-                      doc["limit"] = limit;
-                      if (kind == 4) {
-                        doc["media_type"] = "playlist";
-                        serializeJson(doc, payload);
-                        result = id(bridge_mqtt_client).publish(
-                          "${playlist_request_topic}", payload) ? 0 : 5;
-                      } else {
-                        dual_mcu::LibraryEntry playlist;
-                        bool found = dual_mcu::library_server.entry(
-                          dual_mcu::LibraryKind::PLAYLIST_PAGE,
+                      dual_mcu::LibraryEntry playlist;
+                      bool found = dual_mcu::library_server.entry(
+                        dual_mcu::LibraryKind::PLAYLIST_PAGE,
+                        playlist_index, &playlist);
+                      if (!found) {
+                        found = dual_mcu::library_server.entry(
+                          dual_mcu::LibraryKind::PLAYLISTS,
                           playlist_index, &playlist);
-                        if (!found) {
-                          found = dual_mcu::library_server.entry(
-                            dual_mcu::LibraryKind::PLAYLISTS,
-                            playlist_index, &playlist);
-                        }
-                        if (!found) {
-                          result = 3;
-                        } else if (playlist.uri.empty() && playlist.item_id.empty()) {
-                          result = 4;
-                        } else {
-                          id(bridge_pending_track_request_id) = request_id;
-                          id(bridge_pending_track_generation) = context;
-                          doc["playlist_id"] = playlist.uri;
-                          doc["playlist_item_id"] = playlist.item_id;
-                          doc["generation"] = context;
-                          serializeJson(doc, payload);
-                          result = id(bridge_mqtt_client).publish(
-                            "${playlist_tracks_request_topic}", payload) ? 0 : 5;
-                          if (result != 0)
-                            id(bridge_pending_track_request_id).clear();
-                        }
+                      }
+                      if (!found) {
+                        result = 3;
+                      } else if (playlist.uri.empty() &&
+                                 playlist.item_id.empty()) {
+                        result = 4;
+                      } else {
+                        const std::string playlist_id =
+                          !playlist.uri.empty()
+                            ? playlist.uri : playlist.item_id;
+                        id(fetch_bridge_playlist_tracks_native).execute(
+                          playlist_id, offset, limit, context);
+                        result = 0;
                       }
                     }
                   }
@@ -2780,8 +2996,10 @@ interval:
                     response, sizeof(response));
                   id(bridge_library_proxy_status).publish_state(
                     result == 0
-                      ? std::string(kind == 4 ? "Playlist" : "Track") +
-                          "-Anfrage MQTT: offset=" + std::to_string(offset) +
+                      ? std::string(kind == 4
+                                      ? "Playlist-Anfrage Native API"
+                                      : "Track-Anfrage Native API") +
+                          ": offset=" + std::to_string(offset) +
                           " gen=" + std::to_string(context) +
                           " playlist=" + std::to_string(playlist_index)
                       : std::string("Paging-Anfrage Fehler ") +
@@ -2801,8 +3019,17 @@ interval:
                 std::string url;
                 if (kind == dual_mcu::AssetKind::RADAR) {
                   const uint8_t zoom = std::min<uint8_t>(argument, 2);
-                  url = std::string("/local/scrollwheel/rain_radar_z") +
-                        std::to_string(zoom) + ".jpg";
+                  url = id(bridge_radar_image_path);
+                  const size_t zoom_marker = url.find("_z");
+                  const size_t extension = zoom_marker == std::string::npos
+                    ? std::string::npos : url.find('.', zoom_marker + 2);
+                  if (extension != std::string::npos) {
+                    url.replace(
+                      zoom_marker + 2, extension - (zoom_marker + 2),
+                      std::to_string(zoom));
+                  } else {
+                    url = "${rain_radar_image_url}";
+                  }
                 } else if (kind == dual_mcu::AssetKind::MEDIA_COVER) {
                   url = id(bridge_media_cover_url);
                   // Music Assistant's image proxy rejects 128px for this
@@ -2830,7 +3057,9 @@ interval:
                     "${photo_image_url_2}"};
                   url = photos[std::min<uint8_t>(argument, 2)];
                 } else if (kind == dual_mcu::AssetKind::HOUSE) {
-                  url = "${house_floorplan_image_url}";
+                  url = id(bridge_floorplan_image_path);
+                  if (url.empty() || url == "unknown" || url == "unavailable")
+                    url = "${house_floorplan_image_url}";
                 }
                 while (!url.empty() && isspace(static_cast<unsigned char>(url.front()))) url.erase(url.begin());
                 while (!url.empty() && isspace(static_cast<unsigned char>(url.back()))) url.pop_back();
@@ -2839,9 +3068,6 @@ interval:
                   while (!base.empty() && base.back() == '/') base.pop_back();
                   url = base + url;
                 }
-                if (kind == dual_mcu::AssetKind::RADAR &&
-                    (url.empty() || url == "unknown" || url == "unavailable"))
-                  url = id(bridge_radar_image_path);
                 if (force && !url.empty()) {
                   const char separator = url.find('?') == std::string::npos ? '?' : '&';
                   url += separator;
@@ -3019,7 +3245,11 @@ interval:
                   // moment after reconnect before discovery is reliable.
                   id(bridge_light_detail_resolved_mask) = 0;
                   id(bridge_light_detail_retry_due_ms) = millis() + 1500UL;
+                  id(bridge_library_bootstrap_requested) = false;
                 }
+                if (!id(bridge_library_bootstrap_requested) &&
+                    !id(bridge_passion_wave_config_entry_text).state.empty())
+                  id(refresh_bridge_library_native).execute();
                 const uint32_t detail_due =
                   id(bridge_light_detail_retry_due_ms);
                 if (detail_due != 0 &&
@@ -3039,6 +3269,7 @@ interval:
             - lambda: |-
                 id(bridge_api_connected) = false;
                 id(bridge_forecast_requested) = false;
+                id(bridge_library_bootstrap_requested) = false;
       - lambda: |-
           dual_mcu::link.send_u32(dual_mcu::MessageType::HEARTBEAT, millis());
           const auto bridge_now = id(bridge_time).now();
@@ -3054,8 +3285,7 @@ interval:
           const uint8_t status[] = {
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
             static_cast<uint8_t>(
-              (id(bridge_mqtt_client).is_connected() ? 0x01 : 0x00) |
-              (id(bridge_api_connected) ? 0x02 : 0x00)),
+              id(bridge_api_connected) ? 0x02 : 0x00),
           };
           dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS,
                               status, sizeof(status));

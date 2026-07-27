@@ -1,0 +1,57 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "PassionWave Rotaryknob einrichten",
+        "description": "Verbinde eine ESPHome-Bridge mit Music Assistant. Im nächsten Schritt kannst du die sichtbaren Medieneinträge optional einschränken.",
+        "data": {
+          "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
+          "music_assistant_config_entry_id": "Music-Assistant-Instanz",
+          "media_player": "Music-Assistant-Mediaplayer"
+        }
+      },
+      "library": {
+        "title": "Sichtbare Medien konfigurieren",
+        "description": "Standardmäßig werden alle Einträge automatisch angezeigt. Entferne „Alle automatisch“ und wähle einzelne Einträge, um die Anzeige einzuschränken. Eine leere Auswahl blendet die jeweilige Kategorie aus.",
+        "data": {
+          "visible_playlists": "Sichtbare Playlists",
+          "visible_radios": "Sichtbare Radiosender",
+          "visible_podcasts": "Sichtbare Podcasts"
+        }
+      }
+    },
+    "error": {
+      "invalid_bridge_registration_entity": "Die gewählte Entität ist nicht die PassionWave-Registrierungsentität einer ESPHome-Bridge.",
+      "library_unavailable": "Die Music-Assistant-Bibliothek konnte gerade nicht geladen werden. Du kannst mit „Alle automatisch“ fortfahren und die Auswahl später erneut öffnen."
+    },
+    "abort": {
+      "already_configured": "Diese PassionWave-Bridge ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "error": {
+      "invalid_bridge_registration_entity": "Die gewählte Entität ist nicht die PassionWave-Registrierungsentität einer ESPHome-Bridge.",
+      "library_unavailable": "Die Music-Assistant-Bibliothek konnte gerade nicht geladen werden. Du kannst mit „Alle automatisch“ fortfahren und die Auswahl später erneut öffnen."
+    },
+    "step": {
+      "init": {
+        "title": "PassionWave konfigurieren",
+        "description": "Ändere die Bridge oder Music-Assistant-Zuordnung. Im nächsten Schritt kannst du die sichtbaren Medieneinträge auswählen.",
+        "data": {
+          "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
+          "music_assistant_config_entry_id": "Music-Assistant-Instanz",
+          "media_player": "Music-Assistant-Mediaplayer"
+        }
+      },
+      "library": {
+        "title": "Sichtbare Medien konfigurieren",
+        "description": "„Alle automatisch“ folgt der vollständigen Music-Assistant-Bibliothek. Ohne diesen Eintrag werden nur die ausgewählten Medien angezeigt; eine leere Auswahl blendet die Kategorie aus.",
+        "data": {
+          "visible_playlists": "Sichtbare Playlists",
+          "visible_radios": "Sichtbare Radiosender",
+          "visible_podcasts": "Sichtbare Podcasts"
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Project review
 
-Stand: 2026-07-26
+Stand: 2026-07-27
 
 ## Executive assessment
 
@@ -12,9 +12,10 @@ Home Assistant onboarding and the physical endurance gates pass.
 
 Current reviewed candidate:
 
-- ESP32-S3: `1.2.0-ui-next.98`
-- ESP32: `1.2.0-ha-bridge.50`
-- stable compatibility reference: `1.2.0`
+- product: `3.0.0-beta.0`
+- ESP32-S3: managed S3 UI endpoint
+- ESP32: managed Home Assistant bridge endpoint
+- public installer: `3.0.0-beta.0` prerelease; `2.1.1` rollback
 
 ## What is already strong
 
@@ -41,7 +42,7 @@ Current reviewed candidate:
    and flash the second unless future hardware lets one MCU program the other.
 3. **No single logical onboarding flow.** Home Assistant currently sees two
    ESPHome nodes and several supporting automations/packages.
-4. **The complete advanced path still needs YAML/MQTT knowledge.** Weather, Music
+4. **The complete advanced path still needs YAML knowledge.** Weather, Music
    Assistant paging, radar and floorplan require developer-level setup.
 
 ### High-priority engineering risks
@@ -53,8 +54,8 @@ Current reviewed candidate:
 - Older control and firmware documents described a one-processor flow and
   understated the implemented two-chip installer. They were corrected on
   2026-07-26.
-- `home_assistant/` and `home-assistant/` coexist. This is understandable
-  historically but error-prone for packaging and support.
+- `home_assistant/` now contains blueprints, packages and Pyscript together;
+  the error-prone duplicate `home-assistant/` source path was removed.
 - The migration documents contained historical version numbers presented as
   current state.
 
@@ -110,7 +111,8 @@ second device as the test target. A retail release becomes credible after:
 
 1. two sanitized factory profiles and signed/hash-verified binaries exist;
 2. the web installer guides and verifies both processor stages;
-3. one Home Assistant config flow pairs the two nodes and asks only meaningful
+3. one Home Assistant config flow represents the one physical product, binds
+   its two technical endpoints and asks only meaningful
    choices;
 4. a clean Home Assistant installation passes the no-YAML acceptance test;
 5. both OTA paths, rollback and a 72-hour endurance run pass.

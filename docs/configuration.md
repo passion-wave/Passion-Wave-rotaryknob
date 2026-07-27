@@ -1,15 +1,18 @@
 # Configuration Model
 
-The current development device is configured in two layers. The retail target
-replaces this model with a Home Assistant config flow; normal buyers must not
-edit YAML, enter entity IDs or configure MQTT.
+Installed devices are configured through shared role layers plus a small
+physical-device overlay. Runtime integration uses the encrypted ESPHome Native
+API; MQTT is not part of the device firmware.
 
 ## Release distinction
 
-- Stable reference: single-profile firmware `1.2.0`.
-- Current two-processor test candidate: S3 `1.2.0-ui-next.98`, ESP32
-  `1.2.0-ha-bridge.50`.
-- Retail factory release: not yet available.
+- Historical rollback reference: single-profile firmware `1.2.0` (not part of
+  the V3 source tree).
+- Current coordinated dual-processor beta: `3.0.0-beta.0`.
+- Public Factory profiles: credential-free first adoption only.
+- Private Managed profiles: encrypted API, authenticated OTA and thin
+  per-endpoint entrypoints over two shared processor roles. The current test
+  installation contains two physical devices and therefore four entrypoints.
 
 ## Device Runtime Settings
 
@@ -44,45 +47,21 @@ They are stored persistently on the ESPHome device.
 | Display aus bei Playback | `number` | yes |
 | Offline demo mode | `switch` | yes |
 
-## Dynamic Home Assistant Selection
+## PassionWave Integration
 
-ESPHome template text entities cannot show a dynamic Home Assistant entity
-dropdown by themselves. The firmware therefore stores raw entity IDs, while the
-recommended Home Assistant blueprint provides the comfortable entity picker.
+V3 configures the media-library path only through the `passion_wave` Config
+Flow. Install `custom_components/passion_wave`, restart Home Assistant and add
+one integration entry per physical Rotaryknob. The form uses typed selectors
+for the Bridge registration entity, Music Assistant instance and Music
+Assistant player.
 
-The blueprint selects from:
+The integration stores its Config Entry ID in the Bridge entity
+`PassionWave Integration Entry ID`. This is the only firmware-visible media
+configuration value. The Bridge never needs the Music Assistant Config Entry
+ID or media-player entity as manually editable strings.
 
-- all Home Assistant `media_player` entities for the media target; choose a
-  Music Assistant capable player for playlist/radio/podcast playback. With
-  Sonos, use the Music Assistant player entity rather than the generic Sonos
-  entity so playlist selection replaces the intended MA queue.
-- all Home Assistant `light` entities for light slots 1 to 4.
-
-This blueprint is the compatibility setup for existing installations. The
-planned `passion_wave` integration will make media, weather, Music Assistant
-and zero to four lights selectable in one UI-only reconfiguration flow.
-
-When the blueprint runs, it writes the selected entity IDs and their friendly
-names into the ESPHome text entities with `text.set_value`. The Rotaryknob then
-uses those values for `media_player.*` and `light.*` service calls.
-
-For media targets, the blueprint also relays the selected player's runtime
-state, title, artist and cover URL into diagnostic Text entities. That relay is
-what makes Play/Pause state, cover display and the media cover screensaver work
-for arbitrary selected `media_player` entities.
-
-Without the blueprint, the firmware still supports arbitrary runtime media
-targets. If `Rotaryknob Media Entity ID` contains a real `media_player.*` entity,
-the device polls Home Assistant with `homeassistant.action` and a
-`response_template`. Home Assistant renders the selected player's state,
-friendly name, title, artist, cover URL, volume, progress, shuffle and repeat
-attributes into a JSON response. The ESPHome UI then uses that response for the
-Play/Pause icon, cover image and media cover screensaver. No extra Home
-Assistant automation is required.
-
-If the media entity text is empty or still contains the public placeholder
-`media_player.passion_wave_media`, the firmware falls back to the compile-time
-`ha_player` and subscribes directly to that static player's attributes.
+The Dynamic Targets blueprint remains available for light-slot selection.
+It is independent of playlist loading.
 
 ## Offline / Promo Demo Mode
 
@@ -96,11 +75,11 @@ Demo mode provides local default values for:
 - media source, playlists, radios, podcasts and demo tracks;
 - four light slots, brightness values and local rotary/touch behavior.
 
-While demo mode is active, Home Assistant service calls, MQTT requests, weather
+While demo mode is active, Home Assistant service calls, weather
 fetches and network image downloads are skipped. This prevents long retries or
 empty states when the device is used only as a portable demo unit. When Wi-Fi
 connects, the firmware disables demo mode, clears the demo caches and returns to
-the normal Home Assistant/MQTT path.
+the normal Bridge/Native-API path.
 
 The Settings page contains a `Demo` entry and Home Assistant exposes
 `scrollwheel Demo` as a persistent configuration switch. When it is off, the
@@ -157,51 +136,29 @@ estimate unless validated with a reference lux meter.
 
 ## Media Library Lists
 
-The selected `media_player` controls playback and provides runtime status. It
-does not automatically provide playlist, radio or podcast rows for the
-Rotaryknob popup. Those rows are read from MQTT:
+The Bridge calls `passion_wave.get_library`; the integration delegates to the
+selected Music Assistant instance and normalizes playlist, radio and podcast
+pages. It calls `passion_wave.get_playlist_tracks` for playlist contents; Home
+Assistant expands `browse_media`, slices the result and returns at most 64
+normalized rows.
 
-| Content | Topic |
-| --- | --- |
-| Static playlist list | `passion_wave/media/playlists` |
-| Paged playlist response | `passion_wave/media/playlists/state` |
-| Radio list | `passion_wave/media/radios` |
-| Podcast list | `passion_wave/media/podcasts` |
-| Playlist-track request | `passion_wave/media/playlist_tracks/request` |
-| Playlist-track response | `passion_wave/media/playlist_tracks/state` |
+The PassionWave Options Flow provides searchable multiple-selection fields for
+visible playlists, radios and podcasts. `Alle automatisch` is the default and
+follows the complete Music Assistant library. Remove that value to show only
+selected entries. An empty selection hides the corresponding category.
 
-For Music Assistant, publish retained JSON arrays with objects containing
-`name`, `uri` and `media_type`. The firmware also sends playlist page requests
-to `passion_wave/media/playlists/request`; a Home Assistant automation can use
-`music_assistant.get_library` and answer with `items`, `offset`, `next_offset`,
-`has_more` and the original `request_id`.
-
-The included blueprint
-`home_assistant/blueprints/automation/passion_wave/rotaryknob_music_assistant_library.yaml`
-implements this bridge. Create one automation from it and select the Music
-Assistant config entry. Keep retained bootstrap lists compact; larger lists are
-loaded through the request topics so the ESPHome UI does not need to ingest very
-large MQTT payloads at boot.
+Only stable Music Assistant URIs are stored as a visibility filter. Names,
+ordering and playlist contents still come from Music Assistant. Add, remove,
+rename or favorite media there; PassionWave does not maintain a second media
+database. Up to 500 entries per category are offered by the configuration
+dialog. The display requests another page when only five rows remain, hiding
+the API/UART round trip during normal scrolling.
 
 ## Manual Configuration
 
-Without the blueprint, open the ESPHome device in Home Assistant and edit the
-text entities manually:
-
-```text
-Rotaryknob Media Entity ID: media_player.your_player
-Rotaryknob Media Label: Media
-Rotaryknob Light Slot 1 Entity ID: light.your_light
-Rotaryknob Light Slot 1 Label: Main
-```
-
-Keep labels short enough for the 360 x 360 display.
-
-Manual raw media entity configuration can control playback and receive dynamic
-status and cover updates. Set `Rotaryknob Media Entity ID` to the desired
-`media_player.*`. The firmware reads the dynamic state through
-`homeassistant.action`/`response_template`; the blueprint only makes selection
-easier by showing Home Assistant entity pickers.
+Manual Music Assistant IDs and raw playlist JSON are unsupported in V3.
+Reconfigure the PassionWave Config Entry in **Settings > Devices & services**
+instead. Light labels should remain short enough for the 360 × 360 display.
 
 ## Privacy Defaults
 

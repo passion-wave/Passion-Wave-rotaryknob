@@ -13,8 +13,10 @@ The public wording should stay as short as possible:
 4. Unplug, reverse USB-C and reconnect.
 5. Erase, flash and provision the detected ESP32 as `PassionWave Rotaryknob Bridge`.
 6. Press `Open Home Assistant`.
-7. Approve both discovered PassionWave devices; the public factory profiles do
-   not require an ESPHome API encryption key.
+7. Approve both discovered PassionWave processor endpoints for the one
+   Rotaryknob. Home Assistant 2026.7 or newer generates, provisions and stores
+   a unique API encryption key for each endpoint; the customer does not enter
+   or copy a key.
 8. Select media, weather and optional lights from Home Assistant pickers.
 
 The customer should never copy entity IDs. Home Assistant owns entity discovery,
@@ -64,8 +66,9 @@ Each image must be built from a public factory configuration with:
 - no private Wi-Fi credentials;
 - no private API encryption key;
 - no private OTA password;
-- no private MQTT credentials;
+- no MQTT component or broker credentials;
 - `name_add_mac_suffix` enabled;
+- `api.encryption` without a compiled key plus a bounded `provisioning` window;
 - `improv_serial` enabled;
 - `captive_portal` enabled;
 - `dashboard_import` enabled for ESPHome adoption.
@@ -94,7 +97,7 @@ as website installer assets.
 - Public factory buttons force clean installation even if an older Passion
   Wave firmware identifies as the same project. A separate bridge button
   reopens Improv without reflashing if serial reconnection fails.
-- Pairing both ESPHome nodes into one logical Home Assistant product and the
+- Pairing both ESPHome endpoints into one logical Home Assistant product and the
   planned no-code `passion_wave` config flow are not implemented.
 
 The two-chip browser installer is implemented, but the complete retail

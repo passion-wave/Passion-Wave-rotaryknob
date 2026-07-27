@@ -465,7 +465,7 @@ class Link {
     return this->send(MessageType::MEDIA_LIBRARY_PLAY, payload, sizeof(payload));
   }
 
-  // Request an outbound paginated library MQTT operation on the network MCU.
+  // Request a paginated library operation on the network MCU.
   // kind 4 requests playlists; kind 5 requests tracks for playlist_index.
   bool send_library_page_fetch(uint8_t kind, uint16_t offset, uint8_t limit,
                                uint16_t playlist_index = UINT16_MAX,

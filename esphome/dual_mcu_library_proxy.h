@@ -212,7 +212,7 @@ class LibraryProxyServer {
     }
     this->kind_ = kind;
     this->active_context_ = this->contexts_[kind];
-    // Freeze the selected cache for this transfer. MQTT may refresh the
+    // Freeze the selected cache for this transfer. Native API may refresh the
     // retained list while chunks are still in flight.
     this->active_blob_ = this->cache_[kind];
     this->transfer_id_++;
@@ -470,7 +470,7 @@ class LibraryProxyClient {
   }
 
   // Page generation is asynchronous. The first request can reach the ESP32
-  // before its MQTT response has filled the requested cache and is then
+  // before its Native API response has filled the requested cache and is then
   // rejected as "not ready". LIBRARY_CHANGED is the authoritative signal
   // that this exact kind is ready, so it releases the matching retry
   // immediately instead of keeping request and retry phase-locked.

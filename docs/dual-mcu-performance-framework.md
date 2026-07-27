@@ -1,5 +1,10 @@
 # Dual-MCU Performance Framework
 
+> This is the historical 2.1.x migration log. The next major firmware removes
+> the MQTT/rescue compatibility path; use
+> [MQTT-free Native API migration](native-api-migration.md) as the current
+> architecture.
+
 This document defines the implemented compatibility architecture and the safe
 path toward further offload on the JC3636K518C. Firmware 1.2.0 behavior remains
 the compatibility contract. The production device named
@@ -296,7 +301,7 @@ The detailed scope, acceptance gates and rollback points are maintained in
 [`final-migration-roadmap.md`](final-migration-roadmap.md).
 
 Manual build, flash and Home Assistant steps are documented in
-[`dual-mcu-test-installation.md`](dual-mcu-test-installation.md).
+[`managed-deployment.md`](managed-deployment.md).
 The productive bridge and its fallback contract are documented in
 [`dual-mcu-ha-bridge.md`](dual-mcu-ha-bridge.md).
 The complete stage-1 regression and responsiveness matrix is documented in

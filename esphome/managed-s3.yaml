@@ -1,0 +1,10 @@
+# Canonical managed ESP32-S3 role. Device-specific identity and Home Assistant
+# targets are supplied by a small file in devices/.
+packages:
+  application: !include dual-mcu-s3-core.yaml
+  managed_transport: !include managed-common.yaml
+
+substitutions:
+  factory_onboarding_guard: "false"
+
+dashboard_import: !remove

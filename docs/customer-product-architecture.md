@@ -10,6 +10,12 @@ With the current board this is feasible as a guided **two-stage** install. It
 cannot honestly be presented as one physical flash: reversing the USB-C plug
 selects the other processor.
 
+Throughout this documentation, **device** means one physical Rotaryknob with
+two chips. **Endpoint** means one chip's independently addressable ESPHome
+connection. A customer installs two endpoints but owns and configures one
+product device. Additional Rotaryknobs repeat the same isolated two-endpoint
+model.
+
 ## Recommended repository boundaries
 
 ### Passion-Wave-rotaryknob
@@ -116,8 +122,10 @@ passion-wave-rotary-<id>-s3
 passion-wave-rotary-<id>-bridge
 ```
 
-Home Assistant groups them under one product device in the Passion Wave
-integration. Processor names remain visible only in diagnostics.
+The PassionWave Config Entry represents one product device and binds its Bridge
+endpoint to the selected Home Assistant and Music Assistant targets. Native
+ESPHome management can still show the S3 and Bridge as two technical endpoints;
+processor names remain useful for diagnostics and OTA.
 
 ## Security and updates
 

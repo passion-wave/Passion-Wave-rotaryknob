@@ -45,11 +45,23 @@ else
   "${repo_dir}/tools/build.sh" esphome/factory-esp32.yaml
 fi
 
-if grep -q '^[[:space:]]*encryption:' \
-    "${resolved_dir}/factory-s3.yaml" "${resolved_dir}/factory-esp32.yaml"; then
-  echo "Public factory API must not contain an encryption key." >&2
-  exit 1
-fi
+for resolved_config in \
+    "${resolved_dir}/factory-s3.yaml" "${resolved_dir}/factory-esp32.yaml"; do
+  if ! awk '
+    /^api:$/ { in_api = 1; next }
+    in_api && /^[^[:space:]]/ { exit }
+    in_api && /^  encryption: \{\}$/ { found = 1 }
+    END { exit !found }
+  ' "${resolved_config}"; then
+    echo "Public factory API must enable runtime encryption without a compiled key: ${resolved_config}" >&2
+    exit 1
+  fi
+  if ! grep -A1 '^provisioning:$' "${resolved_config}" \
+      | grep -q '^  timeout: 20min$'; then
+    echo "Public factory provisioning window must be 20min: ${resolved_config}" >&2
+    exit 1
+  fi
+done
 
 require_line 'friendly_name: PassionWave Rotaryknob$' \
   "${resolved_dir}/factory-s3.yaml" "S3 friendly name is missing"

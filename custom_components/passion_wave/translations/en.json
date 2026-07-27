@@ -1,0 +1,57 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up PassionWave Rotaryknob",
+        "description": "Connect an ESPHome bridge to Music Assistant. The next step optionally limits the media entries shown on the device.",
+        "data": {
+          "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
+          "music_assistant_config_entry_id": "Music Assistant instance",
+          "media_player": "Music Assistant media player"
+        }
+      },
+      "library": {
+        "title": "Configure visible media",
+        "description": "All entries are shown automatically by default. Remove “All automatically” and select individual entries to limit the display. An empty selection hides that category.",
+        "data": {
+          "visible_playlists": "Visible playlists",
+          "visible_radios": "Visible radio stations",
+          "visible_podcasts": "Visible podcasts"
+        }
+      }
+    },
+    "error": {
+      "invalid_bridge_registration_entity": "The selected entity is not the PassionWave registration entity of an ESPHome bridge.",
+      "library_unavailable": "The Music Assistant library could not be loaded. You can continue with “All automatically” and open the selection again later."
+    },
+    "abort": {
+      "already_configured": "This PassionWave bridge is already configured."
+    }
+  },
+  "options": {
+    "error": {
+      "invalid_bridge_registration_entity": "The selected entity is not the PassionWave registration entity of an ESPHome bridge.",
+      "library_unavailable": "The Music Assistant library could not be loaded. You can continue with “All automatically” and open the selection again later."
+    },
+    "step": {
+      "init": {
+        "title": "Configure PassionWave",
+        "description": "Change the bridge or Music Assistant assignment. The next step selects the media entries shown on the device.",
+        "data": {
+          "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
+          "music_assistant_config_entry_id": "Music Assistant instance",
+          "media_player": "Music Assistant media player"
+        }
+      },
+      "library": {
+        "title": "Configure visible media",
+        "description": "“All automatically” follows the complete Music Assistant library. Without it, only selected entries are shown; an empty selection hides the category.",
+        "data": {
+          "visible_playlists": "Visible playlists",
+          "visible_radios": "Visible radio stations",
+          "visible_podcasts": "Visible podcasts"
+        }
+      }
+    }
+  }
+}

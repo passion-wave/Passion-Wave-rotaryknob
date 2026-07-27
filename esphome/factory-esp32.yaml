@@ -4,11 +4,11 @@ packages:
     substitutions:
       ha_weather: "weather.forecast_home"
       ha_base_url: "http://homeassistant.local:8123"
-      rain_radar_image_url: "http://homeassistant.local:8123/local/passion-wave/radar.jpg"
+      rain_radar_image_url: "http://homeassistant.local:8123/local/scrollwheel/rain_radar_z1.jpg"
       photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
       photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
       photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
-      house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
+      house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan-render/live.png"
 
 substitutions:
   name: "passionwave-knob-bridge"
@@ -22,11 +22,11 @@ substitutions:
   light_4_preset_select: "select.passion_wave_wled_preset"
   ha_weather: "weather.forecast_home"
   ha_base_url: "http://homeassistant.local:8123"
-  rain_radar_image_url: "http://homeassistant.local:8123/local/passion-wave/radar.jpg"
+  rain_radar_image_url: "http://homeassistant.local:8123/local/scrollwheel/rain_radar_z1.jpg"
   photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
   photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
   photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
-  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
+  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan-render/live.png"
 
 esphome:
   name: "${name}"
@@ -35,17 +35,26 @@ esphome:
   build_path: build/passion_wave_factory_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "2.1.1"
+    version: "3.0.0-beta.0"
 
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main
   import_full_config: false
 
-# The public first-adoption API intentionally has no encryption key. Private
-# development wrappers add API encryption independently.
+# Provisioning-only profile: Home Assistant 2026.7+ generates and installs a
+# unique key during first adoption. No customer-visible or shared key is
+# compiled into the public image.
 api:
   id: esp32_api
   reboot_timeout: 0s
+  encryption:
+
+provisioning:
+  timeout: 20min
+
+ota:
+  - platform: esphome
+    id: ota_esphome
 
 wifi:
   ssid: !remove
@@ -57,8 +66,3 @@ wifi:
 # ESP Web Tools owns Wi-Fi provisioning inside its dialog. Keep next_url
 # unset so Home Assistant is only opened by the final website step.
 improv_serial:
-
-mqtt:
-  broker: "homeassistant.local"
-  username: ""
-  password: ""

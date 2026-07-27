@@ -1,0 +1,22 @@
+# Shared installed-device transport. Public factory profiles deliberately do
+# not include this package because their first-adoption API has no private key.
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: "${managed_api_encryption_key}"
+
+ota:
+  - platform: esphome
+    id: ota_esphome
+    password: "${managed_ota_password}"
+
+wifi:
+  ssid: "${managed_wifi_ssid}"
+  password: "${managed_wifi_password}"
+  power_save_mode: none
+  reboot_timeout: 0s
+  ap:
+    ssid: "${managed_fallback_ap_ssid}"
+    password: "${managed_fallback_ap_password}"
+
+captive_portal:

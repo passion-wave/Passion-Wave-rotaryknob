@@ -1,116 +1,86 @@
-# Version 2.1.1
+# Version 3.0.0-beta.0
 
-Release description: `deterministic-onboarding,international-support`
+Release description: `native-integration,bridge-owned-network`
 
-## Scope
+## Status
 
-Version 2.1.1 hardens the complete public two-stage release:
+Public prerelease candidate for tag `v3.0.0-beta.0`. Both chip images compile
+from this source and are distributed together. Physical clean-device
+acceptance remains deliberately pending and is the gate for promotion beyond
+beta, not for publishing this explicitly marked prerelease.
 
-- Home Assistant discovers two explicit nodes, `PassionWave Rotaryknob` and
-  `PassionWave Rotaryknob Bridge`;
-- public factory buttons always perform a clean install so ESP Web Tools opens
-  Improv Wi-Fi provisioning after both processor flashes;
-- the Improv and manifest metadata no longer expose premature device or Home
-  Assistant links during the two-stage wizard;
-- the public website defaults to English and exposes a structured GitHub issue
-  form for support;
-- chip-specific manifests require a clean erase, preventing stale private
-  names, Wi-Fi state and former API credentials from surviving a factory flash;
-- both public profiles expose a credential-free first-adoption API, while
-  private development wrappers retain encrypted API and password-protected OTA;
-- the S3 remains awake until Home Assistant has connected once, so the longer
-  two-chip installation cannot hide it before discovery;
-- manifests are generated from the same `VERSION` and build command as the
-  factory binaries and are imported downstream together;
-- the radar asset path now follows its independent ESP32 capability instead of
-  being blocked by unrelated media/light target differences;
-- radar and floorplan diagnostics no longer overwrite each other;
-- ESP32-S3 owns touch, EC1 encoder, LVGL, haptics and immediate optimistic UI;
-- ESP32 owns EC2, Home Assistant communication and network/library offload;
-- the inter-MCU UART link uses framed, prioritized and acknowledged messages;
-- both processors retain independent OTA and serial recovery paths;
-- credential-free factory profiles support an ungeflashed retail device;
-- private test wrappers remain separate from public release cores.
-- all 15 Home Assistant weather conditions have dedicated, locally compiled
-  360 x 360 screensaver images on the S3, with no runtime image download and a
-  deterministic `partlycloudy` fallback.
-- the screensaver starts at 100% display brightness, fades natively and
-  continuously to 10% over a persistent Home Assistant configurable duration
-  (default five minutes), and restores the 70% UI brightness immediately when
-  closed without adding periodic scheduler load.
-- encoder movement on the active screensaver restores 100% brightness for two
-  seconds after the final pulse and then restarts the configured native fade;
-  the input is consumed before it can trigger an underlying UI control.
-- Home Assistant exposes clearly separated native configuration numbers for
-  the screensaver start delay and the 100-to-10% dimming duration.
+## Breaking architecture changes
 
-## Canonical structure
+- The standalone Single-MCU build entrypoint has been removed.
+- MQTT, the Music Assistant setup blueprint and the YAML playlist helper are
+  not part of V3.
+- Home Assistant configuration is owned by the `passion_wave` Custom
+  Integration and its typed Config Flow.
+- The Bridge stores one PassionWave Config Entry ID and calls the bounded
+  `passion_wave.get_library` and `passion_wave.get_playlist_tracks` services.
+- Playlist, radio and podcast entries are the current Music Assistant library;
+  PassionWave keeps no separately editable copy.
+- The Config/Options Flow can optionally restrict each media category through
+  searchable multi-select fields. Existing entries default to the complete
+  library, and only stable Music Assistant URIs are stored.
+- The S3 has no application-network rescue path, HA application-state
+  subscriptions or SNTP client. Its runtime network surface is provisioning,
+  encrypted ESPHome Native API and OTA.
+- Application state, commands, media pages and image assets cross the 2 Mbit/s
+  framed UART link through the classic ESP32 Bridge.
 
-- `esphome/*-core.yaml`: credential-free application sources.
-- `esphome/dual-mcu-test-*.yaml`: private development wrappers.
-- `esphome/factory-*.yaml`: public retail build entry points.
-- `home_assistant/`: Home Assistant Apps/blueprints and optional packages.
-- `home-assistant/`: advanced legacy utilities pending final directory merge.
-- `docs/`: architecture, migration, installation and acceptance evidence.
-- `tools/`: build, flash, diagnostics and release scripts.
-- `release/public/`: generated S3/ESP32 factory artifacts and checksums.
+## Responsiveness contract
 
-## Downstream contract
+- The S3 remains the owner of touch, EC1, LVGL, haptics and optimistic drawing.
+- Home Assistant and Music Assistant work never blocks local input rendering.
+- Library and playlist-track responses are bounded before they reach firmware.
+- The next page is requested with five visible rows remaining and duplicate
+  in-flight requests are suppressed.
 
-`Passion-Wave-web` must publish the two files from `release/public/` without
-rebuilding or renaming them and must keep one chip family per guided installer
-stage. `Passion-Wave-control` records the release order and external launch
-gates.
+## Coordinated upgrade order
 
-## Version history
+1. Install `custom_components/passion_wave` and restart Home Assistant.
+2. Add one PassionWave Config Entry per physical Rotaryknob.
+3. Build both MCU images from this exact source version.
+4. Update the Bridge and verify its encrypted Native API connection.
+5. Update the matching S3.
+6. Verify playlist/radio/podcast bootstrap, five-row prefetch, track paging,
+   playback, radar, floorplan, covers, lights, weather and display idle logic.
 
-Version 2.1.1 is released from `main`. Version 2.0.0 remains the immutable
-architecture baseline at tag `v2.0.0`; `stable/1.2.0` remains the legacy
-single-MCU rollback point.
+Never leave the two chips of one physical device on mixed V2/V3 firmware.
+Rollback also requires rolling back both processors together.
 
-- `main`: active Version 2.1 production line.
-- `feature/next`: retained as Version 2.0 integration history.
-- `stable/1.2.0`: unchanged rollback point for Version 1.2.0.
+## Source structure
 
-## Verified Version 2.1.1 public artifacts
+- `custom_components/passion_wave/`: Home Assistant integration.
+- `esphome/rotaryknob-s3-ui-core.yaml`: S3-local UI and hardware code.
+- `esphome/dual-mcu-s3-core.yaml`: UART-backed S3 role.
+- `esphome/dual-mcu-esp32-core.yaml`: Home Assistant Bridge role.
+- `esphome/managed-*.yaml`: private OTA entrypoints.
+- `esphome/factory-*.yaml`: credential-free onboarding entrypoints.
+- `docs/native-api-migration.md`: migration and acceptance details.
 
-On 2026-07-26 both credential-free factory profiles resolved and compiled with
-ESPHome 2026.7.0. The S3 image uses 71.7% of its app partition and 57.5% of
-available runtime RAM; the ESP32 image uses 59.6% of its app partition and
-43.4% of runtime RAM. Both manifests expose one chip family, version `2.1.1`,
-the intended PassionWave name, clean erase and a 120-second Improv wait.
-Neither manifest offers an intermediate Home Assistant link, and neither
-Improv profile exposes a `next_url`.
+## Verified candidate
+
+- ESPHome `2026.7.0` configuration validation: Managed and Factory S3/Bridge
+  entrypoints valid.
+- Factory Bridge build: 41.0% RAM, 61.6% Flash.
+- Factory S3 build: 54.1% internal RAM, 71.5% Flash.
+- Resolved S3 profile: no MQTT or SNTP platform and no direct image-download
+  call in the S3 UI source.
+- PassionWave response normalization: four unit tests passed; Python and JSON
+  files compile/parse successfully.
+- `media_player.browse_media` request and response contract checked against
+  Home Assistant `2026.7.4`.
+
+Verified public Factory artifacts:
 
 ```text
-ad35aac10506d328ce2078b3f7f9e3e264b3fa4094052f444b47bd7c92969937  s3/passion-wave-rotaryknob-s3.factory.bin
-caf235a93a5e3f1ec527f36aa9f6288286561958de0d6ce50f3fc11eefb1a54e  esp32/passion-wave-rotaryknob-esp32.factory.bin
+1e767c445f294a22a48afc5b389539dfb517d9dd4e3648655cb263d21b312ae6  s3/passion-wave-rotaryknob-s3.factory.bin
+ad0146f276f49889c410609b635073a0a4323f408875dc96e9e061e1b1210eec  esp32/passion-wave-rotaryknob-esp32.factory.bin
 ```
 
-## Previous verified maintenance baseline
-
-The immutable `v2.0.0` tag remains the release anchor. `main` additionally
-contains Version 2.0 maintenance fixes and is the source for current builds.
-On 2026-07-25 both private test processors were rebuilt with ESPHome 2026.7.0,
-flashed independently by OTA and read back through the native ESPHome API:
-
-- S3 project `passion-wave.rotaryknob-test-s3`, version `2.0.0`;
-- ESP32 project `passion-wave.rotaryknob-test-esp32`, version `2.0.0`;
-- shared native Music Assistant test target on both processors;
-- shared four-light target snapshot;
-- runtime status `ESP32 HA-Bridge aktiv`.
-- Music Assistant playlist paging verified with 140/140 entries on both
-  processors, including automatic continuation beyond the retained
-  40-entry bootstrap; inter-MCU protocol errors remained zero.
-- weather screensaver maintenance build flashed to the S3 test device; the
-  encrypted API handshake completed in 136 ms,
-  inter-MCU protocol errors remained zero and steady scheduler windows were
-  normally 13–18 ms.
-
-The corresponding credential-free factory artifacts were regenerated from the
-same Version 2.0 cores:
-
-```text
-d2f1c68323014953bf5bd4d4dac7786508417792447a49fe92d3275957965869  s3/passion-wave-rotaryknob-s3.factory.bin
-89f2c1a68a97abe2c2c6f2a86c3be8019f0fe7aa1e9d7d23a12cf8f9b0f5fe57  esp32/passion-wave-rotaryknob-esp32.factory.bin
-```
+The ESPHome/LVGL build still reports upstream deprecation warnings for the
+legacy `online_image` declaration form, QSPI DBI and ArduinoJson compatibility
+types. They do not fail this beta build; migration to the new ESPHome image
+platform remains follow-up work before its announced removal window.

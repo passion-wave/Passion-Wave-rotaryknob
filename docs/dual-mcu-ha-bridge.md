@@ -1,10 +1,10 @@
 # Dual-MCU Home Assistant Bridge
 
-Product version `2.1.1` (`deterministic-onboarding,international-support`) is the current dual-MCU
-workload split. The internal `.98` / `.50` counters remain historical test
-checkpoints, not separate customer versions. The S3 owns deterministic input
-and rendering. The classic ESP32 owns Home Assistant discovery, service calls
-and bounded media/light state records.
+Version `3.0.0-beta.0` is the current dual-MCU workload split. The internal
+`.98` / `.50` counters remain historical test checkpoints, not separate
+customer versions. The S3 owns deterministic input and rendering. The classic
+ESP32 owns Home Assistant connectivity, service calls and bounded
+media/light/weather state and asset records.
 
 ## Runtime data flow
 

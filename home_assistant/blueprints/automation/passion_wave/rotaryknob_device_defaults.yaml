@@ -6,16 +6,19 @@ blueprint:
     Rotaryknob ESPHome text entities. Use a Music Assistant capable media
     player if playlist, radio or podcast browsing should be available. The
     automation also relays the selected media player's state, title, artist and
-    cover URL to the device so the UI can reflect dynamic media targets.
+    cover URL to the device so the UI can reflect dynamic media targets. The
+    blueprint writes only to entities owned by the ESPHome integration.
   domain: automation
-  source_url: https://github.com/Passion-Wave/Passion-Wave-rotaryknob/blob/main/home_assistant/blueprints/automation/passion_wave/rotaryknob_device_defaults.yaml
+  source_url: https://raw.githubusercontent.com/Passion-Wave/Passion-Wave-rotaryknob/main/home_assistant/blueprints/automation/passion_wave/rotaryknob_device_defaults.yaml
   author: Passion Wave
   homeassistant:
     min_version: "2024.10.0"
   input:
     knob_device:
       name: Rotaryknob device
-      description: Select the ESPHome device created by the Passion Wave Rotaryknob firmware.
+      description: >
+        Select the ESPHome S3/display device created by the Passion Wave
+        Rotaryknob firmware, not the ESP32 Bridge.
       selector:
         device:
           integration: esphome
@@ -70,7 +73,10 @@ variables:
   light_slot_2: !input light_slot_2
   light_slot_3: !input light_slot_3
   light_slot_4: !input light_slot_4
-  knob_entities: "{{ device_entities(knob_device) }}"
+  knob_entities: >-
+    {{ device_entities(knob_device)
+       | select('in', integration_entities('esphome'))
+       | list }}
   media_entity_text: "{{ knob_entities | select('search', 'media_entity_id') | list | first | default('', true) }}"
   media_label_text: "{{ knob_entities | select('search', 'media_label') | list | first | default('', true) }}"
   media_runtime_state_text: "{{ knob_entities | select('search', 'media_runtime_state') | list | first | default('', true) }}"

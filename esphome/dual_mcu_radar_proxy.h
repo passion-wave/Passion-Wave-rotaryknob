@@ -349,8 +349,11 @@ class RadarProxyServer {
       const std::string mdns_name =
         hostname.substr(0, hostname.size() - (sizeof(suffix) - 1));
       esp_ip4_addr_t resolved{};
+      // Prefer the explicit mDNS lookup, but let esp_http_client perform its
+      // normal resolver path when mDNS is temporarily unavailable. A failed
+      // preflight must not turn an otherwise valid URL into proxy error 15.
       if (mdns_query_a(mdns_name.c_str(), 2000, &resolved) != ESP_OK)
-        return false;
+        return true;
       std::snprintf(address, sizeof(address), IPSTR, IP2STR(&resolved));
       std::snprintf(this->cached_mdns_host_.data(),
                     this->cached_mdns_host_.size(), "%s", hostname.c_str());

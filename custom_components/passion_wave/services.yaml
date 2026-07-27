@@ -1,0 +1,59 @@
+get_library:
+  name: Get media library page
+  description: Return one bounded Music Assistant library page for a PassionWave system.
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: passion_wave
+    media_type:
+      required: true
+      selector:
+        select:
+          options:
+            - playlist
+            - radio
+            - podcast
+    offset:
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 65535
+          mode: box
+    limit:
+      default: 40
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+
+get_playlist_tracks:
+  name: Get playlist track page
+  description: Browse a playlist in Home Assistant and return only the requested track page.
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: passion_wave
+    playlist_id:
+      required: true
+      selector:
+        text:
+    offset:
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 65535
+          mode: box
+    limit:
+      default: 16
+      selector:
+        number:
+          min: 1
+          max: 64
+          mode: box

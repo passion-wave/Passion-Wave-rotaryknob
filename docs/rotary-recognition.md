@@ -55,11 +55,17 @@ acquisition statistics. The UI obtains a batch every 10 ms and calculates:
 
 ```cpp
 const auto batch = ec1_pcnt::encoder.take();
-const int steps = batch.right - batch.left;
+const int steps = batch.signed_steps();
 ```
 
 PCNT keeps counting while the application loop is busy. A delayed UI cycle
 therefore receives the complete accumulated batch instead of losing pulses.
+Because EC1 provides a separate line per direction, a batch in which both
+lines counted pulses has no reliable direction. Such common-mode batches are
+retained in the raw diagnostics but yield zero accepted steps. They cannot
+update UI activity, restore a dimmed display, wake a sleeping display or boost
+the weather screensaver.
+
 The existing page-specific logic consumes the same signed `steps` value, so
 all 1.2.0 behavior remains intact:
 
@@ -72,18 +78,25 @@ Haptics still run only when the active page consumes a rotary action.
 
 ## Sleep and reporting behavior
 
-Any encoder pulse updates UI activity and restores an externally powered,
-dimmed display. The first batch received during full display sleep wakes the
-display and is not applied to a setting; subsequent detents operate normally.
+Only an unambiguous directional batch updates UI activity and restores an
+externally powered, dimmed display. The first valid batch received during full
+display sleep wakes the display and is not applied to a setting; subsequent
+detents operate normally. This validation adds no debounce or wait to a valid
+detent.
 
 Home Assistant diagnostics are deliberately decoupled from the realtime path
-and published once per second:
+and published from the low-priority diagnostic window:
 
 - `EC1 Encoder Ready`;
 - `EC1 Encoder Net Count`;
 - `EC1 Encoder Left Pulses` and `EC1 Encoder Right Pulses`;
+- `EC1 Encoder Rejected Common-mode Batches`;
 - `EC1 Encoder Read Errors`;
 - `EC1 Encoder Maximum Batch`.
+
+`Net Count` contains only accepted directional input. The left and right raw
+counters still expose electrical activity, while `Rejected Common-mode
+Batches` proves how many ambiguous acquisitions were kept away from the UI.
 
 The dual-MCU test forwards a 10 Hz EC1 snapshot over UART for comparison with
 EC2. Network publishing and UART transmission never occur in an encoder ISR.
@@ -93,8 +106,8 @@ EC2. Network publishing and UART transmission never occur in an encoder ISR.
 Build the S3 profile and then test on the dedicated test device:
 
 ```sh
-./tools/config.sh esphome/dual-mcu-test-s3.yaml
-./tools/build.sh esphome/dual-mcu-test-s3.yaml
+./tools/config.sh esphome/managed-test-s3.yaml
+./tools/build.sh esphome/managed-test-s3.yaml
 ```
 
 Acceptance criteria:
@@ -104,7 +117,10 @@ Acceptance criteria:
 - direction is correct on every rotary-enabled page;
 - fast spins produce the full expected movement without a delayed phantom
   burst;
-- no counts change while idle;
+- while idle, raw counters may expose common-mode activity, but accepted net
+  count and the display state do not change;
+- at 10% screensaver brightness, rejected common-mode batches never produce a
+  short 100% brightness flash;
 - a sleeping display wakes on the first detent and responds from the next;
 - EC2 mismatch is recorded but never changes UI behavior.
 

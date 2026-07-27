@@ -12,15 +12,20 @@ Rotaryknob auf Version 1.2.0 bleibt davon unabhängig.
    sichtbaren Licht-Layern des Home-Assistant-Floorplans.
 2. Das Ergebnis wird atomar als
    `/config/www/passion-wave/floorplan-render/live.png` gespeichert.
-3. Pyscript veröffentlicht eine neue Revision auf dem retained MQTT-Topic
-   `passion_wave/floorplan/revision`.
-4. Der ESP32 empfängt die Revision und meldet sie per UART an den ESP32-S3.
+3. Pyscript veröffentlicht die Revision und eine von Home Assistant ermittelte
+   absolute interne URL als
+   `pyscript.passion_wave_floorplan_revision`.
+4. Der ESP32 empfängt Revision und URL über die ESPHome Native API und meldet
+   die Invalidierung per UART an den ESP32-S3.
 5. Ist die Haus-Seite sichtbar, fordert der S3 das neue Bild nach einer kurzen
    Entprellzeit über den ESP32 an. Beim Öffnen der Seite wird grundsätzlich die
    neueste Fassung geladen.
 
-Damit verbleiben WLAN, HTTP und MQTT auf dem ESP32. Der S3 konzentriert sich auf
+Damit verbleiben WLAN und HTTP auf dem ESP32. Der S3 konzentriert sich auf
 Touch, Encoder, PNG-Dekodierung und Display-Rendering.
+
+Die vollständige Wirkkette und alle Diagnosepunkte stehen in
+[Radar- und Floorplan-Wirkkette](radar-floorplan-data-flow.md).
 
 ## Aktualisierungsregeln
 

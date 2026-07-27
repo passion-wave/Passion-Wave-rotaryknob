@@ -81,7 +81,7 @@ async def monitor(host: str, seconds: int, secrets_path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="192.168.2.101")
+    parser.add_argument("--host", default="passion-wave-managed-2-s3.local")
     parser.add_argument("--seconds", type=int, default=20)
     parser.add_argument(
         "--secrets",

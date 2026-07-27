@@ -1,0 +1,22 @@
+# Public example overlay for both processors of the first physical device.
+# Replace runtime targets through the PassionWave config flow and light
+# blueprint; never commit customer-specific entity IDs here.
+substitutions:
+  ha_player: "media_player.passion_wave_media"
+  light_1_entity: "light.passion_wave_light_1"
+  light_2_entity: "light.passion_wave_light_2"
+  light_3_entity: "light.passion_wave_light_3"
+  light_4_entity: "light.passion_wave_light_4"
+  ha_weather: !secret ha_weather_entity
+  weather_location: !secret weather_location_fallback
+  ha_base_url: !secret home_assistant_base_url
+  rain_radar_image_url: !secret rain_radar_image_url
+  photo_image_url_0: !secret photo_image_url_0
+  photo_image_url_1: !secret photo_image_url_1
+  photo_image_url_2: !secret photo_image_url_2
+  house_floorplan_image_url: !secret house_floorplan_image_url
+  managed_wifi_ssid: !secret wifi_ssid
+  managed_wifi_password: !secret wifi_password
+  managed_api_encryption_key: !secret api_encryption_key
+  managed_ota_password: !secret ota_password
+  managed_fallback_ap_password: !secret fallback_ap_password

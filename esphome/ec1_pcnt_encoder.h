@@ -16,13 +16,26 @@ struct Batch {
   int32_t left{0};
   int32_t right{0};
 
-  int32_t signed_steps() const { return right - left; }
-  uint32_t pulse_count() const {
+  // EC1 exposes a dedicated pulse line per direction. Pulses on both lines in
+  // one acquisition window have no unambiguous direction and are therefore
+  // electrical common-mode input, not a UI detent.
+  constexpr bool is_directionally_ambiguous() const {
+    return left > 0 && right > 0;
+  }
+  constexpr int32_t signed_steps() const {
+    return is_directionally_ambiguous() ? 0 : right - left;
+  }
+  constexpr uint32_t pulse_count() const {
     const uint32_t left_pulses = left > 0 ? static_cast<uint32_t>(left) : 0U;
     const uint32_t right_pulses = right > 0 ? static_cast<uint32_t>(right) : 0U;
     return left_pulses + right_pulses;
   }
 };
+
+static_assert(Batch{1, 0}.signed_steps() == -1);
+static_assert(Batch{0, 1}.signed_steps() == 1);
+static_assert(Batch{1, 1}.signed_steps() == 0);
+static_assert(Batch{3, 4}.signed_steps() == 0);
 
 class Encoder {
  public:
@@ -69,6 +82,10 @@ class Encoder {
 
     total_left_ += batch.left;
     total_right_ += batch.right;
+    if (batch.is_directionally_ambiguous()) {
+      common_mode_batches_++;
+    }
+    accepted_total_ += batch.signed_steps();
     max_batch_ = std::max(max_batch_, batch.pulse_count());
     return batch;
   }
@@ -78,13 +95,20 @@ class Encoder {
   uint32_t max_batch() const { return max_batch_; }
   int64_t left_total() const { return total_left_ - diagnostic_origin_left_; }
   int64_t right_total() const { return total_right_ - diagnostic_origin_right_; }
-  int64_t signed_total() const { return right_total() - left_total(); }
+  int64_t signed_total() const {
+    return accepted_total_ - diagnostic_origin_accepted_;
+  }
+  uint32_t common_mode_batches() const {
+    return common_mode_batches_ - diagnostic_origin_common_mode_batches_;
+  }
 
   // Reset only the published diagnostic origin. Hardware counters and UI
   // acquisition continue without a gap, so no pulse is discarded.
   void reset_diagnostics() {
     diagnostic_origin_left_ = total_left_;
     diagnostic_origin_right_ = total_right_;
+    diagnostic_origin_accepted_ = accepted_total_;
+    diagnostic_origin_common_mode_batches_ = common_mode_batches_;
     max_batch_ = 0;
   }
 
@@ -169,8 +193,12 @@ class Encoder {
   int last_right_{0};
   int64_t total_left_{0};
   int64_t total_right_{0};
+  int64_t accepted_total_{0};
   int64_t diagnostic_origin_left_{0};
   int64_t diagnostic_origin_right_{0};
+  int64_t diagnostic_origin_accepted_{0};
+  uint32_t common_mode_batches_{0};
+  uint32_t diagnostic_origin_common_mode_batches_{0};
   uint32_t read_errors_{0};
   uint32_t max_batch_{0};
   esp_err_t last_error_{ESP_OK};

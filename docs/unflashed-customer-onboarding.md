@@ -35,9 +35,11 @@ unvermeidbaren manuellen Vorgang auf: flashen, Stecker drehen, erneut flashen.
 
 Private Wrapper:
 
-- `passion-wave-rotaryknob.yaml`
-- `dual-mcu-test-s3.yaml`
-- `dual-mcu-test-esp32.yaml`
+- `rotaryknob-s3-ui-core.yaml`
+- `managed-production-s3.yaml`
+- `managed-production-esp32.yaml`
+- `managed-test-s3.yaml`
+- `managed-test-esp32.yaml`
 
 Sie enthalten die lokalen `!secret`-Verweise und sind niemals Teil eines
 Factory-Builds.
@@ -50,12 +52,20 @@ Factory-Builds.
    WLAN per Improv setzen. Der Factory-Assistent erzwingt Clean Erase.
 4. Stecker abziehen, um 180 Grad drehen und erneut einstecken.
 5. Im zweiten Dialog `ESP32` ohne `S3` wählen, `PassionWave Rotaryknob Bridge`
-   installieren, `Next` wählen und dasselbe WLAN setzen.
-6. Home Assistant über den vorbereiteten My-Link öffnen und beide entdeckten
-   ESPHome-Geräte ohne Encryption-Key-Eingabe bestätigen.
-7. Passion-Wave-App importieren, S3, Bridge, Medienplayer, Wetter und Leuchten
-   in den UI-Auswahllisten festlegen.
-8. Den kompakten Funktionskatalog auf der Website abarbeiten.
+   installieren und bis `Installation complete` warten.
+6. Den Installationsdialog schließen, USB für zwei Sekunden trennen und in
+   derselben ESP32-Ausrichtung wieder verbinden. Danach den separaten
+   Bridge-WLAN-Button öffnen, denselben Port wählen, bis zu zehn Sekunden auf
+   Improv warten und dasselbe WLAN setzen. Ein zweiter Flash ist nicht nötig.
+7. Home Assistant über den vorbereiteten My-Link öffnen und die beiden
+   ESPHome-Endpunkte dieses einen Rotaryknob bestätigen. Home Assistant 2026.7
+   oder neuer erzeugt und hinterlegt dabei automatisch je Controller einen individuellen
+   Encryption-Key; der Kunde sieht und kopiert keinen Schlüssel.
+8. Die PassionWave-Integration hinzufügen und Bridge,
+   Music-Assistant-Instanz sowie Medienplayer in typisierten UI-Auswahllisten
+   festlegen. Playlist-Einträge werden automatisch aus Music Assistant
+   übernommen.
+9. Den kompakten Funktionskatalog auf der Website abarbeiten.
 
 Home Assistant muss Geräte- und Automationsanlage aus Sicherheitsgründen
 bestätigen lassen. Diese Bestätigungen werden bewusst nicht durch externe
@@ -72,6 +82,8 @@ Beide öffentlichen Profile enthalten:
 - einen Fallback-Access-Point;
 - `improv_serial` für erneute WLAN-Provisionierung.
 - Clean-Erase-Vorgabe gegen alte Namen, Netzdaten und API-Schlüssel;
+- ein 20-minütiges API-Provisionierungsfenster mit `api.encryption` ohne
+  einkompilierten Schlüssel;
 - keine direkten Geräte-/Home-Assistant-Sprünge im Improv-Dialog;
 - Onboarding-Wachschutz bis zur ersten Home-Assistant-Verbindung.
 
@@ -87,7 +99,8 @@ chipunspezifisches Image angeboten. Fällt OTA aus, wird nur der betroffene Chip
 4. Manifesttest: exakt ein Build und korrekte Chipfamilie je Schritt.
 5. Link-, Sprach-, Bild- und Mobilansichtstest der Website.
 6. Physischer Neuinstallationslauf an einem zurücksetzbaren Testgerät:
-   Flash → WLAN → Discovery → App → Encoder/Touch/Medien/Licht/Wetter → OTA.
+   S3-Flash → S3-WLAN → Bridge-Flash → Bridge-Neustart → Bridge-WLAN →
+   Discovery → App → Encoder/Touch/Medien/Licht/Wetter → OTA.
 7. Zweiter physischer Lauf mit absichtlich falscher USB-Ausrichtung und
    Wiederherstellung über den Assistenten.
 

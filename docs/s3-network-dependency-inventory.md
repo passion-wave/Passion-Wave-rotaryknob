@@ -1,13 +1,14 @@
 # S3 network dependency inventory
 
-The current product release is Version `2.1.1`
-(`responsiveness,nextUI`). Internal revisions `.98/.50`, `.80/.39` and
-`.83/.45` below are historical migration checkpoints, not customer-facing
-versions. The production device remains on its unchanged 1.2.0 configuration.
+Version `3.0.0-beta.0` closes the normal-operation S3 network migration.
+Internal revisions `.98/.50`, `.80/.39` and `.83/.45` below are historical
+migration checkpoints, not customer-facing versions. The public web installer
+exposes Version `3.0.0-beta.0` as a prerelease while physical acceptance
+remains the promotion gate.
 
 ## Direct Home Assistant subscriptions
 
-The inherited S3 firmware still declares 32 Home Assistant subscriptions:
+The historical 2.1.x S3 firmware declared 32 Home Assistant subscriptions:
 
 | Group | Declared | Mirrored by ESP32 | Still awaiting migration |
 | --- | ---: | ---: | ---: |
@@ -18,11 +19,9 @@ The inherited S3 firmware still declares 32 Home Assistant subscriptions:
 | Radar image path | 1 | 1 | 0 |
 | **Total** | **32** | **32** | **0** |
 
-The 32 mirrored subscriptions intentionally remain compiled into the S3 test
-profile for the current rescue path. Their callbacks are already suppressed
-while the corresponding bridge readiness flag is active, but the ESPHome API
-still receives the state traffic. They may be removed from the test overlay
-with list-ID `!remove` entries only after the mixed-load qualification gate.
+In `3.0.0-beta.0`, the managed S3 overlay removes these subscriptions by list
+ID. Only the Home Assistant time source remains. Media, light, weather, radar
+and floorplan state and asset data reach the UI over the bounded UART bridge.
 
 The five dependencies below were the final Milestone-2 gap and are mirrored by
 the ESP32 in `.83` / `.45`:
@@ -32,9 +31,8 @@ the ESP32 in `.83` / `.45`:
 - current-weather precipitation probability;
 - direct radar image path used by the rescue downloader.
 
-Their inherited S3 subscriptions remain compiled for the Milestone-2
-compatibility fallback. With a healthy bridge, callback guards prevent these
-states from changing UI state. Milestone 3 removes the subscriptions.
+Their inherited subscriptions were retained by the Milestone-2 compatibility
+fallback. Version 3 removes that fallback and those subscriptions.
 
 UI Next light-detail discovery is also network-owned by the classic ESP32 in
 Version 2.0. It resolves same-device WLED preset selects and same-area Hue
@@ -60,9 +58,9 @@ UI objects can consume the proxied bytes and so Milestone 2 still has a
 bridge-loss compatibility path. Media artwork uses a 256-pixel Music Assistant
 source, the smallest size accepted by the active provider.
 
-The S3 MQTT client remains disabled during normal operation. It is retained
-only for deliberate, non-persistent `S3 Network Rescue Mode`; a proxy failure
-alone does not start it.
+The S3 MQTT client and `S3 Network Rescue Mode` are removed in Version 3.
+The decoder components remain compiled because UART-proxied image bytes use
+their incremental decode interfaces; they do not imply a direct S3 download.
 
 ## Control-path closure in revision .71
 

@@ -1,0 +1,7 @@
+# Canonical managed classic-ESP32 bridge role. Device-specific identity and
+# Home Assistant targets are supplied by a small file in devices/.
+packages:
+  application: !include dual-mcu-esp32-core.yaml
+  managed_transport: !include managed-common.yaml
+
+dashboard_import: !remove

@@ -4,8 +4,9 @@ This guide installs the Passion Wave Rotaryknob firmware in ESPHome and links it
 to Home Assistant.
 
 The intended public no-expert path is
-`https://www.passion-wave.com/install/`. Version 2.1.1 provides two chip-specific
-stages and matching factory images.
+`https://www.passion-wave.com/install/`. It currently delivers
+V3.0.0-beta.0 as an explicitly marked prerelease; V2.1.1 remains the rollback
+tag until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web
 Serial talks directly to the selected ESP32 over USB. Use Chrome or Edge on desktop.
@@ -29,8 +30,10 @@ This is the intended after-purchase flow:
 8. Keep the dialog open, press `Next`, provision Wi-Fi and verify both
    processors. If the browser does not reconnect Improv automatically, use the
    separate bridge Wi-Fi button; it reconnects without another flash.
-9. Open Home Assistant and add both discovered ESPHome nodes. Public first
-   adoption does not ask for an API encryption key.
+9. Open Home Assistant and confirm both discovered ESPHome endpoints belonging
+   to this one Rotaryknob. Home Assistant 2026.7 or newer automatically creates
+   and provisions one unique API encryption key per endpoint; the customer is
+   not asked to enter a key.
 
 Wi-Fi credentials entered in this flow are sent over USB to the device. They are
 not sent to Passion Wave.
@@ -46,7 +49,7 @@ Both published binaries are built from sanitized public factory
 configurations. Every new release must preserve these requirements:
 
 - no private Wi-Fi credentials;
-- no private MQTT credentials;
+- no MQTT component or broker credentials;
 - no private API encryption key;
 - no private OTA password;
 - `name_add_mac_suffix` enabled;
@@ -77,10 +80,14 @@ Install the ESPHome add-on in Home Assistant or use the ESPHome Docker image.
 The dual-MCU candidate currently targets ESPHome `2026.7.0`.
 
 Copy the repository `esphome/` folder into your ESPHome configuration
-directory, so the YAML is available as `esphome/passion-wave-rotaryknob.yaml`.
-Keep this structure:
+directory. Keep both role cores, the S3 UI core and the thin Managed
+entrypoints:
 
-- `esphome/passion-wave-rotaryknob.yaml`
+- `esphome/rotaryknob-s3-ui-core.yaml`
+- `esphome/dual-mcu-s3-core.yaml`
+- `esphome/dual-mcu-esp32-core.yaml`
+- `esphome/managed-production-s3.yaml`
+- `esphome/managed-production-esp32.yaml`
 - `esphome/scrollwheel_dynamic_targets.h`
 - `esphome/squareline_font_bridge.h`
 - `esphome/round_Temp/fonts/ui_font_Number.c`
@@ -92,26 +99,23 @@ Create or update `secrets.yaml` with:
 ```yaml
 wifi_ssid: "your-wifi"
 wifi_password: "your-password"
-mqtt_host: "homeassistant.local"
-mqtt_username: "your-mqtt-user"
-mqtt_password: "your-mqtt-password"
 api_encryption_key: "replace-with-your-esphome-api-key"
 ota_password: "replace-with-your-ota-password"
 fallback_ap_password: "replace-with-your-fallback-ap-password"
 ha_weather_entity: "weather.forecast_home"
 weather_location_fallback: "Home"
 home_assistant_base_url: "http://homeassistant.local:8123"
-rain_radar_image_url: "http://homeassistant.local:8123/local/scrollwheel/rain_radar.jpg"
+rain_radar_image_url: "http://homeassistant.local:8123/local/scrollwheel/rain_radar_z1.jpg"
 photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
 photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
 photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
-house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
+house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan-render/live.png"
 ```
 
 Use a Home Assistant host name or IP address that the ESPHome device can
 resolve. If `homeassistant.local` is unreliable on your network, use the fixed
-Home Assistant IP address for `mqtt_host`, `home_assistant_base_url` and the
-local image URLs. `ha_weather_entity` must be an existing `weather.*` entity;
+Home Assistant IP address for `home_assistant_base_url` and the local image
+URLs. `ha_weather_entity` must be an existing `weather.*` entity;
 the firmware reads current temperature, location name and forecasts from that
 entity.
 
@@ -120,21 +124,23 @@ entity.
 From this repository:
 
 ```sh
-./tools/config.sh esphome/passion-wave-rotaryknob.yaml
-./tools/build.sh esphome/passion-wave-rotaryknob.yaml
-./tools/flash.sh esphome/passion-wave-rotaryknob.yaml
+./tools/config.sh esphome/managed-production-s3.yaml
+./tools/config.sh esphome/managed-production-esp32.yaml
+./tools/build.sh esphome/managed-production-s3.yaml
+./tools/build.sh esphome/managed-production-esp32.yaml
 ```
 
 If flashing at `460800` baud is unstable, use:
 
 ```sh
-BAUD_RATE=115200 ./tools/flash.sh esphome/passion-wave-rotaryknob.yaml
+BAUD_RATE=115200 ./tools/flash.sh esphome/managed-production-s3.yaml
+BAUD_RATE=115200 ./tools/flash.sh esphome/managed-production-esp32.yaml
 ```
 
 After flashing, a device without access to the configured Wi-Fi network enters
 offline promo demo mode automatically. This is useful for first product demos:
 the UI shows local weather, light and media examples, but it does not call Home
-Assistant, MQTT or network image URLs. Once the configured Wi-Fi becomes
+Assistant or network image URLs. Once the configured Wi-Fi becomes
 available, demo mode switches off by itself and the normal integration starts.
 The persistent `scrollwheel Demo` switch, also reachable as `Demo` on the device
 Settings page, enables or disables this offline promo behavior.
@@ -144,7 +150,15 @@ Settings page, enables or disables this offline promo behavior.
 After the device connects, open:
 
 `Settings` -> `Devices & services` -> `ESPHome`. Add both `PassionWave
-Rotaryknob` and `PassionWave Rotaryknob Bridge`.
+Rotaryknob` and `PassionWave Rotaryknob Bridge` as the two processor endpoints
+of the same physical device.
+
+The public factory image contains no pre-shared key. During the 20-minute
+provisioning window, Home Assistant 2026.7 or newer creates a unique key for
+each processor over the zero-PSK Noise provisioning connection. The resulting
+Native API session is encrypted without exposing the key to the customer.
+Authenticated OTA still requires the managed deployment step described in
+[ESPHome API security lifecycle](api-security-lifecycle.md).
 
 The simplest path is to import the device defaults blueprint first. It uses
 Home Assistant entity pickers, so the user does not type entity IDs manually:
@@ -155,7 +169,7 @@ home_assistant/blueprints/automation/passion_wave/rotaryknob_device_defaults.yam
 
 Create one automation from that blueprint and select:
 
-- the ESPHome Rotaryknob device;
+- the ESPHome Rotaryknob S3/display device, not the ESP32 Bridge;
 - one `media_player` entity. Home Assistant lists all media players. Choose a
   Music Assistant capable player if playlist, radio or podcast browsing should
   be available. For a Sonos speaker, choose its native Music Assistant entity
@@ -203,38 +217,26 @@ device page if the blueprint is not used:
 
 The settings are stored persistently on the ESPHome device.
 
-For a private dual-MCU development build, the same media target and all four
-light entity IDs must also be compiled into both `dual-mcu-test-s3.yaml` and
-`dual-mcu-test-esp32.yaml`. A differing target does not damage the device, but
-deliberately disables the low-latency ESP32 bridge and reports
+For an installed dual-MCU device, the same media target and all four light
+entity IDs are declared once in `devices/production.yaml` or
+`devices/test.yaml`. Both processor entrypoints include that overlay. A
+differing target does not damage the device, but deliberately disables the
+low-latency ESP32 bridge and reports
 `HA-Bridge Zielkonfiguration abweichend`.
 
-## 5. Optional Music Assistant Library Blueprint
+## 5. PassionWave Integration and Music Assistant
 
-For the Music Assistant media library, also import:
+Copy `custom_components/passion_wave` into
+`/config/custom_components/passion_wave`, restart Home Assistant and add
+**PassionWave** under **Settings > Devices & services**.
 
-```text
-home_assistant/blueprints/automation/passion_wave/rotaryknob_music_assistant_library.yaml
-```
-
-Create an automation from that blueprint and select your Music Assistant config
-entry. It publishes compact retained playlist, radio and podcast bootstrap
-lists and answers the device's paged playlist and playlist-track requests.
-
-The media target selection is separate from the media library list. Playlist,
-radio and podcast entries are loaded from MQTT topics:
-
-- `passion_wave/media/playlists`
-- `passion_wave/media/radios`
-- `passion_wave/media/podcasts`
-- paged playlist responses on `passion_wave/media/playlists/state`
-- playlist-track responses on `passion_wave/media/playlist_tracks/state`
-
-Populate these topics from Music Assistant with retained JSON payloads, or run a
-Home Assistant automation that listens for
-`passion_wave/media/playlists/request` and
-`passion_wave/media/playlist_tracks/request`. Without that bridge the media
-player can still be controlled, but the selection list is empty.
+Create one Config Entry per physical Rotaryknob. Select its Bridge entity
+**PassionWave Integration Entry ID**, Music Assistant instance and Music
+Assistant player. The integration synchronizes its stable Config Entry ID to
+the Bridge and bounds every library/track page before it reaches firmware.
+Playlist entries themselves are maintained in Music Assistant, not duplicated
+in PassionWave. No blueprint, YAML media package, MQTT broker, token or copied
+encryption key is required.
 
 ## 6. Rain Radar Package
 
@@ -252,15 +254,24 @@ homeassistant:
   packages: !include_dir_named packages
 ```
 
-The package requires `ffmpeg` on the Home Assistant host.
-It creates `/local/scrollwheel/rain_radar.jpg` as a compact `320 x 320`
-baseline-compatible JPEG using `yuvj420p`; use that path for
-`rain_radar_image_url`. If
-`sensor.scrollwheel_rain_radar_image_path` exists, the firmware prefers that
-dynamic Home Assistant path and only falls back to the compile-time URL.
+The package requires `ffmpeg` on the Home Assistant host. It creates the three
+compact, baseline-compatible 320×320 JPEGs
+`/local/scrollwheel/rain_radar_z0.jpg` through
+`rain_radar_z2.jpg` using `yuvj420p`.
+
+Install `home_assistant/pyscript/passion_wave_floorplan.py` in
+`/config/pyscript/` and reload Pyscript. The script converts
+`sensor.scrollwheel_rain_radar_image_path` into the absolute internal URL
+`pyscript.passion_wave_radar_asset_url`. Current bridge firmware prefers this
+native-API value and only uses `rain_radar_image_url` as its compile-time
+fallback. The same script publishes the current floorplan URL in the
+`asset_url` attribute of `pyscript.passion_wave_floorplan_revision`.
 
 After updating this package, reload Home Assistant packages or restart Home
 Assistant once so the lighter radar capture command is active.
+
+See [Radar and floorplan data flow](radar-floorplan-data-flow.md) for the exact
+runtime chain and its diagnostic checkpoints.
 
 ## 7. Optional Light mV Calibration Package
 

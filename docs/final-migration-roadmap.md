@@ -1,19 +1,20 @@
 # Final migration roadmap
 
-This roadmap records the four dual-MCU migration milestones. The current
-product release is Version `2.1.1` (`deterministic-onboarding,international-support`); internal S3
-`.98` and ESP32 `.50` counters plus `.80/.39` and `.89/.45` in the milestone
-history are rollback checkpoints. The production device
-`passion_wave_rotaryknob` remains unchanged on version 1.2.0.
+This roadmap records the four historical dual-MCU migration milestones.
+Version `3.0.0-beta.0` implements the target architecture described here.
+Internal S3 `.98` and ESP32 `.50` counters plus `.80/.39` and `.89/.45` are
+rollback checkpoints. The public web installer exposes Version
+`3.0.0-beta.0` as a prerelease until the beta passes physical-device
+acceptance.
 
 The target split is:
 
 - ESP32-S3: EC1, touch, display, LVGL, haptics, battery protection and immediate
   local feedback;
-- classic ESP32: Wi-Fi-facing Home Assistant, Music Assistant, MQTT and HTTP
+- classic ESP32: Wi-Fi-facing Home Assistant, Music Assistant and HTTP
   work, caches, retries and reconnect snapshots;
 - UART: bounded binary state, action and streamed-asset transport;
-- S3 Wi-Fi/API/OTA: rescue and maintenance only, not part of normal feature
+- S3 Wi-Fi: provisioning, native API and OTA only, not part of normal feature
   execution.
 
 ## Milestone 1: Stabilize the current baseline

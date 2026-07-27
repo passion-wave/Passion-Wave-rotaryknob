@@ -2,24 +2,53 @@ import os
 import time
 
 from PIL import Image, ImageChops
+from homeassistant.helpers.network import get_url
 
-FLOORPLAN_REVISION_TOPIC = "passion_wave/floorplan/revision"
-FLOORPLAN_BASE = (
-    "/config/www/images/"
-    "Muehldorferstr_Night_Lighton_Level4_4k_Innenraum.png"
-)
+FLOORPLAN_BASE = "/config/www/passion-wave/floorplan/base.png"
 FLOORPLAN_OUTPUT = "/config/www/passion-wave/floorplan-render/live.png"
 FLOORPLAN_OUTPUT_TMP = FLOORPLAN_OUTPUT + ".tmp"
 FLOORPLAN_LAYERS = {
-    "light.flur": "Muehldorferstr_Night_Lighton_Level4_4k_Flur.png",
-    "light.wohnzimmer": "Muehldorferstr_Night_Lighton_Level4_4k_Wohnzimmer.png",
-    "light.ankleide_5spot_3": "Muehldorferstr_Night_Lighton_Level4_4k_Ankleide.png",
-    "light.schlafzimmer_decke": "Muehldorferstr_Night_Lighton_Level4_4k_Schlafzimmer.png",
-    "light.badezimmer_spiegel": "Muehldorferstr_Night_Lighton_Level4_4k_Badezimmer.png",
-    "light.hue_color_lamp_1": "Muehldorferstr_Night_Lighton_Level4_4k_Buero.png",
-    "light.glightkuche": "Muehldorferstr_Night_Lighton_Level4_4k_Küche.png",
+    "light.passion_wave_floorplan_1": "layer-1.png",
+    "light.passion_wave_floorplan_2": "layer-2.png",
+    "light.passion_wave_floorplan_3": "layer-3.png",
+    "light.passion_wave_floorplan_4": "layer-4.png",
 }
-FLOORPLAN_IMAGE_DIRECTORY = "/config/www/images"
+FLOORPLAN_IMAGE_DIRECTORY = "/config/www/passion-wave/floorplan"
+FLOORPLAN_PUBLIC_PATH = "/local/passion-wave/floorplan-render/live.png"
+RADAR_PATH_ENTITY = "sensor.scrollwheel_rain_radar_image_path"
+
+
+def _absolute_asset_url(path):
+    """Return an ESP32-reachable LAN URL without relying on mDNS."""
+    if not path or path in ("unknown", "unavailable"):
+        return ""
+    if path.startswith(("http://", "https://")):
+        return path
+    base_url = get_url(
+        hass,
+        allow_internal=True,
+        allow_external=False,
+        allow_cloud=False,
+        allow_ip=True,
+    ).rstrip("/")
+    return base_url + "/" + path.lstrip("/")
+
+
+def _publish_radar_asset_url(reason):
+    """Expose the current radar image as an absolute URL over the ESPHome API."""
+    relative_url = state.get(RADAR_PATH_ENTITY)
+    absolute_url = _absolute_asset_url(relative_url)
+    state.set(
+        "pyscript.passion_wave_radar_asset_url",
+        absolute_url or "unavailable",
+        new_attributes={
+            "friendly_name": "Passion Wave Radar Asset URL",
+            "reason": reason or "state",
+            "source_entity": RADAR_PATH_ENTITY,
+            "source_url": relative_url or "",
+            "status": "ready" if absolute_url else "source unavailable",
+        },
+    )
 
 
 def _render_floorplan():
@@ -87,12 +116,8 @@ def _publish_floorplan_revision(reason):
     task.sleep(0.30)
     active_layers = _render_floorplan()
     revision = str(time.time_ns())
-    service.call(
-        "mqtt",
-        "publish",
-        topic=FLOORPLAN_REVISION_TOPIC,
-        payload=revision,
-        retain=True,
+    asset_url = _absolute_asset_url(
+        FLOORPLAN_PUBLIC_PATH + "?v=" + revision
     )
     state.set(
         "pyscript.passion_wave_floorplan_revision",
@@ -100,28 +125,32 @@ def _publish_floorplan_revision(reason):
         new_attributes={
             "friendly_name": "Passion Wave Floorplan Revision",
             "reason": reason or "state",
-            "tracked_lights": 7,
+            "tracked_lights": len(FLOORPLAN_LAYERS),
             "active_light_layers": len(active_layers),
-            "output": "/local/passion-wave/floorplan-render/live.png",
+            "output": FLOORPLAN_PUBLIC_PATH,
+            "asset_url": asset_url,
         },
     )
 
 
 @state_trigger(
-    "light.flur",
-    "light.wohnzimmer",
-    "light.ankleide_5spot_3",
-    "light.schlafzimmer_decke",
-    "light.badezimmer_spiegel",
-    "light.hue_color_lamp_1",
-    "light.glightkuche",
+    "light.passion_wave_floorplan_1",
+    "light.passion_wave_floorplan_2",
+    "light.passion_wave_floorplan_3",
+    "light.passion_wave_floorplan_4",
 )
 def passion_wave_floorplan_changed(trigger_type=None, var_name=None, **kwargs):
     _publish_floorplan_revision(var_name or trigger_type)
 
 
+@state_trigger(RADAR_PATH_ENTITY)
+def passion_wave_radar_changed(trigger_type=None, var_name=None, **kwargs):
+    _publish_radar_asset_url(var_name or trigger_type)
+
+
 @time_trigger("startup")
 def passion_wave_floorplan_startup():
+    _publish_radar_asset_url("startup")
     _publish_floorplan_revision("startup")
 
 

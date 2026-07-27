@@ -1,35 +1,29 @@
 packages:
-  stable_1_2_0: !include passion-wave-rotaryknob-core.yaml
+  s3_ui: !include rotaryknob-s3-ui-core.yaml
 
-# This test profile deliberately extends, rather than copies, the complete
-# 1.2.0 firmware. All display, touch, haptic, media, weather, light, timer,
-# alarm, MQTT and Home Assistant behavior therefore remains active on the S3.
+# V3 S3 role: display, touch, haptics and local UI only. Home Assistant
+# application data and assets are owned by the classic ESP32 bridge.
 substitutions:
   name: "passion-wave-rotary-test-s3"
   friendly_name: "Passion Wave Rotaryknob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "2.1.1"
+  project_version: "3.0.0-beta.0"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"
   dual_mcu_stage1_performance_enabled: "true"
   dual_mcu_stage2_library_offload_enabled: "true"
   # Native Music Assistant counterpart of the Sonos entity
-  # media_player.unnamed_room (same RINCON unique ID).
-  ha_player: "media_player.roam_2"
-  light_1_entity: "light.buero_monitor_wled"
-  light_1_preset_select: "select.buero_monitor_wled_preset"
-  media_debug_topic: "passion_wave/rotaryknob_test_s3/media/debug"
-  mqtt_host: "homeassistant.local"
-  mqtt_username: ""
-  mqtt_password: ""
+  ha_player: "media_player.passion_wave_media"
+  light_1_entity: "light.passion_wave_light_1"
+  light_1_preset_select: "select.passion_wave_wled_preset"
   ha_weather: "weather.forecast_home"
   weather_location: "Home"
   ha_base_url: "http://homeassistant.local:8123"
-  rain_radar_image_url: "http://homeassistant.local:8123/local/passion-wave/radar.jpg"
+  rain_radar_image_url: "http://homeassistant.local:8123/local/scrollwheel/rain_radar_z1.jpg"
   photo_image_url_0: "http://homeassistant.local:8123/local/passion-wave/photo-0.jpg"
   photo_image_url_1: "http://homeassistant.local:8123/local/passion-wave/photo-1.jpg"
   photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
-  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan.png"
+  house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan-render/live.png"
 
 esphome:
   min_version: 2026.7.0
@@ -298,48 +292,24 @@ binary_sensor:
     entity_category: diagnostic
 
 switch:
-  - platform: template
-    id: dual_mcu_s3_network_rescue
-    name: "S3 Network Rescue Mode"
-    icon: "mdi:lifebuoy"
-    entity_category: config
-    optimistic: true
-    restore_mode: ALWAYS_OFF
-    turn_on_action:
-      - lambda: |-
-          id(dual_mcu_s3_rescue_mode_enabled) = true;
-          id(dual_mcu_stage1_fallback_network_active) = true;
-          id(dual_mcu_s3_library_fallback_active) = true;
-          id(dual_mcu_stage1_fallback_started_ms) = millis();
-          id(dual_mcu_stage1_fallback_refresh_sent) = false;
-          id(dual_mcu_stage1_fallback_active_sensor).publish_state(true);
-          id(dual_mcu_library_proxy_status).publish_state(
-            "S3 Rescue bewusst aktiviert");
-      - mqtt.enable:
-          id: mqtt_client
-      - delay: 2s
-      - script.execute: fetch_weather
-      - script.execute: fetch_rain_eta
-      - script.execute: refresh_all_light_detail_catalogs
-    turn_off_action:
-      - mqtt.disable:
-          id: mqtt_client
-      - lambda: |-
-          id(dual_mcu_s3_rescue_mode_enabled) = false;
-          id(dual_mcu_stage1_fallback_network_active) = false;
-          id(dual_mcu_s3_library_fallback_active) = false;
-          id(dual_mcu_stage1_fallback_started_ms) = 0;
-          id(dual_mcu_stage1_fallback_refresh_sent) = false;
-          id(dual_mcu_stage1_fallback_active_sensor).publish_state(false);
-          id(dual_mcu_library_proxy_status).publish_state(
-            id(dual_mcu_ha_bridge_ready)
-              ? "ESP32 Bibliothek aktiv"
-              : "ESP32 Bridge fehlt · Rescue aus");
-      - lambda: |-
-          if (id(dual_mcu_ha_bridge_ready))
-            dual_mcu::link.send(dual_mcu::MessageType::SNAPSHOT_REQUEST);
+  - id: !remove dual_mcu_s3_network_rescue
 
 sensor:
+  # State arrives exclusively over UART. Removing these entities also removes
+  # the S3's Native-API state subscriptions.
+  - id: !remove ha_volume_level
+  - id: !remove ha_media_position
+  - id: !remove ha_media_duration
+  - id: !remove backend_light_1_brightness
+  - id: !remove backend_light_2_brightness
+  - id: !remove backend_light_3_brightness
+  - id: !remove backend_light_4_brightness
+  - id: !remove backend_light_1_color_temp
+  - id: !remove ha_weather_temperature
+  - id: !remove ha_weather_humidity
+  - id: !remove ha_weather_wind_speed
+  - id: !remove ha_weather_precipitation_probability
+
   - platform: template
     id: dual_mcu_s3_playlist_cache_entries_sensor
     name: "S3 Playlist Cache Entries"
@@ -602,6 +572,33 @@ sensor:
     entity_category: diagnostic
 
 text_sensor:
+  # Remove both the historical JSON transport and all direct HA state
+  # subscriptions. The UART cache is the only V3 application-state source.
+  - id: !remove ma_playlists_json_raw
+  - id: !remove ma_playlists_page_json_raw
+  - id: !remove ma_radios_json_raw
+  - id: !remove ma_podcasts_json_raw
+  - id: !remove ma_playlist_tracks_json_raw
+  - id: !remove ha_rain_radar_image_path
+  - id: !remove ha_weather_location_name
+  - id: !remove ha_weather_condition
+  - id: !remove backend_light_1_state
+  - id: !remove backend_light_2_state
+  - id: !remove backend_light_3_state
+  - id: !remove backend_light_4_state
+  - id: !remove media_friendly_name
+  - id: !remove music_state
+  - id: !remove media_title
+  - id: !remove media_artist
+  - id: !remove media_album_artist
+  - id: !remove media_shuffle_state
+  - id: !remove media_repeat_state
+  - id: !remove media_entity_picture
+  - id: !remove media_entity_picture_local
+  - id: !remove media_image_url
+  - id: !remove backend_light_4_preset
+  - id: !remove backend_light_rgb
+
   - platform: template
     id: dual_mcu_s3_status
     name: "Coprocessor Status"
@@ -1736,16 +1733,8 @@ interval:
                 dual_mcu::library_client.remote_error(frame);
                 break;
               case dual_mcu::MessageType::LIBRARY_CHANGED:
-                if (frame.length == 1 && frame.payload[0] >= 1 && frame.payload[0] <= 5) {
-                  // Kind 1 mirrors the retained playlist bootstrap for old S3
-                  // firmware. Version 2 consumes kind 4 exclusively so that
-                  // this 40-entry prefix cannot overwrite the growing catalog.
-                  const uint8_t changed_kind =
-                    frame.payload[0] == static_cast<uint8_t>(
-                      dual_mcu::LibraryKind::PLAYLISTS)
-                      ? static_cast<uint8_t>(
-                          dual_mcu::LibraryKind::PLAYLIST_PAGE)
-                      : frame.payload[0];
+                if (frame.length == 1 && frame.payload[0] >= 2 && frame.payload[0] <= 5) {
+                  const uint8_t changed_kind = frame.payload[0];
                   id(dual_mcu_library_desired_mask) |=
                     static_cast<uint8_t>(1U << (changed_kind - 1));
                   id(dual_mcu_library_bridge_mask) &=
@@ -2028,7 +2017,7 @@ interval:
             }
             if (library_error == 1 || library_error == 2) {
               // The ESP32 has not received this retained cache yet. Retry the
-              // proxy without waking the S3 MQTT stack during normal boot.
+              // proxy without starting a second network path during boot.
               id(dual_mcu_library_proxy_status).publish_state(
                 "ESP32 Bibliothek wird vorbereitet");
             } else {
@@ -2428,44 +2417,3 @@ interval:
                        id(dual_mcu_library_response_proxy_failed_until_ms);
           then:
             - script.execute: request_initial_playlist_page
-      - if:
-          condition:
-            lambda: |-
-              return id(dual_mcu_stage1_performance_enabled) &&
-                     id(dual_mcu_s3_network_rescue).state &&
-                     id(dual_mcu_stage1_fallback_network_active) &&
-                     !id(mqtt_client).is_connected();
-          then:
-            - mqtt.enable:
-                id: mqtt_client
-      - if:
-          condition:
-            lambda: |-
-              return id(dual_mcu_stage1_performance_enabled) &&
-                     id(dual_mcu_s3_network_rescue).state &&
-                     id(dual_mcu_stage1_fallback_network_active) &&
-                     !id(dual_mcu_stage1_fallback_refresh_sent) &&
-                     id(dual_mcu_stage1_fallback_started_ms) != 0 &&
-                     millis() - id(dual_mcu_stage1_fallback_started_ms) >= 2000;
-          then:
-            - lambda: 'id(dual_mcu_stage1_fallback_refresh_sent) = true;'
-            - script.execute: fetch_weather
-            - script.execute: fetch_rain_eta
-      - if:
-          condition:
-            lambda: |-
-              return id(dual_mcu_stage1_performance_enabled) &&
-                     id(dual_mcu_stage1_fallback_network_active) &&
-                     !id(dual_mcu_s3_network_rescue).state &&
-                     id(dual_mcu_ha_bridge_ready) &&
-                     id(dual_mcu_stage1_bridge_ready_since_ms) != 0 &&
-                     millis() - id(dual_mcu_stage1_bridge_ready_since_ms) >= 30000 &&
-                     millis() >= id(dual_mcu_library_response_proxy_failed_until_ms);
-          then:
-            - mqtt.disable:
-                id: mqtt_client
-            - lambda: |-
-                id(dual_mcu_stage1_fallback_network_active) = false;
-                id(dual_mcu_s3_library_fallback_active) = false;
-                id(dual_mcu_stage1_fallback_started_ms) = 0;
-                id(dual_mcu_stage1_fallback_refresh_sent) = false;
