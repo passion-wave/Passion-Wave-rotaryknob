@@ -1,6 +1,6 @@
 # MQTT-free Native API migration
 
-Status: published as `3.0.0-beta.1`; physical clean-device acceptance pending.
+Status: published as `3.0.0-beta.2`; physical clean-device acceptance pending.
 
 Because the device no longer accepts the former transport, publish this change
 only as an explicitly marked V3 prerelease until both chips of the physical

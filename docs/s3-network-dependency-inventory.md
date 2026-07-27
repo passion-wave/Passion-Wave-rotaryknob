@@ -1,9 +1,9 @@
 # S3 network dependency inventory
 
-Version `3.0.0-beta.1` closes the normal-operation S3 network migration.
+Version `3.0.0-beta.2` closes the normal-operation S3 network migration.
 Internal revisions `.98/.50`, `.80/.39` and `.83/.45` below are historical
 migration checkpoints, not customer-facing versions. The public web installer
-exposes Version `3.0.0-beta.1` as a prerelease while physical acceptance
+exposes Version `3.0.0-beta.2` as a prerelease while physical acceptance
 remains the promotion gate.
 
 ## Direct Home Assistant subscriptions
@@ -19,7 +19,7 @@ The historical 2.1.x S3 firmware declared 32 Home Assistant subscriptions:
 | Radar image path | 1 | 1 | 0 |
 | **Total** | **32** | **32** | **0** |
 
-In `3.0.0-beta.1`, the managed S3 overlay removes these subscriptions by list
+In `3.0.0-beta.2`, the managed S3 overlay removes these subscriptions by list
 ID. Only the Home Assistant time source remains. Media, light, weather, radar
 and floorplan state and asset data reach the UI over the bounded UART bridge.
 

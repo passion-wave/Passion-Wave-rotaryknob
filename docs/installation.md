@@ -5,7 +5,7 @@ to Home Assistant.
 
 The intended public no-expert path is
 `https://www.passion-wave.com/install/`. It currently delivers
-V3.0.0-beta.1 as an explicitly marked prerelease; V2.1.1 remains the rollback
+V3.0.0-beta.2 as an explicitly marked prerelease; V2.1.1 remains the rollback
 tag until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web
@@ -41,8 +41,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json
-https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest.json
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.2.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.2.json
 ```
 
 Both published binaries are built from sanitized public factory

@@ -57,8 +57,8 @@ without user approval.
 The website installer must consume two sanitized factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json
-https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest.json
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.2.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.2.json
 ```
 
 Each image must be built from a public factory configuration with:
@@ -84,8 +84,8 @@ as website installer assets.
 - The website contains a five-stage `/install/` wizard with separate ESP Web
   Tools install buttons for the S3 and classic ESP32.
 - The website contains the chip-specific manifests
-  `/firmware/rotaryknob/s3/manifest.json` and
-  `/firmware/rotaryknob/esp32/manifest.json`.
+  `/firmware/rotaryknob/s3/manifest-3.0.0-beta.2.json` and
+  `/firmware/rotaryknob/esp32/manifest-3.0.0-beta.2.json`.
 - Both production factory binaries are published and their SHA-256 sums match
   the firmware repository's `release/public/SHA256SUMS`.
 - The device defaults blueprint contains Home Assistant entity selectors for

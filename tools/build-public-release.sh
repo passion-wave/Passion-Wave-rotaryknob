@@ -5,6 +5,10 @@ repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="${1:-${repo_dir}/release/public}"
 version="$(tr -d '[:space:]' < "${repo_dir}/VERSION")"
 resolved_dir="$(mktemp -d)"
+s3_binary="passion-wave-rotaryknob-s3-${version}.factory.bin"
+esp32_binary="passion-wave-rotaryknob-esp32-${version}.factory.bin"
+s3_manifest="manifest-${version}.json"
+esp32_manifest="manifest-${version}.json"
 
 cleanup() {
   rm -f "${resolved_dir}/factory-s3.yaml" "${resolved_dir}/factory-esp32.yaml"
@@ -90,13 +94,13 @@ if grep -q 'next_url:' \
 fi
 
 cp "${repo_dir}/esphome/.esphome/build/passion_wave_factory_s3/build/firmware.factory.bin" \
-  "${output_dir}/s3/passion-wave-rotaryknob-s3.factory.bin"
+  "${output_dir}/s3/${s3_binary}"
 cp "${repo_dir}/esphome/.esphome/build/passion_wave_factory_esp32/build/firmware.factory.bin" \
-  "${output_dir}/esp32/passion-wave-rotaryknob-esp32.factory.bin"
+  "${output_dir}/esp32/${esp32_binary}"
 
 # ESP Web Tools erases new installations by default. Setting this field to
 # true would offer a choice and could preserve stale NVS credentials.
-cat > "${output_dir}/s3/manifest.json" <<EOF
+cat > "${output_dir}/s3/${s3_manifest}" <<EOF
 {
   "name": "PassionWave Rotaryknob",
   "version": "${version}",
@@ -106,14 +110,14 @@ cat > "${output_dir}/s3/manifest.json" <<EOF
     {
       "chipFamily": "ESP32-S3",
       "parts": [
-        { "path": "passion-wave-rotaryknob-s3.factory.bin?v=${version}", "offset": 0 }
+        { "path": "${s3_binary}", "offset": 0 }
       ]
     }
   ]
 }
 EOF
 
-cat > "${output_dir}/esp32/manifest.json" <<EOF
+cat > "${output_dir}/esp32/${esp32_manifest}" <<EOF
 {
   "name": "PassionWave Rotaryknob Bridge",
   "version": "${version}",
@@ -123,26 +127,26 @@ cat > "${output_dir}/esp32/manifest.json" <<EOF
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "passion-wave-rotaryknob-esp32.factory.bin?v=${version}", "offset": 0 }
+        { "path": "${esp32_binary}", "offset": 0 }
       ]
     }
   ]
 }
 EOF
 
-python3 -m json.tool "${output_dir}/s3/manifest.json" >/dev/null
-python3 -m json.tool "${output_dir}/esp32/manifest.json" >/dev/null
+python3 -m json.tool "${output_dir}/s3/${s3_manifest}" >/dev/null
+python3 -m json.tool "${output_dir}/esp32/${esp32_manifest}" >/dev/null
 
 (
   cd "${output_dir}"
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum \
-      s3/passion-wave-rotaryknob-s3.factory.bin \
-      esp32/passion-wave-rotaryknob-esp32.factory.bin > SHA256SUMS
+      "s3/${s3_binary}" \
+      "esp32/${esp32_binary}" > SHA256SUMS
   else
     shasum -a 256 \
-      s3/passion-wave-rotaryknob-s3.factory.bin \
-      esp32/passion-wave-rotaryknob-esp32.factory.bin > SHA256SUMS
+      "s3/${s3_binary}" \
+      "esp32/${esp32_binary}" > SHA256SUMS
   fi
 )
 

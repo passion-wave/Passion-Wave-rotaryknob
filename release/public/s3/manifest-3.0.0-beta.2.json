@@ -1,13 +1,13 @@
 {
   "name": "PassionWave Rotaryknob",
-  "version": "3.0.0-beta.1",
+  "version": "3.0.0-beta.2",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 120,
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "parts": [
-        { "path": "passion-wave-rotaryknob-s3.factory.bin?v=3.0.0-beta.1", "offset": 0 }
+        { "path": "passion-wave-rotaryknob-s3-3.0.0-beta.2.factory.bin", "offset": 0 }
       ]
     }
   ]

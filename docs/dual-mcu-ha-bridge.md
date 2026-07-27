@@ -1,6 +1,6 @@
 # Dual-MCU Home Assistant Bridge
 
-Version `3.0.0-beta.1` is the current dual-MCU workload split. The internal
+Version `3.0.0-beta.2` is the current dual-MCU workload split. The internal
 `.98` / `.50` counters remain historical test checkpoints, not separate
 customer versions. The S3 owns deterministic input and rendering. The classic
 ESP32 owns Home Assistant connectivity, service calls and bounded
