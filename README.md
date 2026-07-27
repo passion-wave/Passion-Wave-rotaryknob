@@ -3,7 +3,7 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current beta: **3.0.0-beta.0 — `native-integration,bridge-owned-network`**.
+Current beta: **3.0.0-beta.1 — `native-integration,bridge-owned-network`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone
 Single-MCU entrypoint, MQTT media transport, S3 application-network fallback,
@@ -58,7 +58,7 @@ PassionWave Config Entry and two unique endpoint identities. See
 
 ## Getting Started
 
-The public browser installer delivers **V3.0.0-beta.0** as an explicitly marked
+The public browser installer delivers **V3.0.0-beta.1** as an explicitly marked
 prerelease. Version 2.1.1 remains the rollback tag. The steps below are for
 maintainers and beta testers; promotion beyond beta requires the coordinated
 hardware acceptance.
@@ -177,7 +177,7 @@ MQTT broker or manually copied encryption key. See
 ## Documentation
 
 - [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
-- [Version 3.0.0-beta.0 release](RELEASE.md)
+- [Version 3.0.0-beta.1 release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
 - [Project review](docs/project-review.md)

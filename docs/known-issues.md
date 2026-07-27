@@ -327,7 +327,7 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
 
 ### PW-DOC-003: Automatischer S3-Fallback widersprach Rescue Mode
 
-- **Status:** Behoben am 2026-07-26; Rescue-Pfad in `3.0.0-beta.0` vollständig
+- **Status:** Behoben am 2026-07-26; Rescue-Pfad in `3.0.0-beta.1` vollständig
   entfernt
 - **Betroffen:** Dual-MCU-Architektur-, Test- und Netzwerkdokumentation
 - **Fehlerbild:** Historische Abschnitte versprachen bei Bridge-Verlust einen
@@ -361,7 +361,7 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
 
 ### PW-FW-004: Playlist-, Radio- und Podcast-Listen blieben leer
 
-- **Status:** Behoben im Quellstand `3.0.0-beta.0`; Hardware-Abnahme ausstehend
+- **Status:** Behoben im Quellstand `3.0.0-beta.1`; Hardware-Abnahme ausstehend
 - **Betroffen:** Music-Assistant-Onboarding und Bibliotheks-Paging
 - **Fehlerbild:** Vier Lichtnamen waren sichtbar, während Playlist, Radio und
   Podcast auch nach Neustart und Wartezeit leer blieben.
@@ -380,7 +380,7 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
 
 ### PW-FW-005: S3 enthielt weiterhin Single-MCU-Netzwerkpfade
 
-- **Status:** Behoben im Quellstand `3.0.0-beta.0`; Hardware-Abnahme ausstehend
+- **Status:** Behoben im Quellstand `3.0.0-beta.1`; Hardware-Abnahme ausstehend
 - **Betroffen:** S3-Laufzeit, Speicher und Fehlerisolation
 - **Fehlerbild:** Obwohl der ESP32 Bridge-Eigentümer war, enthielt das S3-Profil
   noch direkte HA-State-Abonnements, SNTP und einen manuell aktivierbaren

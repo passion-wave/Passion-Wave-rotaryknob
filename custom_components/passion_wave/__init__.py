@@ -190,7 +190,7 @@ async def async_setup_entry(
         manufacturer="PassionWave",
         model="Rotaryknob Dual MCU",
         name="PassionWave Rotaryknob",
-        sw_version="3.0.0-beta.0",
+        sw_version="3.0.0-beta.1",
     )
     try:
         await _async_sync_bridge(hass, entry)

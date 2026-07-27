@@ -1,13 +1,18 @@
-# Version 3.0.0-beta.0
+# Version 3.0.0-beta.1
 
 Release description: `native-integration,bridge-owned-network`
 
 ## Status
 
-Public prerelease candidate for tag `v3.0.0-beta.0`. Both chip images compile
+Public prerelease candidate for tag `v3.0.0-beta.1`. Both chip images compile
 from this source and are distributed together. Physical clean-device
 acceptance remains deliberately pending and is the gate for promotion beyond
 beta, not for publishing this explicitly marked prerelease.
+
+Beta.1 supersedes beta.0 before any customer flash. Beta.0 reused the stable
+firmware download URLs and exposed a mixed CDN cache after deployment. Beta.1
+adds the release version as a mandatory manifest query key, so S3 and Bridge
+downloads cannot resolve to artifacts from an older release.
 
 ## Breaking architecture changes
 
@@ -76,8 +81,8 @@ Rollback also requires rolling back both processors together.
 Verified public Factory artifacts:
 
 ```text
-1e767c445f294a22a48afc5b389539dfb517d9dd4e3648655cb263d21b312ae6  s3/passion-wave-rotaryknob-s3.factory.bin
-ad0146f276f49889c410609b635073a0a4323f408875dc96e9e061e1b1210eec  esp32/passion-wave-rotaryknob-esp32.factory.bin
+5490e5a8c3ff695fd5a4deec2417d1bead895a9ca5041065487a8e089928614b  s3/passion-wave-rotaryknob-s3.factory.bin
+41ff72d82a264e7856f8cbbed3044eab92718a75cafc329ce769a5a394de4d6a  esp32/passion-wave-rotaryknob-esp32.factory.bin
 ```
 
 The ESPHome/LVGL build still reports upstream deprecation warnings for the

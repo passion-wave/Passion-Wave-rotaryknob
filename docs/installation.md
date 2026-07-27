@@ -5,7 +5,7 @@ to Home Assistant.
 
 The intended public no-expert path is
 `https://www.passion-wave.com/install/`. It currently delivers
-V3.0.0-beta.0 as an explicitly marked prerelease; V2.1.1 remains the rollback
+V3.0.0-beta.1 as an explicitly marked prerelease; V2.1.1 remains the rollback
 tag until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web

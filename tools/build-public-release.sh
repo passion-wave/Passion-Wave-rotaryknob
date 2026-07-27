@@ -106,7 +106,7 @@ cat > "${output_dir}/s3/manifest.json" <<EOF
     {
       "chipFamily": "ESP32-S3",
       "parts": [
-        { "path": "passion-wave-rotaryknob-s3.factory.bin", "offset": 0 }
+        { "path": "passion-wave-rotaryknob-s3.factory.bin?v=${version}", "offset": 0 }
       ]
     }
   ]
@@ -123,7 +123,7 @@ cat > "${output_dir}/esp32/manifest.json" <<EOF
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "passion-wave-rotaryknob-esp32.factory.bin", "offset": 0 }
+        { "path": "passion-wave-rotaryknob-esp32.factory.bin?v=${version}", "offset": 0 }
       ]
     }
   ]

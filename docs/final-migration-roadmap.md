@@ -1,10 +1,10 @@
 # Final migration roadmap
 
 This roadmap records the four historical dual-MCU migration milestones.
-Version `3.0.0-beta.0` implements the target architecture described here.
+Version `3.0.0-beta.1` implements the target architecture described here.
 Internal S3 `.98` and ESP32 `.50` counters plus `.80/.39` and `.89/.45` are
 rollback checkpoints. The public web installer exposes Version
-`3.0.0-beta.0` as a prerelease until the beta passes physical-device
+`3.0.0-beta.1` as a prerelease until the beta passes physical-device
 acceptance.
 
 The target split is:

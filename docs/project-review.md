@@ -12,10 +12,10 @@ Home Assistant onboarding and the physical endurance gates pass.
 
 Current reviewed candidate:
 
-- product: `3.0.0-beta.0`
+- product: `3.0.0-beta.1`
 - ESP32-S3: managed S3 UI endpoint
 - ESP32: managed Home Assistant bridge endpoint
-- public installer: `3.0.0-beta.0` prerelease; `2.1.1` rollback
+- public installer: `3.0.0-beta.1` prerelease; `2.1.1` rollback
 
 ## What is already strong
 
