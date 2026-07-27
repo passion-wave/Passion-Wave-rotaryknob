@@ -18,11 +18,14 @@ from homeassistant.helpers import (
 )
 
 from .const import (
+    BRIDGE_PROJECT_NAME,
     BRIDGE_REGISTRATION_ORIGINAL_NAME,
+    CONF_BRIDGE_HOST,
     CONF_BRIDGE_REGISTRATION_ENTITY,
     CONF_BRIDGE_REGISTRATION_UNIQUE_ID,
     CONF_MA_CONFIG_ENTRY_ID,
     CONF_MEDIA_PLAYER,
+    CONF_S3_HOST,
     CONF_VISIBLE_PLAYLISTS,
     CONF_VISIBLE_PODCASTS,
     CONF_VISIBLE_RADIOS,
@@ -30,8 +33,17 @@ from .const import (
     LIBRARY_FILTER_KEYS,
     LIBRARY_SELECTION_LIMIT,
     SHOW_ALL,
+    S3_PROJECT_NAME,
 )
 from .media import normalize_library_page
+from .pairing import (
+    DiscoveredEndpoint,
+    PairingError,
+    ProvisioningWindowClosed,
+    async_discover_endpoints,
+    async_secure_pair_endpoint,
+    endpoint_is_configured,
+)
 
 
 def _connection_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -174,8 +186,93 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._entry_title = "PassionWave Rotaryknob"
         self._catalogs: dict[str, list[dict[str, str]]] = {}
         self._library_error = False
+        self._discovered_endpoints: dict[str, DiscoveredEndpoint] = {}
 
     async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Start secure pairing or continue with already paired endpoints."""
+        has_registration = any(
+            entry.platform == "esphome"
+            and entry.original_name == BRIDGE_REGISTRATION_ORIGINAL_NAME
+            for entry in er.async_get(self.hass).entities.values()
+        )
+        discovered = await async_discover_endpoints(self.hass)
+        self._discovered_endpoints = {item.host: item for item in discovered}
+        if has_registration and not any(
+            not endpoint_is_configured(self.hass, endpoint)
+            for endpoint in discovered
+        ):
+            return await self.async_step_connection(user_input)
+        return await self.async_step_pair()
+
+    async def async_step_pair(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pair both processors without exposing their API keys."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            s3 = self._discovered_endpoints.get(user_input[CONF_S3_HOST])
+            bridge = self._discovered_endpoints.get(user_input[CONF_BRIDGE_HOST])
+            if s3 is None or bridge is None:
+                errors["base"] = "endpoint_unavailable"
+            else:
+                try:
+                    await async_secure_pair_endpoint(
+                        self.hass, s3, S3_PROJECT_NAME
+                    )
+                    await async_secure_pair_endpoint(
+                        self.hass, bridge, BRIDGE_PROJECT_NAME
+                    )
+                except ProvisioningWindowClosed:
+                    errors["base"] = "provisioning_window_closed"
+                except PairingError:
+                    errors["base"] = "pairing_failed"
+                else:
+                    # ESPHome entity setup follows config-entry creation. Allow
+                    # it a short bounded interval before showing the typed
+                    # PassionWave connection selectors.
+                    for _ in range(20):
+                        if any(
+                            entry.platform == "esphome"
+                            and entry.original_name
+                            == BRIDGE_REGISTRATION_ORIGINAL_NAME
+                            for entry in er.async_get(self.hass).entities.values()
+                        ):
+                            return await self.async_step_connection()
+                        await asyncio.sleep(0.5)
+                    return self.async_abort(reason="pairing_complete")
+
+        def choices(project_name: str) -> list[selector.SelectOptionDict]:
+            return [
+                {
+                    "value": endpoint.host,
+                    "label": f"{endpoint.friendly_name} · {endpoint.host}",
+                }
+                for endpoint in self._discovered_endpoints.values()
+                if endpoint.project_name == project_name
+            ]
+
+        s3_choices = choices(S3_PROJECT_NAME)
+        bridge_choices = choices(BRIDGE_PROJECT_NAME)
+        if not s3_choices or not bridge_choices:
+            errors["base"] = "endpoints_not_found"
+        return self.async_show_form(
+            step_id="pair",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_S3_HOST): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=s3_choices)
+                    ),
+                    vol.Required(CONF_BRIDGE_HOST): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=bridge_choices)
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_connection(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Create one PassionWave entry per physical dual-MCU system."""

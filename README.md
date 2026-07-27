@@ -3,7 +3,7 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current beta: **3.0.0-beta.2 — `native-integration,bridge-owned-network`**.
+Current beta: **3.0.0-beta.3 — `secure-zero-psk-pairing`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone
 Single-MCU entrypoint, MQTT media transport, S3 application-network fallback,
@@ -58,7 +58,7 @@ PassionWave Config Entry and two unique endpoint identities. See
 
 ## Getting Started
 
-The public browser installer delivers **V3.0.0-beta.2** as an explicitly marked
+The public browser installer delivers **V3.0.0-beta.3** as an explicitly marked
 prerelease. Version 2.1.1 remains the rollback tag. The steps below are for
 maintainers and beta testers; promotion beyond beta requires the coordinated
 hardware acceptance.
@@ -137,9 +137,10 @@ The repository supplies separate credential-free S3 and ESP32 factory
 profiles, reproducible release artifacts, generated chip-specific manifests
 and independent OTA paths. A clean factory install erases stale device
 identity data and exposes `PassionWave Rotaryknob` plus `PassionWave
-Rotaryknob Bridge`. Home Assistant 2026.7+ automatically generates and
-provisions an individual API key for each processor without showing it to the
-buyer. Authenticated OTA remains part of the subsequent managed commissioning
+Rotaryknob Bridge`. PassionWave uses ESPHome 2026.7's bounded zero-PSK
+provisioning path to generate and install an individual API key for each
+processor without showing it to the buyer. Authenticated OTA remains part of
+the subsequent managed commissioning
 step. Private credentials remain only in managed device overlays. Maintainers
 should follow
 [ESPHome API security lifecycle](docs/api-security-lifecycle.md),
@@ -177,7 +178,7 @@ MQTT broker or manually copied encryption key. See
 ## Documentation
 
 - [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
-- [Version 3.0.0-beta.2 release](RELEASE.md)
+- [Version 3.0.0-beta.3 release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
 - [Project review](docs/project-review.md)

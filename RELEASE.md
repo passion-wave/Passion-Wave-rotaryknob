@@ -1,19 +1,30 @@
-# Version 3.0.0-beta.2
+# Version 3.0.0-beta.3
 
-Release description: `native-integration,bridge-owned-network`
+Release description: `secure-zero-psk-pairing`
 
 ## Status
 
-Public prerelease candidate for tag `v3.0.0-beta.2`. Both chip images compile
+Public prerelease candidate for tag `v3.0.0-beta.3`. Both chip images compile
 from this source and are distributed together. Physical clean-device
 acceptance remains deliberately pending and is the gate for promotion beyond
 beta, not for publishing this explicitly marked prerelease.
 
-Beta.2 supersedes beta.0 and beta.1 before any customer flash. Beta.0 reused
-stable firmware URLs; beta.1 added query keys, but the production CDN did not
-reliably include those keys in its cache identity. Beta.2 gives every manifest
-and Factory image a unique version-bearing filename. The installer therefore
-cannot resolve either processor to an artifact from an older release.
+Beta.3 keeps the immutable artifact scheme introduced by beta.2 and implements
+ESPHome 2026.7 secure first-use key provisioning in the PassionWave
+integration. Each processor receives a different random 32-byte key; the
+customer neither sees nor copies it.
+
+## Secure onboarding
+
+- PassionWave discovers S3 and Bridge through their ESPHome project metadata.
+- The user explicitly selects the two processors belonging to one product.
+- Already configured endpoints are reused, which also supports multiple
+  physical Rotaryknobs and recovery after a partially completed pairing.
+- New endpoints are connected through ESPHome 2026.7's bounded zero-PSK Noise
+  channel, assigned an individual random key, then created through Home
+  Assistant's official ESPHome config flow.
+- If the 20-minute window has expired, the UI asks for one physical power
+  cycle; it never falls back to a shared key or plaintext operation.
 
 ## Breaking architecture changes
 
@@ -76,14 +87,18 @@ Rollback also requires rolling back both processors together.
   call in the S3 UI source.
 - PassionWave response normalization: four unit tests passed; Python and JSON
   files compile/parse successfully.
+- Pairing modules import against Home Assistant `2026.7.4`; a simulated
+  end-to-end flow verified the 32-byte random key, device provisioning,
+  replacement of the matching pending ESPHome discovery flow and official
+  ESPHome config-entry creation.
 - `media_player.browse_media` request and response contract checked against
   Home Assistant `2026.7.4`.
 
 Verified public Factory artifacts:
 
 ```text
-f23db0fcefa9a56512bf7d16195a91671ab323f58d66df42e707e7acb070f45f  s3/passion-wave-rotaryknob-s3-3.0.0-beta.2.factory.bin
-cee877c04eaa9caf7df07f192505f8557e43d4bbb56ff5995179c98196563fe0  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.2.factory.bin
+d7f29c64084e74eb3c571fc97b653121f8462629cbd1a9655d0cce28067a5066  s3/passion-wave-rotaryknob-s3-3.0.0-beta.3.factory.bin
+f7f00a6b9ccb082610c6b90609727f20f3863476dfd50a2dcee4210a55511cdb  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.3.factory.bin
 ```
 
 The ESPHome/LVGL build still reports upstream deprecation warnings for the

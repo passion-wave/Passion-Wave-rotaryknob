@@ -15,7 +15,7 @@ substitutions:
   name: "passionwave-rotaryknob"
   friendly_name: "PassionWave Rotaryknob"
   project_name: "passion-wave.rotaryknob-s3"
-  project_version: "3.0.0-beta.2"
+  project_version: "3.0.0-beta.3"
   factory_onboarding_guard: "true"
   ha_weather: "weather.forecast_home"
   weather_location: "Home"
@@ -42,9 +42,9 @@ dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-s3.yaml@main
   import_full_config: false
 
-# Provisioning-only profile: Home Assistant 2026.7+ generates and installs a
-# unique key during first adoption. No customer-visible or shared key is
-# compiled into the public image.
+# Provisioning-only profile: the PassionWave Home Assistant integration
+# generates and installs a unique key before it creates the ESPHome entry.
+# No customer-visible or shared key is compiled into the public image.
 api:
   reboot_timeout: 0s
   encryption:

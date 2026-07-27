@@ -12,12 +12,12 @@ The public wording should stay as short as possible:
 3. Erase, flash and provision the detected S3 as `PassionWave Rotaryknob`.
 4. Unplug, reverse USB-C and reconnect.
 5. Erase, flash and provision the detected ESP32 as `PassionWave Rotaryknob Bridge`.
-6. Press `Open Home Assistant`.
-7. Approve both discovered PassionWave processor endpoints for the one
-   Rotaryknob. Home Assistant 2026.7 or newer generates, provisions and stores
-   a unique API encryption key for each endpoint; the customer does not enter
-   or copy a key.
-8. Select media, weather and optional lights from Home Assistant pickers.
+6. Install PassionWave through HACS and restart Home Assistant.
+7. Power-cycle the Rotaryknob and add PassionWave within 20 minutes.
+8. Select the matching S3 and Bridge. PassionWave provisions and stores an
+   individual key for each endpoint and creates both ESPHome entries without
+   exposing a key to the customer.
+9. Select media, weather and optional lights from Home Assistant pickers.
 
 The customer should never copy entity IDs. Home Assistant owns entity discovery,
 so the blueprint selectors list the compatible `media_player` and `light`
@@ -57,8 +57,8 @@ without user approval.
 The website installer must consume two sanitized factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.2.json
-https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.2.json
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.3.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.3.json
 ```
 
 Each image must be built from a public factory configuration with:
@@ -84,8 +84,8 @@ as website installer assets.
 - The website contains a five-stage `/install/` wizard with separate ESP Web
   Tools install buttons for the S3 and classic ESP32.
 - The website contains the chip-specific manifests
-  `/firmware/rotaryknob/s3/manifest-3.0.0-beta.2.json` and
-  `/firmware/rotaryknob/esp32/manifest-3.0.0-beta.2.json`.
+  `/firmware/rotaryknob/s3/manifest-3.0.0-beta.3.json` and
+  `/firmware/rotaryknob/esp32/manifest-3.0.0-beta.3.json`.
 - Both production factory binaries are published and their SHA-256 sums match
   the firmware repository's `release/public/SHA256SUMS`.
 - The device defaults blueprint contains Home Assistant entity selectors for

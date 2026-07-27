@@ -35,15 +35,15 @@ esphome:
   build_path: build/passion_wave_factory_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "3.0.0-beta.2"
+    version: "3.0.0-beta.3"
 
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main
   import_full_config: false
 
-# Provisioning-only profile: Home Assistant 2026.7+ generates and installs a
-# unique key during first adoption. No customer-visible or shared key is
-# compiled into the public image.
+# Provisioning-only profile: the PassionWave Home Assistant integration
+# generates and installs a unique key before it creates the ESPHome entry.
+# No customer-visible or shared key is compiled into the public image.
 api:
   id: esp32_api
   reboot_timeout: 0s

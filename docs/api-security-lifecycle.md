@@ -10,9 +10,10 @@ The supported lifecycle on Home Assistant 2026.7 or newer is:
 
 1. flash a credential-free public factory image;
 2. provision Wi-Fi locally with Improv Serial;
-3. let Home Assistant discover and adopt both processors;
-4. let Home Assistant generate and provision one unique 32-byte API encryption
-   key for each processor over the zero-PSK Noise provisioning connection;
+3. install PassionWave and select both discovered processors;
+4. let PassionWave generate and provision one unique 32-byte API encryption
+   key for each processor over the zero-PSK Noise provisioning connection and
+   create the matching ESPHome entries;
 5. let each processor persist its key and close its provisioning window;
 6. use encrypted Native API for all later Home Assistant connections;
 7. install an authenticated managed update profile before treating the device
@@ -28,11 +29,11 @@ all shipped images would be public and would not authenticate an individual
 device. Conversely, a random key compiled into a public binary would be unknown
 to the buyer and reproduce the unwanted Home Assistant encryption-key prompt.
 
-ESPHome 2026.7 and Home Assistant 2026.7 support an `api.encryption` block
-without a compiled key. Home Assistant connects through the encrypted zero-PSK
-Noise provisioning path, generates a random per-endpoint key, installs it on
-the controller and stores the same key locally. The customer neither sees nor
-copies the key.
+ESPHome 2026.7 supports an `api.encryption` block without a compiled key and
+the encrypted zero-PSK Noise provisioning path. PassionWave connects through
+that path, generates a random per-endpoint key, installs it on the controller
+and passes the same key to the official Home Assistant ESPHome config flow.
+The customer neither sees nor copies the key.
 
 The provisioning window is limited to 20 minutes. If it expires before
 adoption, a physical reset or power cycle reopens it. The public factory image
@@ -98,7 +99,7 @@ encryption is therefore not an accepted latency optimization.
 
 - Public `factory-s3.yaml` and `factory-esp32.yaml`: keyless at build time, with
   a 20-minute ESPHome provisioning window and automatic per-endpoint API key
-  creation by Home Assistant 2026.7+.
+  creation by the PassionWave integration.
 - Every private Managed entrypoint: encrypted Native API and
   password-protected OTA through one shared Managed deployment layer. The
   current two-device test installation has four such entrypoints.

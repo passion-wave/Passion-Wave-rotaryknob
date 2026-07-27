@@ -13,8 +13,8 @@ Die Komponente enthält zwei unabhängig flashbare Prozessoren:
 
 | USB-Ziel | Aufgabe | Öffentliches Profil | Web-Manifest |
 |---|---|---|---|
-| ESP32-S3 | Display, Touch, EC1-Encoder, Haptik, UI | `esphome/factory-s3.yaml` | `firmware/rotaryknob/s3/manifest-3.0.0-beta.2.json` |
-| ESP32 | Home-Assistant-Bridge, EC2, Netzwerk-Offload | `esphome/factory-esp32.yaml` | `firmware/rotaryknob/esp32/manifest-3.0.0-beta.2.json` |
+| ESP32-S3 | Display, Touch, EC1-Encoder, Haptik, UI | `esphome/factory-s3.yaml` | `firmware/rotaryknob/s3/manifest-3.0.0-beta.3.json` |
+| ESP32 | Home-Assistant-Bridge, EC2, Netzwerk-Offload | `esphome/factory-esp32.yaml` | `firmware/rotaryknob/esp32/manifest-3.0.0-beta.3.json` |
 
 Die USB-C-Ausrichtung bestimmt das Ziel. Eine vollautomatische Umschaltung ist
 ohne zusätzliche Hardware im Gerät nicht möglich. Die Website reduziert den
@@ -57,15 +57,17 @@ Factory-Builds.
    derselben ESP32-Ausrichtung wieder verbinden. Danach den separaten
    Bridge-WLAN-Button öffnen, denselben Port wählen, bis zu zehn Sekunden auf
    Improv warten und dasselbe WLAN setzen. Ein zweiter Flash ist nicht nötig.
-7. Home Assistant über den vorbereiteten My-Link öffnen und die beiden
-   ESPHome-Endpunkte dieses einen Rotaryknob bestätigen. Home Assistant 2026.7
-   oder neuer erzeugt und hinterlegt dabei automatisch je Controller einen individuellen
-   Encryption-Key; der Kunde sieht und kopiert keinen Schlüssel.
-8. Die PassionWave-Integration hinzufügen und Bridge,
+7. PassionWave über HACS installieren und Home Assistant neu starten.
+8. Das Gerät vollständig aus- und einschalten, PassionWave innerhalb von
+   20 Minuten hinzufügen und S3 sowie Bridge desselben Rotaryknob auswählen.
+   PassionWave erzeugt je Controller einen individuellen Encryption-Key,
+   provisioniert ihn und legt beide ESPHome-Einträge an. Der Kunde sieht und
+   kopiert keinen Schlüssel.
+9. Bridge,
    Music-Assistant-Instanz sowie Medienplayer in typisierten UI-Auswahllisten
    festlegen. Playlist-Einträge werden automatisch aus Music Assistant
    übernommen.
-9. Den kompakten Funktionskatalog auf der Website abarbeiten.
+10. Den kompakten Funktionskatalog auf der Website abarbeiten.
 
 Home Assistant muss Geräte- und Automationsanlage aus Sicherheitsgründen
 bestätigen lassen. Diese Bestätigungen werden bewusst nicht durch externe

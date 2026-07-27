@@ -9,6 +9,25 @@ durchgeführte Hardwaretests sind keine Softwarefehler.
 
 ## Offen
 
+### PW-SEC-002: Home Assistant verlangt beim Factory-Onboarding einen Schlüssel
+
+- **Status:** Im Quellstand 3.0.0-beta.3 behoben; End-to-End-Abnahme ausstehend
+- **Betroffen:** Factory-Onboarding beider Prozessoren
+- **Fehlerbild:** Home Assistant erkennt S3 und Bridge, zeigt aber ein
+  Eingabefeld für einen dem Kunden unbekannten Encryption Key.
+- **Ursache:** Der ESPHome-2026.7-Server unterstützt die dynamische
+  Schlüssel-Provisionierung. Der normale Home-Assistant-ESPHome-Config-Flow
+  setzt diesen Schlüssel jedoch noch nicht selbst.
+- **Behebung:** PassionWave erkennt beide Prozessoren per mDNS, verbindet sich
+  nach Bestätigung über den reservierten Zero-PSK-Noise-Kanal, erzeugt je Chip
+  einen zufälligen 32-Byte-Schlüssel und installiert ihn. Danach legt
+  PassionWave beide Endpunkte über den offiziellen ESPHome-Config-Flow an und
+  übergibt die Schlüssel intern. Es gibt keinen gemeinsamen, veröffentlichten
+  oder sichtbaren Schlüssel.
+- **Abnahme:** Factory-Gerät aus- und einschalten, PassionWave innerhalb von
+  20 Minuten hinzufügen, S3 und Bridge auswählen und prüfen, dass beide
+  ESPHome-Einträge ohne Schlüsseldialog verbunden werden.
+
 ### PW-FW-006: Medienbibliotheken bleiben nach Factory-Onboarding leer
 
 - **Status:** Im Quellstand behoben; Build- und Geräteabnahme ausstehend

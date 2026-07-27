@@ -4,6 +4,8 @@ from __future__ import annotations
 
 DOMAIN = "passion_wave"
 
+CONF_S3_HOST = "s3_host"
+CONF_BRIDGE_HOST = "bridge_host"
 CONF_BRIDGE_REGISTRATION_ENTITY = "bridge_registration_entity"
 CONF_BRIDGE_REGISTRATION_UNIQUE_ID = "bridge_registration_unique_id"
 CONF_MA_CONFIG_ENTRY_ID = "music_assistant_config_entry_id"
@@ -35,3 +37,7 @@ LIBRARY_FILTER_KEYS = {
 }
 
 BRIDGE_REGISTRATION_ORIGINAL_NAME = "PassionWave Integration Entry ID"
+
+ESPHOME_API_PORT = 6053
+S3_PROJECT_NAME = "passion-wave.rotaryknob-s3"
+BRIDGE_PROJECT_NAME = "passion-wave.rotaryknob-bridge"

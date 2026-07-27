@@ -5,7 +5,7 @@ to Home Assistant.
 
 The intended public no-expert path is
 `https://www.passion-wave.com/install/`. It currently delivers
-V3.0.0-beta.2 as an explicitly marked prerelease; V2.1.1 remains the rollback
+V3.0.0-beta.3 as an explicitly marked prerelease; V2.1.1 remains the rollback
 tag until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web
@@ -30,10 +30,11 @@ This is the intended after-purchase flow:
 8. Keep the dialog open, press `Next`, provision Wi-Fi and verify both
    processors. If the browser does not reconnect Improv automatically, use the
    separate bridge Wi-Fi button; it reconnects without another flash.
-9. Open Home Assistant and confirm both discovered ESPHome endpoints belonging
-   to this one Rotaryknob. Home Assistant 2026.7 or newer automatically creates
-   and provisions one unique API encryption key per endpoint; the customer is
-   not asked to enter a key.
+9. Install PassionWave through HACS and restart Home Assistant.
+10. Power-cycle the Rotaryknob, add PassionWave within 20 minutes and select
+    its S3 and Bridge. PassionWave creates and provisions one unique API
+    encryption key per endpoint and creates both ESPHome entries; the customer
+    is not asked to enter a key.
 
 Wi-Fi credentials entered in this flow are sent over USB to the device. They are
 not sent to Passion Wave.
@@ -41,8 +42,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.2.json
-https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.2.json
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.3.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.3.json
 ```
 
 Both published binaries are built from sanitized public factory
@@ -147,15 +148,15 @@ Settings page, enables or disables this offline promo behavior.
 
 ## 4. Select Targets In Home Assistant
 
-After the device connects, open:
-
-`Settings` -> `Devices & services` -> `ESPHome`. Add both `PassionWave
-Rotaryknob` and `PassionWave Rotaryknob Bridge` as the two processor endpoints
-of the same physical device.
+After the device connects, install PassionWave through HACS, restart Home
+Assistant, power-cycle the Rotaryknob and add the PassionWave integration.
+Select `PassionWave Rotaryknob` and `PassionWave Rotaryknob Bridge` as the two
+processors of the same physical device.
 
 The public factory image contains no pre-shared key. During the 20-minute
-provisioning window, Home Assistant 2026.7 or newer creates a unique key for
-each processor over the zero-PSK Noise provisioning connection. The resulting
+provisioning window, PassionWave creates a unique key for each processor over
+the zero-PSK Noise provisioning connection and supplies it to the official
+ESPHome config flow. The resulting
 Native API session is encrypted without exposing the key to the customer.
 Authenticated OTA still requires the managed deployment step described in
 [ESPHome API security lifecycle](api-security-lifecycle.md).

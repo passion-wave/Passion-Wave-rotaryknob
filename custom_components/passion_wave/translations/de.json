@@ -1,6 +1,14 @@
 {
   "config": {
     "step": {
+      "pair": {
+        "title": "Rotaryknob sicher verbinden",
+        "description": "Wähle die beiden Prozessoren desselben Rotaryknob. PassionWave erzeugt für jeden Prozessor einen individuellen Schlüssel und richtet ESPHome ohne manuelle Schlüsseleingabe ein.",
+        "data": {
+          "s3_host": "Display / S3",
+          "bridge_host": "Bridge / ESP32"
+        }
+      },
       "user": {
         "title": "PassionWave Rotaryknob einrichten",
         "description": "Verbinde eine ESPHome-Bridge mit Music Assistant. Im nächsten Schritt kannst du die sichtbaren Medieneinträge optional einschränken.",
@@ -21,11 +29,16 @@
       }
     },
     "error": {
+      "endpoints_not_found": "S3 und Bridge wurden noch nicht gemeinsam im Netzwerk gefunden. Prüfe das WLAN und öffne die Einrichtung erneut.",
+      "endpoint_unavailable": "Mindestens ein ausgewählter Prozessor ist nicht mehr erreichbar. Öffne die Einrichtung erneut.",
+      "provisioning_window_closed": "Das sichere Einrichtungsfenster ist abgelaufen. Schalte den Rotaryknob aus und wieder ein und starte die Einrichtung innerhalb von 20 Minuten erneut.",
+      "pairing_failed": "Die sichere Kopplung konnte nicht abgeschlossen werden. Prüfe, ob beide Prozessoren online sind, und versuche es erneut.",
       "invalid_bridge_registration_entity": "Die gewählte Entität ist nicht die PassionWave-Registrierungsentität einer ESPHome-Bridge.",
       "library_unavailable": "Die Music-Assistant-Bibliothek konnte gerade nicht geladen werden. Du kannst mit „Alle automatisch“ fortfahren und die Auswahl später erneut öffnen."
     },
     "abort": {
-      "already_configured": "Diese PassionWave-Bridge ist bereits konfiguriert."
+      "already_configured": "Diese PassionWave-Bridge ist bereits konfiguriert.",
+      "pairing_complete": "S3 und Bridge wurden sicher mit ESPHome verbunden. Öffne PassionWave nach wenigen Sekunden erneut, um Music Assistant zuzuordnen."
     }
   },
   "options": {
