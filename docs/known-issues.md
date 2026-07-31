@@ -24,6 +24,9 @@ Die Laufzeit ist MQTT-frei, aber alte Registry-Einträge sind mit dem Gerät zus
 
 ## In diesem Stand behoben
 
+### PW-WEB-001: Web-Installer meldete beim Firmwareabruf „Failed to fetch“
+Signierte Release-Weiterleitungen waren nicht CORS-stabil; Manifeste nutzen nun getaggte Raw-Dateien mit Cache-Buster und geprüften SHA-256-Summen.
+
 ### PW-REL-001: Öffentlicher Installer lag hinter dem Quellstand
 Website, Firmware und HACS-Integration veröffentlichen gemeinsam `3.0.0-beta.10`; die vier unveränderlichen Images besitzen veröffentlichte Prüfsummen.
 
