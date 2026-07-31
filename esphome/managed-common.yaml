@@ -1,18 +1,23 @@
-# Shared installed-device transport. Public factory profiles deliberately do
-# not include this package because their first-adoption API has no private key.
+# Shared installed-device transport. The API key is not compiled into an
+# update image: ESPHome reuses the per-endpoint key provisioned into NVS during
+# onboarding. OTA and fallback Wi-Fi remain installation-private.
 api:
   reboot_timeout: 0s
   encryption:
-    key: "${managed_api_encryption_key}"
 
 ota:
   - platform: esphome
     id: ota_esphome
     password: "${managed_ota_password}"
+  - platform: http_request
+    id: ota_http_request
 
 wifi:
   ssid: "${managed_wifi_ssid}"
   password: "${managed_wifi_password}"
+  # Installed devices have exactly one provisioned customer WLAN. Reconnect
+  # directly instead of spending several seconds on a full channel scan.
+  fast_connect: true
   power_save_mode: none
   reboot_timeout: 0s
   ap:

@@ -23,6 +23,9 @@ struct Batch {
     return left > 0 && right > 0;
   }
   constexpr int32_t signed_steps() const {
+    // PCNT keeps every real detent while LVGL or networking delays the 10 ms
+    // consumer. Preserve the full directional batch so fast spins and list
+    // scrolling never lose already acquired movement.
     return is_directionally_ambiguous() ? 0 : right - left;
   }
   constexpr uint32_t pulse_count() const {
@@ -36,6 +39,8 @@ static_assert(Batch{1, 0}.signed_steps() == -1);
 static_assert(Batch{0, 1}.signed_steps() == 1);
 static_assert(Batch{1, 1}.signed_steps() == 0);
 static_assert(Batch{3, 4}.signed_steps() == 0);
+static_assert(Batch{17, 0}.signed_steps() == -17);
+static_assert(Batch{0, 17}.signed_steps() == 17);
 
 class Encoder {
  public:

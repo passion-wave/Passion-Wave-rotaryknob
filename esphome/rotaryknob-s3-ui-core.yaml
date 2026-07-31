@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave Rotaryknob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.0-beta.2"
+  project_version: "3.0.0-beta.10"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -218,8 +218,8 @@ api:
         - script.execute: refresh_house_image
 
 http_request:
-  verify_ssl: false
-  timeout: 5s
+  verify_ssl: true
+  timeout: 15s
 
 safe_mode:
   num_attempts: 30
@@ -576,6 +576,10 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'true'
+  - id: media_picker_last_observed_scroll_y
+    type: int
+    restore_value: no
+    initial_value: '0'
   - id: media_picker_more_requested
     type: bool
     restore_value: no
@@ -719,7 +723,7 @@ globals:
   - id: display_volume_level
     type: float
     restore_value: no
-    initial_value: '0.5'
+    initial_value: '0.0'
   - id: volume_override_active
     type: bool
     restore_value: no
@@ -736,6 +740,18 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: media_volume_confirmation_pending
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: media_volume_confirmation_target_pct
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: media_volume_confirmation_deadline_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
   - id: media_volume_sync_deadline_ms
     type: uint32_t
     restore_value: no
@@ -1751,22 +1767,16 @@ font:
     size: 32
     bpp: 4
     glyphs:
-      - "0"
-      - "1"
-      - "2"
-      - "3"
-      - "4"
-      - "5"
-      - "6"
-      - "7"
-      - "8"
-      - "9"
-      - ":"
-      - "-"
-      - "/"
       - "°"
-      - "%"
-      - " "
+      - "ä"
+      - "ö"
+      - "ü"
+      - "Ä"
+      - "Ö"
+      - "Ü"
+      - "ß"
+    glyphsets:
+      - GF_Latin_Core
   - file: "gfonts://Roboto"
     id: roboto_56
     size: 56
@@ -2451,15 +2461,19 @@ script:
     then:
       - lambda: |-
           if (slot < 0 || slot >= 4) return;
-          if (id(dual_mcu_ha_bridge_enabled) &&
-              !id(dual_mcu_s3_rescue_mode_enabled))
-            return;
           id(light_detail_kinds)[slot] = 0;
           id(light_detail_labels)[slot].clear();
           id(light_detail_commands)[slot].clear();
           id(light_detail_targets)[slot].clear();
           id(light_detail_loaded_entities)[slot].clear();
           id(light_detail_selected)[slot] = -1;
+      - if:
+          condition:
+            lambda: |-
+              return id(dual_mcu_ha_bridge_enabled) &&
+                     !id(dual_mcu_s3_rescue_mode_enabled);
+          then:
+            - script.stop: refresh_light_detail_catalog
       - if:
           condition:
             lambda: |-
@@ -2728,7 +2742,7 @@ script:
               const std::string entity = id(media_effective_entity_id);
               return !id(demo_mode_active) &&
                      id(wifi_connected) &&
-                     !id(dual_mcu_ha_bridge_ready) &&
+                     !id(dual_mcu_ha_bridge_enabled) &&
                      !id(media_static_fallback_active) &&
                      entity.rfind("media_player.", 0) == 0;
           then:
@@ -2905,7 +2919,20 @@ script:
                       id(media_image_url_cache).clear();
 
                       const float volume = read_float(snapshot["volume"], id(display_volume_level));
-                      if (!isnan(volume)) {
+                      // RuntimeState is the only volume authority while the
+                      // bridge is active. A slower metadata response may have
+                      // been requested before the latest encoder command and
+                      // must not replace its already confirmed target.
+                      const bool bridge_owns_volume =
+                        id(dual_mcu_ha_bridge_ready) &&
+                        id(dual_mcu_runtime_authoritative);
+                      const bool local_volume_pending =
+                        id(volume_override_active) ||
+                        id(media_pending_volume_sync) ||
+                        id(media_volume_confirmation_pending);
+                      if (!bridge_owns_volume &&
+                          !local_volume_pending &&
+                          !isnan(volume)) {
                         id(display_volume_level) = volume;
                       }
                       const float snapshot_position =
@@ -3628,7 +3655,6 @@ script:
               id(media_full_cover_loaded_url).clear();
               id(media_cover_ready) = false;
               id(media_page_cover_ready) = false;
-              id(display_volume_level) = 0.5f;
               id(media_ui_dirty) = true;
               break;
             case 6:
@@ -3700,7 +3726,6 @@ script:
               id(media_full_cover_loaded_url).clear();
               id(media_cover_ready) = false;
               id(media_page_cover_ready) = false;
-              id(display_volume_level) = 0.5f;
               id(media_ui_dirty) = true;
               break;
             case 6:
@@ -5047,6 +5072,7 @@ script:
     then:
       - script.stop: boost_screensaver_brightness
       - lambda: |-
+          const int source_page = id(current_page);
           if (id(current_page) != 7) {
             // Radar and settings are transient workspaces. Once idle mode has
             // started they are considered closed and wake returns to weather.
@@ -5056,6 +5082,21 @@ script:
               id(screensaver_return_page) = id(current_page);
             }
           }
+          if (id(ui_next_enabled) && ui_next::framework.built()) {
+            // The screensaver is an intentional legacy full-screen page. Hide
+            // UI Next before exposing it, otherwise the visible UI Next page
+            // keeps current_page outside 7 and retriggers this script every
+            // second, including its immediate 100 % backlight command.
+            ui_next::framework.show_legacy(ui_next::framework.view());
+            ui_next::framework.set_suspended(true);
+          }
+          // Close the scheduler re-entry window immediately. LVGL's on_load
+          // callback confirms this value once page_7 has actually loaded.
+          id(current_page) = 7;
+          ESP_LOGW("screensaver",
+                   "enter source_page=%d return_page=%d ui_next=%s",
+                   source_page, id(screensaver_return_page),
+                   id(ui_next_enabled) ? "true" : "false");
           id(screensaver_brightness_boost_until_ms) = 0;
           id(display_charge_dimmed) = false;
       # Start the fully rendered screensaver at maximum brightness. The second
@@ -5481,7 +5522,7 @@ script:
             - script.stop: fetch_weather
       - if:
           condition:
-            lambda: 'return id(dual_mcu_ha_bridge_ready) && id(dual_mcu_ha_bridge_forecast);'
+            lambda: 'return id(dual_mcu_ha_bridge_enabled);'
           then:
             - script.stop: fetch_weather
       - if:
@@ -5613,7 +5654,7 @@ script:
             - script.stop: fetch_rain_eta
       - if:
           condition:
-            lambda: 'return id(dual_mcu_ha_bridge_ready) && id(dual_mcu_ha_bridge_forecast);'
+            lambda: 'return id(dual_mcu_ha_bridge_enabled);'
           then:
             - script.stop: fetch_rain_eta
       - if:
@@ -7536,6 +7577,7 @@ script:
           }
           id(media_picker_window_start) = 0;
           id(media_picker_scroll_reset_requested) = true;
+          id(media_picker_last_observed_scroll_y) = 0;
           id(media_picker_more_requested) = false;
           id(media_picker_selection_valid) = false;
           id(media_picker_fast_refresh_requested) = false;
@@ -7627,6 +7669,7 @@ script:
           if (id(media_picker_tab) > 3) id(media_picker_tab) = 3;
           id(media_picker_window_start) = 0;
           id(media_picker_scroll_reset_requested) = true;
+          id(media_picker_last_observed_scroll_y) = 0;
           id(media_picker_more_requested) = false;
           id(media_picker_selection_valid) = false;
           id(media_picker_fast_refresh_requested) = false;
@@ -7866,6 +7909,7 @@ script:
             set_row(0, label, true, false);
             set_row(1, "An Music Assistant gesendet …", false, false);
             lv_obj_scroll_to_y(media_picker_list, 0, LV_ANIM_OFF);
+            id(media_picker_last_observed_scroll_y) = 0;
             id(media_picker_fast_refresh_requested) = false;
             id(media_picker_active_row) = -1;
             reveal_popup();
@@ -7912,6 +7956,7 @@ script:
               lv_obj_set_style_text_color(labels[new_row], lv_color_hex(0x07090B), LV_PART_MAIN | LV_STATE_DEFAULT);
               const int target = new_row <= 2 ? 0 : (new_row * 44) - 88;
               lv_obj_scroll_to_y(media_picker_list, target, LV_ANIM_OFF);
+              id(media_picker_last_observed_scroll_y) = target;
               id(media_picker_active_row) = new_row;
               id(media_picker_fast_refresh_requested) = false;
               reveal_popup();
@@ -8014,6 +8059,7 @@ script:
           // the reset flag; encoder movement uses the fast two-row path above.
           if (id(media_picker_scroll_reset_requested)) {
             lv_obj_scroll_to_y(media_picker_list, scroll_target, LV_ANIM_OFF);
+            id(media_picker_last_observed_scroll_y) = scroll_target;
             id(media_picker_scroll_reset_requested) = false;
           }
           id(media_picker_active_row) = follow_row;
@@ -8252,7 +8298,7 @@ script:
           id(ui_last_activity_ms) = millis();
           id(media_last_activity_ms) = millis();
           float base = id(display_volume_level);
-          if (isnan(base)) base = 0.5f;
+          if (isnan(base)) return;
           float target = base - 0.02f;
           if (target < 0.0f) target = 0.0f;
           id(display_volume_level) = target;
@@ -8260,9 +8306,18 @@ script:
           // Keep HA feedback out only while the user is actively turning.
           // Every detent remains immediate; 350 ms is an idle-release window,
           // not an input debounce.
-          id(volume_override_until_ms) = millis() + 350;
+          id(volume_override_until_ms) = millis() + 3000;
           id(media_pending_volume_sync) = true;
           id(media_volume_sync_deadline_ms) = millis();
+          if (id(dual_mcu_ha_bridge_enabled) &&
+              id(dual_mcu_ha_bridge_ready)) {
+            id(media_volume_confirmation_pending) = true;
+            id(media_volume_confirmation_target_pct) =
+              static_cast<uint8_t>(lroundf(target * 100.0f));
+            id(media_volume_confirmation_deadline_ms) = millis() + 3000;
+          }
+          id(displayed_media_volume_sensor).publish_state(
+            static_cast<int>(lroundf(target * 100.0f)));
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_volume_fast
       - script.execute: media_sync_remote
@@ -8273,14 +8328,23 @@ script:
           id(ui_last_activity_ms) = millis();
           id(media_last_activity_ms) = millis();
           float base = id(display_volume_level);
-          if (isnan(base)) base = 0.5f;
+          if (isnan(base)) return;
           float target = base + 0.02f;
           if (target > 1.0f) target = 1.0f;
           id(display_volume_level) = target;
           id(volume_override_active) = true;
-          id(volume_override_until_ms) = millis() + 350;
+          id(volume_override_until_ms) = millis() + 3000;
           id(media_pending_volume_sync) = true;
           id(media_volume_sync_deadline_ms) = millis();
+          if (id(dual_mcu_ha_bridge_enabled) &&
+              id(dual_mcu_ha_bridge_ready)) {
+            id(media_volume_confirmation_pending) = true;
+            id(media_volume_confirmation_target_pct) =
+              static_cast<uint8_t>(lroundf(target * 100.0f));
+            id(media_volume_confirmation_deadline_ms) = millis() + 3000;
+          }
+          id(displayed_media_volume_sensor).publish_state(
+            static_cast<int>(lroundf(target * 100.0f)));
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_volume_fast
       - script.execute: media_sync_remote
@@ -8295,6 +8359,11 @@ script:
                 const uint8_t volume = static_cast<uint8_t>(std::clamp(
                   static_cast<int>(lroundf(id(display_volume_level) * 100.0f)),
                   0, 100));
+                id(media_volume_confirmation_pending) = true;
+                id(media_volume_confirmation_target_pct) = volume;
+                id(media_volume_confirmation_deadline_ms) = millis() + 3000;
+                id(volume_override_active) = true;
+                id(volume_override_until_ms) = millis() + 3000;
                 id(media_volume_command_sequence)++;
                 if (dual_mcu::link.send_volume_set(
                       id(media_volume_command_sequence), volume)) {
@@ -8610,11 +8679,10 @@ script:
     parameters:
       option: std::string
     then:
-      - homeassistant.service:
-          service: select.select_option
-          data_template:
-            entity_id: '${light_1_preset_select}'
-            option: !lambda 'return option;'
+      - lambda: |-
+          dual_mcu::link.send_ha_text_action(
+            dual_mcu::HAAction::SELECT_OPTION,
+            "${light_1_preset_select}", option.c_str());
   - id: select_light_mode
     mode: restart
     then:
@@ -8753,7 +8821,7 @@ script:
           if (!now.is_valid()) {
             now = id(sntp_time).now();
           }
-          char time_buffer[6];
+          char time_buffer[9];
           char date_buffer[24];
           if (now.is_valid()) {
             const char *weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
@@ -9725,14 +9793,14 @@ interval:
                     source == 1 ? id(light_slot_2_entity_text).state :
                     source == 2 ? id(light_slot_3_entity_text).state :
                                   id(light_slot_4_entity_text).state;
-                  if (id(light_detail_loaded_entities)[source] != entity) {
-                    if (id(dual_mcu_ha_bridge_enabled) &&
-                        !id(dual_mcu_s3_rescue_mode_enabled)) {
-                      dual_mcu::link.send(
-                        dual_mcu::MessageType::SNAPSHOT_REQUEST);
-                    } else {
-                      id(refresh_light_detail_catalog).execute(source, entity);
-                    }
+                  if (id(dual_mcu_ha_bridge_enabled) &&
+                      !id(dual_mcu_s3_rescue_mode_enabled)) {
+                    dual_mcu::link.send_light_detail_request(
+                      static_cast<uint8_t>(source),
+                      dual_mcu::Link::fnv1a(entity));
+                  } else if (
+                      id(light_detail_loaded_entities)[source] != entity) {
+                    id(refresh_light_detail_catalog).execute(source, entity);
                   }
                   break;
                 }
@@ -9908,7 +9976,7 @@ interval:
                   id(dual_mcu_ha_bridge_ready);
                 float volume = id(display_volume_level);
                 if (isnan(volume)) volume = id(display_volume_level);
-                if (isnan(volume)) volume = 0.5f;
+                if (isnan(volume)) volume = 0.0f;
                 ui_next::framework.update_media(
                   id(media_title_cache).c_str(), id(media_artist_cache).c_str(),
                   static_cast<int>(lroundf(volume * 100.0f)),
@@ -10197,14 +10265,23 @@ interval:
                 id(dual_mcu_ha_bridge_ready);
               float base = id(display_volume_level);
               if (isnan(base)) base = id(display_volume_level);
-              if (isnan(base)) base = 0.5f;
+              if (isnan(base)) return;
               float target = base + (static_cast<float>(steps) * 0.02f);
               if (target < 0.0f) target = 0.0f;
               if (target > 1.0f) target = 1.0f;
               if (roundf(target * 100.0f) != roundf(base * 100.0f)) {
                 id(display_volume_level) = target;
                 id(volume_override_active) = true;
-                id(volume_override_until_ms) = millis() + 350;
+                id(volume_override_until_ms) =
+                  bridge_owns_media ? millis() + 3000 : millis() + 350;
+                if (bridge_owns_media) {
+                  id(media_volume_confirmation_pending) = true;
+                  id(media_volume_confirmation_target_pct) =
+                    static_cast<uint8_t>(lroundf(target * 100.0f));
+                  id(media_volume_confirmation_deadline_ms) = millis() + 3000;
+                }
+                id(displayed_media_volume_sensor).publish_state(
+                  static_cast<int>(lroundf(target * 100.0f)));
                 if (id(current_page) == 6) {
                   id(media_cover_volume_overlay_until_ms) = millis() + 1400;
                 }
@@ -10311,6 +10388,18 @@ interval:
       - if:
           condition:
             lambda: |-
+              return id(media_volume_confirmation_pending) &&
+                     static_cast<int32_t>(
+                       millis() - id(media_volume_confirmation_deadline_ms)) >= 0;
+          then:
+            - lambda: |-
+                id(media_volume_confirmation_pending) = false;
+                id(volume_override_active) = false;
+                id(media_ui_dirty) = true;
+            - script.execute: refresh_media_ui_if_needed
+      - if:
+          condition:
+            lambda: |-
               return (id(light_pending_brightness_sync) || id(light_pending_color_sync)) &&
                      !id(display_sleeping) &&
                      millis() >= id(light_sync_deadline_ms);
@@ -10405,7 +10494,49 @@ interval:
             - script.execute: request_more_playlist_page
       - if:
           condition:
-            lambda: 'return !id(display_sleeping) && id(volume_override_active) && millis() >= id(volume_override_until_ms);'
+            lambda: |-
+              if (id(display_sleeping) ||
+                  (id(current_page) != 2 && id(current_page) != 22) ||
+                  !id(media_picker_visible) ||
+                  id(media_picker_tab) != 1 ||
+                  media_picker_list == nullptr) {
+                return false;
+              }
+              const int loaded =
+                static_cast<int>(id(ma_playlists_names_cache).size());
+              if (loaded <= 0) return false;
+              const int scroll_y =
+                std::max(0, static_cast<int>(
+                  lv_obj_get_scroll_y(media_picker_list)));
+              if (std::abs(
+                    scroll_y - id(media_picker_last_observed_scroll_y)) < 4) {
+                return false;
+              }
+              const int visible_focus = std::clamp(
+                id(media_picker_window_start) + (scroll_y / 44) + 2,
+                0, loaded - 1);
+              return visible_focus != id(selected_playlist_index);
+          then:
+            - lambda: |-
+                // Touch scrolling owns the visual focus just like the encoder.
+                // Follow the third visible row so the highlight cannot leave
+                // the viewport and the five-items-ahead prefetch sees the
+                // user's real position.
+                const int loaded =
+                  static_cast<int>(id(ma_playlists_names_cache).size());
+                const int scroll_y =
+                  std::max(0, static_cast<int>(
+                    lv_obj_get_scroll_y(media_picker_list)));
+                id(media_picker_last_observed_scroll_y) = scroll_y;
+                id(selected_playlist_index) = std::clamp(
+                  id(media_picker_window_start) + (scroll_y / 44) + 2,
+                  0, loaded - 1);
+                id(media_picker_fast_refresh_requested) = false;
+                id(media_ui_dirty) = true;
+            - script.execute: refresh_media_picker_popup
+      - if:
+          condition:
+            lambda: 'return !id(display_sleeping) && id(volume_override_active) && !id(media_volume_confirmation_pending) && millis() >= id(volume_override_until_ms);'
           then:
             - lambda: |-
                 id(volume_override_active) = false;
@@ -10682,7 +10813,6 @@ text:
           id(media_full_cover_loaded_url).clear();
           id(media_cover_ready) = false;
           id(media_page_cover_ready) = false;
-          id(display_volume_level) = 0.5f;
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_target_runtime
       - script.execute: refresh_settings_ui
@@ -12998,7 +13128,9 @@ lvgl:
               - script.execute: media_prev_track
               - if:
                   condition:
-                    lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+                    lambda: |-
+                      return !id(dual_mcu_ha_bridge_enabled) &&
+                             !id(demo_mode_active) && id(wifi_connected);
                   then:
                     - homeassistant.service:
                         service: media_player.media_previous_track
@@ -13039,7 +13171,9 @@ lvgl:
               - script.execute: media_next_track
               - if:
                   condition:
-                    lambda: 'return !id(demo_mode_active) && id(wifi_connected);'
+                    lambda: |-
+                      return !id(dual_mcu_ha_bridge_enabled) &&
+                             !id(demo_mode_active) && id(wifi_connected);
                   then:
                     - homeassistant.service:
                         service: media_player.media_next_track

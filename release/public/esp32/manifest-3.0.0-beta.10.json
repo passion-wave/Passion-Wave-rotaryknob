@@ -1,0 +1,20 @@
+{
+  "name": "PassionWave Rotaryknob Bridge",
+  "version": "3.0.0-beta.10",
+  "new_install_prompt_erase": false,
+  "new_install_improv_wait_time": 120,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "passion-wave-rotaryknob-esp32-3.0.0-beta.10.factory.bin", "offset": 0 }
+      ],
+      "ota": {
+        "md5": "42533039aecdf2c06c6326becbf927ef",
+        "path": "passion-wave-rotaryknob-esp32-3.0.0-beta.10.ota.bin",
+        "release_url": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob/releases/tag/v3.0.0-beta.10",
+        "summary": "PassionWave Rotaryknob Bridge 3.0.0-beta.10"
+      }
+    }
+  ]
+}

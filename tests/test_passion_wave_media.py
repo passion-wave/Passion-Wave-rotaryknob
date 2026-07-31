@@ -7,10 +7,7 @@ from pathlib import Path
 import unittest
 
 MODULE_PATH = (
-    Path(__file__).parents[1]
-    / "custom_components"
-    / "passion_wave"
-    / "media.py"
+    Path(__file__).parents[1] / "custom_components" / "passion_wave" / "media.py"
 )
 SPEC = importlib.util.spec_from_file_location("passion_wave_media", MODULE_PATH)
 assert SPEC and SPEC.loader
@@ -67,6 +64,31 @@ class MediaContractTests(unittest.TestCase):
             ["library://playlist/4", "library://playlist/7"],
             [item["uri"] for item in result["items"]],
         )
+        self.assertFalse(result["has_more"])
+
+    def test_missing_total_keeps_full_page_open_ended(self) -> None:
+        result = MEDIA.normalize_library_page(
+            {
+                "items": [
+                    {"name": f"Playlist {index}", "uri": f"playlist://{index}"}
+                    for index in range(4)
+                ]
+            },
+            "playlist",
+            0,
+            4,
+        )
+        self.assertEqual(0, result["total"])
+        self.assertTrue(result["has_more"])
+
+    def test_missing_total_closes_partial_final_page(self) -> None:
+        result = MEDIA.normalize_library_page(
+            {"items": [{"name": "Last", "uri": "playlist://last"}]},
+            "playlist",
+            40,
+            40,
+        )
+        self.assertEqual(41, result["total"])
         self.assertFalse(result["has_more"])
 
     def test_browse_response_is_sliced_before_transport(self) -> None:

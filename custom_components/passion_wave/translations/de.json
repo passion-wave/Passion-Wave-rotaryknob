@@ -121,6 +121,11 @@
       "integration_version": {
         "name": "Integrationsversion"
       }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
     }
   }
 }

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "passion_wave"
-INTEGRATION_VERSION = "3.0.0-beta.7"
+INTEGRATION_VERSION = "3.0.0-beta.10"
 
 CONF_S3_HOST = "s3_host"
 CONF_BRIDGE_HOST = "bridge_host"
@@ -22,6 +22,17 @@ CONF_VISIBLE_PODCASTS = "visible_podcasts"
 
 SERVICE_GET_LIBRARY = "get_library"
 SERVICE_GET_PLAYLIST_TRACKS = "get_playlist_tracks"
+
+BRIDGE_COMMAND_ORIGINAL_NAME = "PassionWave Command Envelope"
+BRIDGE_RECEIVE_LIBRARY_ACTION = "passion_wave_receive_library"
+BRIDGE_RECEIVE_FORECAST_ACTION = "passion_wave_receive_forecast"
+BRIDGE_RECEIVE_LIGHT_CATALOG_ACTION = "passion_wave_receive_light_catalog"
+BRIDGE_RECEIVE_LIGHT_STATE_ACTION = "passion_wave_receive_light_state"
+BRIDGE_RECEIVE_RUNTIME_STATE_ACTION = "passion_wave_receive_runtime_state"
+BRIDGE_COMPLETE_MEDIA_ACTION = "passion_wave_complete_media"
+COMMAND_PROTOCOL_VERSION = 1
+MAX_COMMAND_STATE_LENGTH = 255
+LATENCY_REQUEST_ENTITY = "input_button.passion_wave_latency_request"
 
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_MEDIA_TYPE = "media_type"
@@ -50,6 +61,7 @@ LIGHT_SLOT_KEYS = (
 )
 
 BRIDGE_REGISTRATION_ORIGINAL_NAME = "PassionWave Integration Entry ID"
+FIRMWARE_UPDATE_ORIGINAL_NAME = "Firmware"
 MEDIA_ENTITY_ORIGINAL_NAME = "Rotaryknob Media Entity ID"
 MEDIA_LABEL_ORIGINAL_NAME = "Rotaryknob Media Label"
 MEDIA_RUNTIME_STATE_ORIGINAL_NAME = "Rotaryknob Media Runtime State"

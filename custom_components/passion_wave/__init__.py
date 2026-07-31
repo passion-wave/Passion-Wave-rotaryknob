@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
+import secrets
+from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_ENTITY_ID, Platform
+from homeassistant.const import (
+    CONF_ENTITY_ID,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    Platform,
+)
 from homeassistant.core import (
     Event,
     EventStateChangedData,
@@ -21,8 +30,17 @@ from homeassistant.core import (
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 
+from .broker import (
+    async_handle_command,
+    async_sync_light_states,
+    async_sync_runtime_state,
+    command_entity_id,
+)
 from .const import (
     ATTR_CONFIG_ENTRY_ID,
     ATTR_LIMIT,
@@ -64,7 +82,14 @@ from .media import (
 
 type PassionWaveConfigEntry = config_entries.ConfigEntry[dict[str, Any]]
 
-PLATFORMS = (Platform.BINARY_SENSOR, Platform.SELECT, Platform.SENSOR)
+PLATFORMS = (
+    Platform.BINARY_SENSOR,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.UPDATE,
+)
+_LOGGER = logging.getLogger(__name__)
+_RUNTIME_SYNC: dict[str, dict[str, Any]] = {}
 
 _LIBRARY_SCHEMA = vol.Schema(
     {
@@ -217,11 +242,10 @@ async def _async_sync_media_runtime(
     )
 
 
-async def _async_sync_targets(
+async def _async_sync_s3_targets(
     hass: HomeAssistant, entry: PassionWaveConfigEntry
 ) -> None:
-    """Apply every customer-facing target owned by one PassionWave entry."""
-    await _async_sync_bridge(hass, entry)
+    """Reconcile customer target IDs and labels once the S3 is reachable."""
     media_player = _entry_value(entry, CONF_MEDIA_PLAYER)
     target_values = {
         MEDIA_ENTITY_ORIGINAL_NAME: media_player,
@@ -237,7 +261,64 @@ async def _async_sync_targets(
         target_values[entity_original_name] = light_entity
         target_values[label_original_name] = _friendly_name(hass, light_entity)
     await _async_set_s3_text_values(hass, entry, target_values)
+
+
+async def _async_sync_targets(
+    hass: HomeAssistant, entry: PassionWaveConfigEntry
+) -> None:
+    """Apply every customer-facing target owned by one PassionWave entry."""
+    try:
+        await _async_sync_bridge(hass, entry)
+        await async_sync_light_states(hass, entry)
+    except HomeAssistantError as err:
+        raise ConfigEntryNotReady(
+            "Waiting for the PassionWave bridge command services"
+        ) from err
+
+    @callback
+    def async_light_state_changed(
+        event: Event[EventStateChangedData],
+    ) -> None:
+        """Push only the changed configured light through the local API."""
+        hass.async_create_task(
+            async_sync_light_states(hass, entry, event.data["entity_id"]),
+            "Sync PassionWave light state",
+        )
+        hass.async_create_task(
+            _async_push_runtime_snapshot(hass, entry),
+            "Sync PassionWave runtime state",
+        )
+
+    configured_lights = [
+        entity_id
+        for key in LIGHT_SLOT_KEYS
+        if isinstance((entity_id := _entry_value(entry, key)), str) and entity_id
+    ]
+    if configured_lights:
+        entry.async_on_unload(
+            async_track_state_change_event(
+                hass,
+                configured_lights,
+                async_light_state_changed,
+            )
+        )
+    await _async_sync_s3_targets(hass, entry)
     await _async_sync_media_runtime(hass, entry)
+
+
+async def _async_push_runtime_snapshot(
+    hass: HomeAssistant, entry: PassionWaveConfigEntry
+) -> None:
+    """Serialize complete runtime snapshots so their sequence stays ordered."""
+    runtime = _RUNTIME_SYNC[entry.entry_id]
+    async with runtime["lock"]:
+        runtime["sequence"] += 1
+        await async_sync_runtime_state(
+            hass,
+            entry,
+            runtime["session"],
+            runtime["sequence"],
+        )
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -369,6 +450,11 @@ async def async_migrate_entry(
 
 async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) -> bool:
     """Set up one physical PassionWave system."""
+    _RUNTIME_SYNC[entry.entry_id] = {
+        "session": secrets.randbelow(0x7FFFFFFE) + 1,
+        "sequence": 0,
+        "lock": asyncio.Lock(),
+    }
     dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.unique_id or entry.entry_id)},
@@ -379,10 +465,68 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
     )
     try:
         await _async_sync_targets(hass, entry)
+        await _async_push_runtime_snapshot(hass, entry)
+        bridge_command_entity = command_entity_id(hass, entry)
+        if bridge_command_entity is None:
+            raise HomeAssistantError(
+                "The bridge firmware does not expose the PassionWave command broker"
+            )
     except HomeAssistantError as err:
         raise ConfigEntryNotReady(
             "Waiting for the selected PassionWave processors"
         ) from err
+
+    last_command_state = ""
+
+    @callback
+    def async_bridge_command_changed(
+        event: Event[EventStateChangedData],
+    ) -> None:
+        """Dispatch a new bounded command without granting ESPHome HA actions."""
+        nonlocal last_command_state
+        new_state = event.data["new_state"]
+        if new_state is None:
+            return
+        if not new_state.state or new_state.state in (
+            STATE_UNKNOWN,
+            STATE_UNAVAILABLE,
+        ):
+            return
+        try:
+            command = json.loads(new_state.state)
+            sequence = int(command.get("seq", 0))
+        except (TypeError, ValueError, AttributeError):
+            _LOGGER.warning("Ignoring malformed PassionWave command envelope")
+            return
+        if new_state.state == last_command_state:
+            return
+        # The firmware sequence deliberately resets after a bridge reboot.
+        # State equality, not numeric ordering, suppresses duplicate delivery
+        # without discarding the first post-reboot command.
+        last_command_state = new_state.state
+
+        async def dispatch() -> None:
+            try:
+                await async_handle_command(hass, entry, new_state.state)
+            except Exception as err:  # noqa: BLE001 - isolate malformed device input
+                _LOGGER.warning("PassionWave command %s failed: %s", sequence, err)
+
+        hass.async_create_task(
+            dispatch(),
+            f"Dispatch PassionWave command {sequence}",
+        )
+
+    entry.async_on_unload(
+        async_track_state_change_event(
+            hass,
+            [bridge_command_entity],
+            async_bridge_command_changed,
+        )
+    )
+    # Re-assert registration after the listener exists. On a cold setup the
+    # first registration write can make the bridge request its bootstrap
+    # catalogs before Home Assistant has attached the command listener.
+    await _async_sync_bridge(hass, entry)
 
     @callback
     def async_media_state_changed(
@@ -393,12 +537,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
             _async_sync_media_runtime(hass, entry),
             "Sync PassionWave media presentation",
         )
+        hass.async_create_task(
+            _async_push_runtime_snapshot(hass, entry),
+            "Sync PassionWave runtime state",
+        )
 
     entry.async_on_unload(
         async_track_state_change_event(
             hass,
             [_entry_value(entry, CONF_MEDIA_PLAYER)],
             async_media_state_changed,
+        )
+    )
+
+    @callback
+    def async_periodic_runtime_snapshot(_now: Any) -> None:
+        """Reconcile the complete device state even without HA state events."""
+
+        async def reconcile() -> None:
+            try:
+                await _async_push_runtime_snapshot(hass, entry)
+                await _async_sync_s3_targets(hass, entry)
+            except HomeAssistantError as err:
+                _LOGGER.debug("PassionWave periodic reconciliation deferred: %s", err)
+
+        hass.async_create_task(reconcile(), "Refresh PassionWave runtime snapshot")
+
+    entry.async_on_unload(
+        async_track_time_interval(
+            hass,
+            async_periodic_runtime_snapshot,
+            timedelta(seconds=5),
         )
     )
 
@@ -451,4 +620,7 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: PassionWaveConfigEntry
 ) -> bool:
     """Unload a PassionWave entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        _RUNTIME_SYNC.pop(entry.entry_id, None)
+    return unloaded

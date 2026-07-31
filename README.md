@@ -3,8 +3,8 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current Home Assistant integration beta: **3.0.0-beta.7**. The unchanged
-device firmware remains **3.0.0-beta.3 — `secure-zero-psk-pairing`**.
+Current coordinated beta: Home Assistant integration and device firmware
+**3.0.0-beta.10 — `managed-ha-updates`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone
 Single-MCU entrypoint, MQTT media transport, S3 application-network fallback,
@@ -15,8 +15,8 @@ Home Assistant integration is installed.
 ## Current architecture
 
 - ESP32-S3: EC1 encoder, touch, LVGL rendering, haptics and local optimistic UI.
-- ESP32: Home Assistant API actions/state, weather, Music Assistant library,
-  radar/floorplan/network assets and EC2 diagnostics.
+- ESP32: permission-free Native API command envelopes/state, weather, Music
+  Assistant library, radar/floorplan/network assets and EC2 diagnostics.
 - Inter-processor link: 2 Mbit/s framed UART with COBS, CRC, priorities,
   acknowledgements and bounded payloads.
 - Home Assistant: the `passion_wave` Custom Integration with a typed Config
@@ -59,7 +59,7 @@ PassionWave Config Entry and two unique endpoint identities. See
 
 ## Getting Started
 
-The public browser installer delivers **V3.0.0-beta.3** as an explicitly marked
+The public browser installer delivers **V3.0.0-beta.10** as an explicitly marked
 prerelease. Version 2.1.1 remains the rollback tag. The steps below are for
 maintainers and beta testers; promotion beyond beta requires the coordinated
 hardware acceptance.
@@ -86,11 +86,14 @@ hardware acceptance.
    ordered light positions. The complete Music Assistant library is enabled
    automatically; all assignments and optional visibility filters remain
    available under **Configure**.
-6. Verify encoder, touch, media paging, weather, radar, floorplan, UART status
+6. Leave **Allow the device to perform Home Assistant actions** disabled. The
+   PassionWave integration validates and executes commands without that
+   ESPHome administrator permission.
+7. Verify encoder, touch, media paging, weather, radar, floorplan, UART status
    and both OTA paths with the acceptance list in
    [Managed deployment](docs/managed-deployment.md).
 
-For a second Rotaryknob, repeat steps 4–6 with a second device overlay and a
+For a second Rotaryknob, repeat steps 4–7 with a second device overlay and a
 second PassionWave Config Entry. Detailed factory and recovery instructions
 are in [Installation](docs/installation.md).
 
@@ -168,6 +171,11 @@ selected Music Assistant instance. Playlist tracks are sliced in Home Assistant
 before crossing the Native API and UART. The UI prefetches the next page with
 five entries remaining.
 
+No customer needs to open the ESPHome device options. The firmware emits
+bounded command states and the PassionWave integration performs only actions
+allowed by this Config Entry; **Allow the device to perform Home Assistant
+actions** remains disabled.
+
 The second Config-Flow step offers searchable multi-select fields for visible
 playlists, radio stations and podcasts. **All automatically** remains the
 default, so existing entries keep their current behavior. Removing it limits
@@ -189,7 +197,7 @@ and large media-library filters.
 ## Documentation
 
 - [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
-- [Version 3.0.0-beta.3 release](RELEASE.md)
+- [Version 3.0.0-beta.10 release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
 - [Project review](docs/project-review.md)

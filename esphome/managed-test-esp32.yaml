@@ -11,4 +11,4 @@ esphome:
   build_path: build/managed_test_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "3.0.0-beta.2"
+    version: "3.0.0-beta.10"

@@ -1,7 +1,8 @@
 import os
 import time
 
-from PIL import Image, ImageChops
+from PIL import Image
+import PIL.ImageChops as ImageChops
 from homeassistant.helpers.network import get_url
 
 FLOORPLAN_BASE = "/config/www/passion-wave/floorplan/base.png"
