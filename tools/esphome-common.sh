@@ -19,7 +19,7 @@ ESPHOME_IMAGE="${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.7.0}"
 detect_serial_port() {
   local candidates=()
   shopt -s nullglob
-  candidates=(/dev/cu.usbmodem* /dev/cu.wchusbserial* /dev/cu.SLAB_USBtoUART*)
+  candidates=(/dev/cu.usbmodem* /dev/cu.usbserial* /dev/cu.wchusbserial* /dev/cu.SLAB_USBtoUART*)
   shopt -u nullglob
   if [[ ${#candidates[@]} -gt 0 ]]; then
     printf '%s\n' "${candidates[0]}"
@@ -54,11 +54,11 @@ mkdir -p "${BUILD_ROOT}" "${PLATFORMIO_CACHE}"
 
 factory_bin() {
   local found
-  found="$(find "${BUILD_DIR}/.pioenvs" -mindepth 2 -maxdepth 2 -name firmware.factory.bin -print -quit 2>/dev/null || true)"
+  found="$(find "${BUILD_DIR}" -name firmware.factory.bin -print -quit 2>/dev/null || true)"
   if [[ -n "${found}" ]]; then
     printf '%s\n' "${found}"
   else
-    printf '%s\n' "${BUILD_DIR}/.pioenvs/${CONFIG_NAME_LOWER}/firmware.factory.bin"
+    printf '%s\n' "${BUILD_DIR}/build/firmware.factory.bin"
   fi
 }
 

@@ -17,6 +17,5 @@ substitutions:
   house_floorplan_image_url: !secret house_floorplan_image_url
   managed_wifi_ssid: !secret wifi_ssid
   managed_wifi_password: !secret wifi_password
-  managed_api_encryption_key: !secret api_encryption_key
   managed_ota_password: !secret ota_password
   managed_fallback_ap_password: !secret fallback_ap_password

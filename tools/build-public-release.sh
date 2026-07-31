@@ -7,6 +7,8 @@ version="$(tr -d '[:space:]' < "${repo_dir}/VERSION")"
 resolved_dir="$(mktemp -d)"
 s3_binary="passion-wave-rotaryknob-s3-${version}.factory.bin"
 esp32_binary="passion-wave-rotaryknob-esp32-${version}.factory.bin"
+s3_ota_binary="passion-wave-rotaryknob-s3-${version}.ota.bin"
+esp32_ota_binary="passion-wave-rotaryknob-esp32-${version}.ota.bin"
 s3_manifest="manifest-${version}.json"
 esp32_manifest="manifest-${version}.json"
 
@@ -97,6 +99,18 @@ cp "${repo_dir}/esphome/.esphome/build/passion_wave_factory_s3/build/firmware.fa
   "${output_dir}/s3/${s3_binary}"
 cp "${repo_dir}/esphome/.esphome/build/passion_wave_factory_esp32/build/firmware.factory.bin" \
   "${output_dir}/esp32/${esp32_binary}"
+cp "${repo_dir}/esphome/.esphome/build/passion_wave_factory_s3/build/firmware.ota.bin" \
+  "${output_dir}/s3/${s3_ota_binary}"
+cp "${repo_dir}/esphome/.esphome/build/passion_wave_factory_esp32/build/firmware.ota.bin" \
+  "${output_dir}/esp32/${esp32_ota_binary}"
+
+if command -v md5sum >/dev/null 2>&1; then
+  s3_ota_md5="$(md5sum "${output_dir}/s3/${s3_ota_binary}" | awk '{print $1}')"
+  esp32_ota_md5="$(md5sum "${output_dir}/esp32/${esp32_ota_binary}" | awk '{print $1}')"
+else
+  s3_ota_md5="$(md5 -q "${output_dir}/s3/${s3_ota_binary}")"
+  esp32_ota_md5="$(md5 -q "${output_dir}/esp32/${esp32_ota_binary}")"
+fi
 
 # ESP Web Tools erases new installations by default. Setting this field to
 # true would offer a choice and could preserve stale NVS credentials.
@@ -111,7 +125,13 @@ cat > "${output_dir}/s3/${s3_manifest}" <<EOF
       "chipFamily": "ESP32-S3",
       "parts": [
         { "path": "${s3_binary}", "offset": 0 }
-      ]
+      ],
+      "ota": {
+        "md5": "${s3_ota_md5}",
+        "path": "${s3_ota_binary}",
+        "release_url": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob/releases/tag/v${version}",
+        "summary": "PassionWave Rotaryknob ${version}"
+      }
     }
   ]
 }
@@ -128,7 +148,13 @@ cat > "${output_dir}/esp32/${esp32_manifest}" <<EOF
       "chipFamily": "ESP32",
       "parts": [
         { "path": "${esp32_binary}", "offset": 0 }
-      ]
+      ],
+      "ota": {
+        "md5": "${esp32_ota_md5}",
+        "path": "${esp32_ota_binary}",
+        "release_url": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob/releases/tag/v${version}",
+        "summary": "PassionWave Rotaryknob Bridge ${version}"
+      }
     }
   ]
 }
@@ -136,17 +162,23 @@ EOF
 
 python3 -m json.tool "${output_dir}/s3/${s3_manifest}" >/dev/null
 python3 -m json.tool "${output_dir}/esp32/${esp32_manifest}" >/dev/null
+cp "${output_dir}/s3/${s3_manifest}" "${output_dir}/s3/manifest.json"
+cp "${output_dir}/esp32/${esp32_manifest}" "${output_dir}/esp32/manifest.json"
 
 (
   cd "${output_dir}"
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum \
       "s3/${s3_binary}" \
-      "esp32/${esp32_binary}" > SHA256SUMS
+      "s3/${s3_ota_binary}" \
+      "esp32/${esp32_binary}" \
+      "esp32/${esp32_ota_binary}" > SHA256SUMS
   else
     shasum -a 256 \
       "s3/${s3_binary}" \
-      "esp32/${esp32_binary}" > SHA256SUMS
+      "s3/${s3_ota_binary}" \
+      "esp32/${esp32_binary}" \
+      "esp32/${esp32_ota_binary}" > SHA256SUMS
   fi
 )
 

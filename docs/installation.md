@@ -5,7 +5,7 @@ to Home Assistant.
 
 The intended public no-expert path is
 `https://www.passion-wave.com/install/`. It currently delivers
-V3.0.0-beta.3 as an explicitly marked prerelease; V2.1.1 remains the rollback
+V3.0.0-beta.10 as an explicitly marked prerelease; V2.1.1 remains the rollback
 tag until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web
@@ -31,10 +31,11 @@ This is the intended after-purchase flow:
    processors. If the browser does not reconnect Improv automatically, use the
    separate bridge Wi-Fi button; it reconnects without another flash.
 9. Install PassionWave through HACS and restart Home Assistant.
-10. Power-cycle the Rotaryknob, add PassionWave within 20 minutes and select
-    its S3 and Bridge. PassionWave creates and provisions one unique API
-    encryption key per endpoint and creates both ESPHome entries; the customer
-    is not asked to enter a key.
+10. Power-cycle the Rotaryknob. Home Assistant shows one discovered
+    `PassionWave Rotaryknob`, not two technical ESPHome setup tiles.
+11. Open that tile within 20 minutes and select the matching S3 and Bridge.
+    PassionWave creates one unique API encryption key per endpoint and keeps
+    the two ESPHome transports behind the logical PassionWave component.
 
 Wi-Fi credentials entered in this flow are sent over USB to the device. They are
 not sent to Passion Wave.
@@ -42,8 +43,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.3.json
-https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.3.json
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.10.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.10.json
 ```
 
 Both published binaries are built from sanitized public factory
@@ -69,6 +70,27 @@ The detailed target structure is documented in
 
 The current private development build must not be uploaded as the public
 website firmware.
+
+## Customer Updates After Installation
+
+Home Assistant exposes one customer-facing device update:
+`PassionWave Rotaryknob Firmware`. One press installs the Bridge first, waits
+until it has reconnected with the target version, then installs the S3 and
+verifies its reconnect. If the Bridge fails, the S3 is not touched. The two
+native ESPHome update entities remain available as hidden recovery transports.
+
+The HACS integration update remains separate. Install a newly offered
+PassionWave HACS update first; afterwards install the single device update.
+
+The hidden source entities read the stable chip-specific `manifest.json` from
+the Passion Wave website. `tools/build-public-release.sh` produces versioned
+factory and OTA binaries, embeds the OTA MD5 in both manifests and creates the
+stable manifest copies. `Passion-Wave-web/tools/import-firmware.sh` imports the
+complete set; the update is offered only after that website release is live.
+
+Do not publish a manifest before its referenced OTA binary. Keep the previous
+versioned binaries online for rollback, and use USB/ESP Web Tools only as the
+recovery path when an endpoint no longer reaches the network.
 
 ## Manual Maintainer / Developer Path
 
@@ -278,10 +300,10 @@ limits of automatic recalibration.
 - Dynamic entity pickers live in Home Assistant through the blueprint. The
   ESPHome device page itself exposes persistent text fields because ESPHome text
   entities do not provide Home Assistant-wide dynamic dropdown options.
-- ESPHome still cannot subscribe directly to arbitrary entity attributes from a
-  runtime text field. Dynamic media state and cover reflection therefore uses a
-  periodic `homeassistant.action` snapshot with `response_template`. The
-  ESPHome integration must allow this device to perform Home Assistant actions.
+- The firmware invokes no Home Assistant action directly. Commands are bounded
+  ESPHome states; PassionWave validates them and sends bounded results back
+  through user-defined ESPHome API actions. **Allow the device to perform Home
+  Assistant actions** remains disabled and is not part of onboarding.
 - The weather source is still selected at compile time through
   `ha_weather_entity`. Set it to the desired `weather.*` entity before building.
 - GitHub one-click dashboard import is prepared through `dashboard_import`, but

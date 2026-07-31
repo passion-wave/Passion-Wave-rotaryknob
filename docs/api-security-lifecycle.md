@@ -16,8 +16,8 @@ The supported lifecycle on Home Assistant 2026.7 or newer is:
    create the matching ESPHome entries;
 5. let each processor persist its key and close its provisioning window;
 6. use encrypted Native API for all later Home Assistant connections;
-7. install an authenticated managed update profile before treating the device
-   as fully commissioned.
+7. install an authenticated managed update profile that keeps the provisioned
+   API key from NVS before treating the device as fully commissioned.
 
 Factory and managed firmware share the same versioned S3 and ESP32 cores. They
 are deployment profiles, not separate product revisions.
@@ -56,8 +56,10 @@ One Rotaryknob
 Additional Rotaryknobs repeat this two-endpoint model. Every installation still
 uses only two firmware roles: one common S3 core and one common ESP32 core.
 Small private device overlays provide the hostname, friendly name, Wi-Fi
-credentials, API key, OTA password and installation-specific Home Assistant
-targets.
+credentials, OTA password and installation-specific Home Assistant targets.
+The API key is never a build substitution: every later image declares
+`api.encryption` without `key`, so ESPHome keeps using the endpoint-specific
+key provisioned into NVS.
 
 Keys must never be committed, copied into release binaries, printed in
 diagnostics or shared between customers. The public `secrets.example.yaml`
@@ -73,20 +75,20 @@ key after every Native API connection is verified remains tracked as
 
 ## Migration without losing access
 
-API encryption and the Home Assistant config entry must change together:
+API encryption and the Home Assistant config entry are paired once during
+onboarding. Later OTA updates must not rotate or replace that key:
 
-1. generate and securely record the two keys for one physical device;
-2. build both managed profiles and validate them before touching either MCU;
-3. update the S3 first while its current OTA path is still reachable;
-4. enter the S3 key when Home Assistant requests it and verify the Native API;
-5. update the ESP32 bridge;
-6. enter the bridge key and verify both API connections plus the UART link;
-7. for a multi-device installation, repeat the process for each additional
-   physical Rotaryknob.
+1. build both managed profiles from the same release;
+2. verify that their `api.encryption` blocks contain no compiled `key`;
+3. update the Bridge first and verify its encrypted Native API plus UART link;
+4. update the S3 and verify its encrypted Native API;
+5. run the light, media, radar and floorplan smoke tests;
+6. for a multi-device installation, repeat the same role images for each
+   additional physical Rotaryknob.
 
-Do not enable encryption on both processors simultaneously unless both keys are
-already available. A wrong or lost key does not brick the board, but recovery
-then requires USB or another still-authorized update path.
+Compiling a repository-wide API key into an update image breaks the existing HA
+pairing and is forbidden. A wrong or lost provisioned key does not brick the
+board, but recovery then requires USB or another still-authorized update path.
 
 ## Responsiveness
 
@@ -100,16 +102,14 @@ encryption is therefore not an accepted latency optimization.
 - Public `factory-s3.yaml` and `factory-esp32.yaml`: keyless at build time, with
   a 20-minute ESPHome provisioning window and automatic per-endpoint API key
   creation by the PassionWave integration.
-- Every private Managed entrypoint: encrypted Native API and
-  password-protected OTA through one shared Managed deployment layer. The
-  current two-device test installation has four such entrypoints.
+- Every private Managed entrypoint: encrypted Native API using the key already
+  retained in NVS, plus password-protected OTA through one shared Managed
+  deployment layer.
 - Installed production pair: migrated to encrypted Managed profiles on
   2026-07-27.
 - Installed second pair: encrypted; the consolidated profiles retain its
   stable hostnames and use the same Managed transport policy.
-- All endpoints in the current two-device test installation use the known
-  private migration key. Splitting it into endpoint-specific keys remains the
-  final hardening step.
+- New endpoints receive individual keys automatically during onboarding.
 
 References:
 

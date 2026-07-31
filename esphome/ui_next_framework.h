@@ -1027,7 +1027,7 @@ class Framework {
     auto *next = make_button_(view, 191, 172, 48, 48, Action::MEDIA_NEXT, kBlack, kWhite, 24);
     button_label_(next, "\U0000E044", fonts_.icon, kWhite);
 
-    media_volume_ = make_label_(view, 141, 337, 42, 16, "50 %", fonts_.small,
+    media_volume_ = make_label_(view, 141, 337, 42, 16, "-- %", fonts_.small,
                                 kMuted, LV_TEXT_ALIGN_CENTER);
     lv_obj_set_style_transform_pivot_x(media_volume_, 21, LV_PART_MAIN);
     lv_obj_set_style_transform_pivot_y(media_volume_, 8, LV_PART_MAIN);

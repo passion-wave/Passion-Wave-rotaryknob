@@ -1,6 +1,7 @@
 # MQTT-free Native API migration
 
-Status: published as `3.0.0-beta.2`; physical clean-device acceptance pending.
+Status: permission-free broker implemented in source candidate
+`3.0.0-beta.6`; physical clean-device acceptance pending.
 
 Because the device no longer accepts the former transport, publish this change
 only as an explicitly marked V3 prerelease until both chips of the physical
@@ -25,9 +26,10 @@ that correctly rejected it.
 Display/encoder (ESP32-S3)
   -> bounded 2 Mbit/s UART request
 Bridge (classic ESP32)
-  -> encrypted ESPHome Native API action
-Home Assistant / Music Assistant
-  -> bounded response
+  -> sequenced ESPHome command state (<= 255 bytes)
+PassionWave integration
+  -> validated Home Assistant / Music Assistant action
+  -> named ESPHome user-defined response action
 Bridge cache
   -> bounded UART page
 Display
@@ -52,12 +54,19 @@ and the previous complete page remains visible during a short API interruption.
 3. Add one **PassionWave** Config Entry per physical Rotaryknob.
 4. Select its Bridge registration entity, Music Assistant instance and Music
    Assistant player.
-5. Keep “Allow the device to perform Home Assistant actions” enabled for the
-   Bridge ESPHome integration entry.
+5. Leave “Allow the device to perform Home Assistant actions” disabled. The
+   PassionWave integration owns dispatch and validates every target against
+   the physical Rotaryknob's Config Entry.
 
 The helper script uses `media_player.browse_media` inside Home Assistant and
 returns only the requested slice. It needs neither a Music Assistant API token
 nor a copied encryption key.
+
+The Bridge publishes a versioned command envelope as a normal ESPHome state.
+The integration listens locally and answers through explicit
+`esphome.<bridge>_passion_wave_*` user-defined actions. MQTT, HA-event
+permissions and polling are not involved. The Bridge uses a zero API batch
+delay for these sparse commands, avoiding the default 100 ms dispatch hold.
 
 ## Coordinated migration
 

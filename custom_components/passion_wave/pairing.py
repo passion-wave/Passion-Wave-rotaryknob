@@ -85,10 +85,9 @@ async def async_discover_endpoints(
         if not mac_address:
             return
         host = info.server.removesuffix(".")
-        friendly_name = (
-            _decode_property(properties.get(b"friendly_name"))
-            or name.removesuffix(f".{service_type}")
-        )
+        friendly_name = _decode_property(
+            properties.get(b"friendly_name")
+        ) or name.removesuffix(f".{service_type}")
         endpoints[(project_name, host)] = DiscoveredEndpoint(
             host=host,
             port=info.port or ESPHOME_API_PORT,
@@ -133,16 +132,15 @@ def _existing_esphome_entry(
     )
 
 
-def endpoint_is_configured(
-    hass: HomeAssistant, endpoint: DiscoveredEndpoint
-) -> bool:
+def endpoint_is_configured(hass: HomeAssistant, endpoint: DiscoveredEndpoint) -> bool:
     """Return whether Home Assistant already owns this endpoint's key."""
     return _existing_esphome_entry(hass, endpoint.mac_address) is not None
 
 
-async def _abort_pending_esphome_flow(
+async def async_abort_pending_esphome_flow(
     hass: HomeAssistant, mac_address: str
 ) -> None:
+    """Remove the technical ESPHome discovery tile for one owned endpoint."""
     normalized_mac = dr.format_mac(mac_address)
     for progress in hass.config_entries.flow.async_progress_by_handler(
         "esphome", include_uninitialized=True
@@ -197,7 +195,7 @@ async def async_secure_pair_endpoint(
     # A discovery flow may already be showing Home Assistant's manual key
     # prompt. Replace only the flow for this exact MAC, then drive the official
     # ESPHome config flow with the newly installed key.
-    await _abort_pending_esphome_flow(hass, mac_address)
+    await async_abort_pending_esphome_flow(hass, mac_address)
     result = await hass.config_entries.flow.async_init(
         "esphome",
         context={"source": config_entries.SOURCE_USER},

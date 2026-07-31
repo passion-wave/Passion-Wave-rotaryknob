@@ -81,6 +81,8 @@ enum class MessageType : uint8_t {
   FLOORPLAN_INVALIDATED = 52,
   LIGHT_DETAIL_CATALOG_ITEM = 53,
   LIGHT_DETAIL_CATALOG_META = 54,
+  RUNTIME_STATE = 55,
+  LIGHT_DETAIL_REQUEST = 56,
 };
 
 enum class HAAction : uint8_t {
@@ -173,6 +175,14 @@ struct MediaState {
   bool repeat_one{false};
   uint32_t position_seconds{0};
   uint32_t duration_seconds{0};
+};
+
+struct RuntimeState {
+  uint32_t session{0};
+  uint32_t sequence{0};
+  MediaState media{};
+  std::array<bool, 4> light_on{};
+  std::array<uint8_t, 4> light_brightness{};
 };
 
 struct WeatherState {
@@ -516,14 +526,23 @@ class Link {
   }
 
   bool send_light_detail_meta(uint8_t slot, uint8_t generation, uint8_t kind,
-                              uint8_t count, int selected) {
+                              uint8_t count, int selected,
+                              uint32_t entity_hash = 0) {
     if (slot >= 4 || count > LIGHT_DETAIL_MAX_ITEMS) return false;
-    const uint8_t payload[] = {
+    uint8_t payload[9] = {
       slot, generation, kind, count,
-      static_cast<uint8_t>(
-        selected >= 0 && selected < count ? selected : 0xFF),
+      static_cast<uint8_t>(selected >= 0 && selected < count ? selected : 0xFF),
     };
+    write_u32_(&payload[5], entity_hash);
     return this->send(MessageType::LIGHT_DETAIL_CATALOG_META, payload,
+                      sizeof(payload));
+  }
+
+  bool send_light_detail_request(uint8_t slot, uint32_t entity_hash) {
+    if (slot >= 4) return false;
+    uint8_t payload[5]{slot, 0, 0, 0, 0};
+    write_u32_(&payload[1], entity_hash);
+    return this->send(MessageType::LIGHT_DETAIL_REQUEST, payload,
                       sizeof(payload));
   }
 
@@ -553,6 +572,25 @@ class Link {
     write_u32_(&payload[3], state.position_seconds);
     write_u32_(&payload[7], state.duration_seconds);
     return this->send(MessageType::MEDIA_STATE, payload, sizeof(payload));
+  }
+
+  bool send_runtime_state(const RuntimeState &state) {
+    uint8_t payload[27]{};
+    write_u32_(&payload[0], state.session);
+    write_u32_(&payload[4], state.sequence);
+    payload[8] = state.media.state;
+    payload[9] = std::min<uint8_t>(state.media.volume_pct, 100);
+    payload[10] = static_cast<uint8_t>(
+      (state.media.shuffle ? 0x01 : 0x00) |
+      (state.media.repeat_one ? 0x02 : 0x00));
+    write_u32_(&payload[11], state.media.position_seconds);
+    write_u32_(&payload[15], state.media.duration_seconds);
+    for (size_t slot = 0; slot < 4; slot++) {
+      payload[19 + slot * 2] = state.light_on[slot] ? 1 : 0;
+      payload[20 + slot * 2] =
+        std::min<uint8_t>(state.light_brightness[slot], 100);
+    }
+    return this->send(MessageType::RUNTIME_STATE, payload, sizeof(payload));
   }
 
   bool send_weather_state(const WeatherState &state) {
@@ -627,6 +665,36 @@ class Link {
       state->duration_seconds = read_u32(&frame.payload[7]);
     }
     return true;
+  }
+
+  static bool decode_runtime_state(const Frame &frame, RuntimeState *state) {
+    if (state == nullptr || frame.type != MessageType::RUNTIME_STATE ||
+        frame.length != 27) {
+      return false;
+    }
+    state->session = read_u32(&frame.payload[0]);
+    state->sequence = read_u32(&frame.payload[4]);
+    state->media.state = frame.payload[8];
+    state->media.volume_pct = std::min<uint8_t>(frame.payload[9], 100);
+    state->media.shuffle = (frame.payload[10] & 0x01) != 0;
+    state->media.repeat_one = (frame.payload[10] & 0x02) != 0;
+    state->media.position_seconds = read_u32(&frame.payload[11]);
+    state->media.duration_seconds = read_u32(&frame.payload[15]);
+    for (size_t slot = 0; slot < 4; slot++) {
+      state->light_on[slot] = frame.payload[19 + slot * 2] != 0;
+      state->light_brightness[slot] =
+        std::min<uint8_t>(frame.payload[20 + slot * 2], 100);
+    }
+    return true;
+  }
+
+  static uint32_t fnv1a(const std::string &value) {
+    uint32_t hash = 2166136261UL;
+    for (const unsigned char character : value) {
+      hash ^= character;
+      hash *= 16777619UL;
+    }
+    return hash;
   }
 
   static bool decode_weather_state(const Frame &frame, WeatherState *state) {

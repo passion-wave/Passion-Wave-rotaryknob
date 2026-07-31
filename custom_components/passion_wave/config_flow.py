@@ -12,9 +12,11 @@ from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
+    device_registry as dr,
     entity_registry as er,
     selector,
 )
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .const import (
     BRIDGE_PROJECT_NAME,
@@ -40,6 +42,7 @@ from .pairing import (
     DiscoveredEndpoint,
     PairingError,
     ProvisioningWindowClosed,
+    async_abort_pending_esphome_flow,
     async_discover_endpoints,
     async_secure_pair_endpoint,
     endpoint_is_configured,
@@ -303,6 +306,39 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._catalogs: dict[str, list[dict[str, str]]] = {}
         self._library_error = False
         self._discovered_endpoints: dict[str, DiscoveredEndpoint] = {}
+        self._discovery_unique_id: str | None = None
+        self._suggested_s3_host: str | None = None
+
+    async def async_step_zeroconf(
+        self, discovery_info: ZeroconfServiceInfo
+    ) -> ConfigFlowResult:
+        """Expose one PassionWave discovery tile per physical Rotaryknob."""
+        mac_address = str(discovery_info.properties.get("mac", ""))
+        if not mac_address:
+            return self.async_abort(reason="endpoints_not_found")
+
+        normalized_mac = dr.format_mac(mac_address)
+        self._discovery_unique_id = f"rotaryknob_{normalized_mac}"
+        self._suggested_s3_host = discovery_info.hostname.removesuffix(".")
+        s3_entry = self.hass.config_entries.async_entry_for_domain_unique_id(
+            "esphome", normalized_mac
+        )
+        if s3_entry and any(
+            entry.options.get(
+                CONF_S3_CONFIG_ENTRY_ID, entry.data.get(CONF_S3_CONFIG_ENTRY_ID)
+            )
+            == s3_entry.entry_id
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+        ):
+            return self.async_abort(reason="already_configured")
+        await self.async_set_unique_id(self._discovery_unique_id)
+        self._abort_if_unique_id_configured()
+
+        discovered = await async_discover_endpoints(self.hass)
+        self._discovered_endpoints = {item.host: item for item in discovered}
+        for endpoint in discovered:
+            await async_abort_pending_esphome_flow(self.hass, endpoint.mac_address)
+        return await self.async_step_pair()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -369,11 +405,24 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         bridge_choices = choices(BRIDGE_PROJECT_NAME)
         if not s3_choices or not bridge_choices:
             errors["base"] = "endpoints_not_found"
+        s3_hosts = {item["value"] for item in s3_choices}
+        suggested_s3 = (
+            self._suggested_s3_host
+            if self._suggested_s3_host in s3_hosts
+            else s3_choices[0]["value"]
+            if len(s3_choices) == 1
+            else None
+        )
+        s3_field = (
+            vol.Required(CONF_S3_HOST, default=suggested_s3)
+            if suggested_s3
+            else vol.Required(CONF_S3_HOST)
+        )
         return self.async_show_form(
             step_id="pair",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_S3_HOST): selector.SelectSelector(
+                    s3_field: selector.SelectSelector(
                         selector.SelectSelectorConfig(options=s3_choices)
                     ),
                     vol.Required(CONF_BRIDGE_HOST): selector.SelectSelector(
@@ -401,7 +450,9 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             elif registration is None:
                 errors["base"] = "invalid_bridge_registration_entity"
             else:
-                await self.async_set_unique_id(registration.unique_id)
+                await self.async_set_unique_id(
+                    self._discovery_unique_id or registration.unique_id
+                )
                 self._abort_if_unique_id_configured()
                 user_input[CONF_BRIDGE_REGISTRATION_UNIQUE_ID] = registration.unique_id
                 s3_entry = self.hass.config_entries.async_get_entry(

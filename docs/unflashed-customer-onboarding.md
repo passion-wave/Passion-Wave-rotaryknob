@@ -13,8 +13,8 @@ Die Komponente enthält zwei unabhängig flashbare Prozessoren:
 
 | USB-Ziel | Aufgabe | Öffentliches Profil | Web-Manifest |
 |---|---|---|---|
-| ESP32-S3 | Display, Touch, EC1-Encoder, Haptik, UI | `esphome/factory-s3.yaml` | `firmware/rotaryknob/s3/manifest-3.0.0-beta.3.json` |
-| ESP32 | Home-Assistant-Bridge, EC2, Netzwerk-Offload | `esphome/factory-esp32.yaml` | `firmware/rotaryknob/esp32/manifest-3.0.0-beta.3.json` |
+| ESP32-S3 | Display, Touch, EC1-Encoder, Haptik, UI | `esphome/factory-s3.yaml` | `firmware/rotaryknob/s3/manifest-3.0.0-beta.10.json` |
+| ESP32 | Home-Assistant-Bridge, EC2, Netzwerk-Offload | `esphome/factory-esp32.yaml` | `firmware/rotaryknob/esp32/manifest-3.0.0-beta.10.json` |
 
 Die USB-C-Ausrichtung bestimmt das Ziel. Eine vollautomatische Umschaltung ist
 ohne zusätzliche Hardware im Gerät nicht möglich. Die Website reduziert den
@@ -58,16 +58,22 @@ Factory-Builds.
    Bridge-WLAN-Button öffnen, denselben Port wählen, bis zu zehn Sekunden auf
    Improv warten und dasselbe WLAN setzen. Ein zweiter Flash ist nicht nötig.
 7. PassionWave über HACS installieren und Home Assistant neu starten.
-8. Das Gerät vollständig aus- und einschalten, PassionWave innerhalb von
-   20 Minuten hinzufügen und S3 sowie Bridge desselben Rotaryknob auswählen.
+8. Für eine eindeutige Zuordnung nur diesen neuen Rotaryknob einschalten. Im Bereich „Entdeckt“ nur
+   `PassionWave Rotaryknob` öffnen; technische ESPHome-Einrichtungen werden
+   von PassionWave übernommen und ausgeblendet.
+9. PassionWave innerhalb von 20 Minuten hinzufügen und S3 sowie Bridge
+   desselben Rotaryknob auswählen.
    PassionWave erzeugt je Controller einen individuellen Encryption-Key,
-   provisioniert ihn und legt beide ESPHome-Einträge an. Der Kunde sieht und
-   kopiert keinen Schlüssel.
-9. Bridge,
+   provisioniert ihn und hält beide ESPHome-Transporte hinter einer logischen
+   PassionWave-Komponente. Der Kunde sieht und kopiert keinen Schlüssel.
+10. Bridge,
    Music-Assistant-Instanz sowie Medienplayer in typisierten UI-Auswahllisten
    festlegen. Playlist-Einträge werden automatisch aus Music Assistant
    übernommen.
-10. Den kompakten Funktionskatalog auf der Website abarbeiten.
+11. Keine ESPHome-Geräteoption öffnen. **Allow the device to perform Home
+    Assistant actions** bleibt deaktiviert; PassionWave prüft und vermittelt
+    die Befehle.
+12. Den kompakten Funktionskatalog auf der Website abarbeiten.
 
 Home Assistant muss Geräte- und Automationsanlage aus Sicherheitsgründen
 bestätigen lassen. Diese Bestätigungen werden bewusst nicht durch externe
@@ -89,9 +95,10 @@ Beide öffentlichen Profile enthalten:
 - keine direkten Geräte-/Home-Assistant-Sprünge im Improv-Dialog;
 - Onboarding-Wachschutz bis zur ersten Home-Assistant-Verbindung.
 
-Updates werden pro Prozessor veröffentlicht und nie als gemeinsames,
-chipunspezifisches Image angeboten. Fällt OTA aus, wird nur der betroffene Chip
-über den passenden Web-Installer neu installiert.
+Die Release-Artefakte bleiben chipgebunden. Home Assistant stellt sie dem
+Kunden jedoch als ein Geräteupdate bereit und führt Bridge → Verifikation →
+S3 → Verifikation automatisch aus. Fällt OTA aus, wird nur der betroffene Chip
+über den passenden Web-Installer wiederhergestellt.
 
 ## Qualitätsgates vor jedem Verkauf
 

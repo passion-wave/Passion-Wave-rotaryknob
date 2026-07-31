@@ -1,6 +1,6 @@
 # Radar- und Floorplan-Wirkkette
 
-Stand: 2026-07-26
+Stand: 2026-07-28
 
 Dieses Dokument beschreibt die vollständige Produktionskette, ihre
 Diagnosepunkte und den vorgesehenen Updateweg. Radar und Floorplan sind
@@ -29,6 +29,11 @@ Die absolute URL wird von
 Netzwerkhelfer erzeugt. Dadurch verwendet die Bridge die von Home Assistant
 erkannte interne IPv4-Adresse. Ein funktionierender Asset-Transfer hängt nicht
 mehr von `homeassistant.local` oder anonymem MQTT ab.
+
+Seit Home Assistant 2026.7 werden Pillow-Untermodule im Pyscript explizit
+importiert. Lädt dieses Modul nicht, fehlen Radar- und Floorplan-URL
+gleichzeitig; `pyscript.reload` und das Systemprotokoll sind deshalb der erste
+gemeinsame Diagnosepunkt.
 
 ## Radar
 
@@ -70,19 +75,20 @@ Es gibt keinen parallelen MQTT-Invalidierungspfad mehr.
 
 ## Schrittweise Diagnose
 
-| Prüfstufe | Prüfung | Erwartung | Befund am 26.07.2026 |
+| Prüfstufe | Prüfung | Erwartung | Befund am 28.07.2026 |
 |---|---|---|---|
 | Radar-Quelle | Dateien unter `/config/www/scrollwheel/` | drei gültige JPEGs, 320×320 | bestanden |
 | Radar-Zustand | `sensor.scrollwheel_rain_radar_image_ready` | `ready` | bestanden |
 | Radar-Pfad | `sensor.scrollwheel_rain_radar_image_path` | `/local/..._z1.jpg?v=...` | bestanden |
 | Radar-URL | `pyscript.passion_wave_radar_asset_url` | `http://<HA-LAN-IP>:8123/local/...` | bestanden |
 | Floorplan-Renderer | Dienst `pyscript.passion_wave_floorplan_refresh` | vorhanden und ausführbar | nach `pyscript.reload` bestanden |
-| Floorplan-Datei | `floorplan-render/live.png` | gültiges RGB-PNG, 360×360, kleiner als 64 KiB | bestanden, 46.164 Byte |
+| Floorplan-Datei | `floorplan-render/live.png` | gültiges RGB-PNG, 360×360, kleiner als 64 KiB | bestanden, 42.715 Byte |
 | Floorplan-URL | Attribut `asset_url` der Revision | absolute interne URL | bestanden |
 | HTTP | GET auf alle vier Assets | HTTP 200 | bestanden; 18–133 ms |
 | ESP32/S3-Link | Link-Sensor und UART-Fehler | verbunden, keine Protokollfehler | bestanden |
-| Produktions-ESP32 | Radar-Proxy-Diagnose | HTTP- oder Transferstatus | fehlgeschlagen: Fehlercode 15 vor HTTP |
-| S3-Anzeige | sichtbare Radar-/Haus-Seite | aktuelles Bild | ausstehend bis Bridge-OTA |
+| Produktions-ESP32 | Radar-Proxy-Diagnose | HTTP- oder Transferstatus | vor Pyscript-Reload Fehlercode 2; absolute IPv4-URL danach vorhanden |
+| S3-Bereitschaft | `ESP32 Home Assistant Bridge` | `on` | Firmwarefehler eingegrenzt; Korrektur in 3.0.0-beta.6 |
+| S3-Anzeige | sichtbare Radar-/Haus-Seite | aktuelles Bild | ausstehend bis Firmware-OTA |
 
 ### Gefundener Problempunkt
 

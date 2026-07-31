@@ -7,7 +7,8 @@ substitutions:
   name: "passion-wave-rotary-test-s3"
   friendly_name: "Passion Wave Rotaryknob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "3.0.0-beta.2"
+  project_version: "3.0.0-beta.10"
+  firmware_update_manifest_url: "https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"
   dual_mcu_stage1_performance_enabled: "true"
@@ -40,6 +41,13 @@ esphome:
 # Do not offer to replace this diagnostic profile from the public dashboard
 # import. The inherited runtime functionality remains unchanged.
 dashboard_import: !remove
+
+update:
+  - platform: http_request
+    id: passion_wave_firmware_update
+    name: "Firmware"
+    source: "${firmware_update_manifest_url}"
+    update_interval: 6h
 
 uart:
   id: inter_mcu_uart
@@ -99,6 +107,18 @@ globals:
     restore_value: false
     initial_value: '0'
   - id: dual_mcu_last_snapshot_request_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_runtime_authoritative
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_runtime_session
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_runtime_sequence
     type: uint32_t
     restore_value: false
     initial_value: '0'
@@ -512,6 +532,15 @@ sensor:
     entity_category: diagnostic
 
   - platform: template
+    id: displayed_media_volume_sensor
+    name: "Displayed Media Volume"
+    unit_of_measurement: "%"
+    state_class: measurement
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: template
     id: volume_bridge_accept_sensor
     name: "Volume SIL Bridge Accept"
     unit_of_measurement: ms
@@ -572,6 +601,12 @@ sensor:
     entity_category: diagnostic
 
 text_sensor:
+  - platform: template
+    id: dual_mcu_runtime_status
+    name: "Authoritative Runtime State"
+    update_interval: never
+    entity_category: diagnostic
+
   # Remove both the historical JSON transport and all direct HA state
   # subscriptions. The UART cache is the only V3 application-state source.
   - id: !remove ma_playlists_json_raw
@@ -656,6 +691,21 @@ button:
                                   id(dual_mcu_last_ping_token));
 
   - platform: template
+    name: "Refresh Current Light Detail Catalog"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          const int slot = std::clamp(id(light_source_index), 0, 3);
+          const std::string entity =
+            slot == 0 ? id(light_slot_1_entity_text).state :
+            slot == 1 ? id(light_slot_2_entity_text).state :
+            slot == 2 ? id(light_slot_3_entity_text).state :
+                        id(light_slot_4_entity_text).state;
+          dual_mcu::link.send_light_detail_request(
+            static_cast<uint8_t>(slot),
+            dual_mcu::Link::fnv1a(entity));
+
+  - platform: template
     name: "Run E2E Latency Probe"
     entity_category: diagnostic
     on_press:
@@ -718,6 +768,29 @@ button:
             id(music_latency_probe_status).publish_state(
               "Teste Playlist-Index 9 auf ${ha_player}");
           }
+
+  - platform: template
+    name: "Run Playlist Paging Probe"
+    entity_category: diagnostic
+    on_press:
+      - script.execute: request_initial_playlist_page
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(playlist_paged_mode_ready) &&
+                     !id(playlist_autoload_inflight) &&
+                     id(pending_playlist_request_id).empty() &&
+                     id(playlist_has_more);
+          timeout: 10s
+      - if:
+          condition:
+            lambda: |-
+              return id(playlist_paged_mode_ready) &&
+                     !id(playlist_autoload_inflight) &&
+                     id(pending_playlist_request_id).empty() &&
+                     id(playlist_has_more);
+          then:
+            - script.execute: request_more_playlist_page
 
   - platform: template
     name: "Run Encoder Volume SIL Probe"
@@ -786,9 +859,13 @@ script:
           // productive media_sync_remote transport.
           id(display_volume_level) = safe_target / 100.0f;
           id(volume_override_active) = true;
-          id(volume_override_until_ms) = millis() + 350;
+          id(volume_override_until_ms) = millis() + 3000;
           id(media_pending_volume_sync) = true;
           id(media_volume_sync_deadline_ms) = millis();
+          id(media_volume_confirmation_pending) = true;
+          id(media_volume_confirmation_target_pct) = safe_target;
+          id(media_volume_confirmation_deadline_ms) = millis() + 3000;
+          id(displayed_media_volume_sensor).publish_state(safe_target);
           id(media_ui_dirty) = true;
           ui_next::framework.update_media_volume(safe_target);
           if (id(media_ring_arc) != nullptr)
@@ -1070,16 +1147,17 @@ interval:
                 break;
               case dual_mcu::MessageType::BRIDGE_STATUS:
                 if (frame.length >= 1) {
-                  const bool targets_match =
-                    id(media_target_entity_text).state == "${ha_player}" &&
-                    id(light_slot_1_entity_text).state == "${light_1_entity}" &&
-                    id(light_slot_2_entity_text).state == "${light_2_entity}" &&
-                    id(light_slot_3_entity_text).state == "${light_3_entity}" &&
-                    id(light_slot_4_entity_text).state == "${light_4_entity}";
                   const bool was_ready = id(dual_mcu_ha_bridge_ready);
                   const bool was_radar_available =
                     id(dual_mcu_ha_bridge_radar);
-                  const bool ready = (frame.payload[0] & 0x01) != 0 && targets_match;
+                  // Config Flow targets are runtime values and deliberately
+                  // differ from the public factory placeholders. The HA-side
+                  // PassionWave broker validates every requested player,
+                  // light, scene and preset against its Config Entry, so a
+                  // second comparison with compile-time substitutions here
+                  // both adds no safety and blocks all commands after normal
+                  // onboarding.
+                  const bool ready = (frame.payload[0] & 0x01) != 0;
                   id(dual_mcu_ha_bridge_ready) = ready;
                   id(dual_mcu_ha_bridge_extended_media) =
                     ready && (frame.payload[0] & 0x02) != 0;
@@ -1117,10 +1195,9 @@ interval:
                     ready ? (id(dual_mcu_ha_bridge_forecast) ?
                                "ESP32 HA-Bridge + Forecast aktiv" :
                                "ESP32 HA-Bridge aktiv") :
-                    (targets_match ? "ESP32 wartet auf Home Assistant" :
-                     library_requests_available ?
-                       "HA-Ziele abweichend · Bibliothek aktiv" :
-                       "HA-Bridge Zielkonfiguration abweichend");
+                    (library_requests_available ?
+                       "ESP32 wartet auf Home Assistant · Bibliothek aktiv" :
+                       "ESP32 wartet auf Home Assistant");
                   if (id(dual_mcu_s3_status).state != status)
                     id(dual_mcu_s3_status).publish_state(status);
                   // Warm the radar cache as soon as the coprocessor bridge is
@@ -1150,8 +1227,99 @@ interval:
                   id(refresh_house_image_after_change).execute();
                 }
                 break;
-              case dual_mcu::MessageType::MEDIA_STATE:
+              case dual_mcu::MessageType::RUNTIME_STATE:
                 if (id(dual_mcu_ha_bridge_ready)) {
+                  dual_mcu::RuntimeState runtime;
+                  if (!dual_mcu::Link::decode_runtime_state(frame, &runtime))
+                    break;
+                  const bool new_session =
+                    !id(dual_mcu_runtime_authoritative) ||
+                    runtime.session != id(dual_mcu_runtime_session);
+                  const bool newer =
+                    new_session ||
+                    static_cast<int32_t>(
+                      runtime.sequence - id(dual_mcu_runtime_sequence)) > 0;
+                  if (!newer) break;
+                  id(dual_mcu_runtime_authoritative) = true;
+                  id(dual_mcu_runtime_session) = runtime.session;
+                  id(dual_mcu_runtime_sequence) = runtime.sequence;
+                  const int confirmed_pct = runtime.media.volume_pct;
+                  // Protect the locally rendered target from a runtime
+                  // snapshot that was already in flight when the encoder
+                  // detent arrived. media_sync_remote runs asynchronously,
+                  // so the dispatch-pending window must be covered too.
+                  const bool waiting =
+                    id(media_volume_confirmation_pending) ||
+                    id(media_pending_volume_sync);
+                  const bool matched =
+                    waiting &&
+                    confirmed_pct == id(media_volume_confirmation_target_pct);
+                  const bool timed_out =
+                    waiting &&
+                    static_cast<int32_t>(
+                      millis() - id(media_volume_confirmation_deadline_ms)) >= 0;
+                  if (!waiting || matched || timed_out) {
+                    id(display_volume_level) = confirmed_pct / 100.0f;
+                    if (matched || timed_out) {
+                      id(media_volume_confirmation_pending) = false;
+                      id(volume_override_active) = false;
+                    }
+                  }
+                  id(displayed_media_volume_sensor).publish_state(
+                    std::clamp(
+                      static_cast<int>(lroundf(
+                        id(display_volume_level) * 100.0f)),
+                      0, 100));
+                  const uint8_t media_state = runtime.media.state;
+                  id(music_state_cache) = media_state == 3 ? "playing" :
+                                          media_state == 2 ? "paused" :
+                                          media_state == 4 ? "off" : "idle";
+                  id(media_is_playing) = media_state == 3;
+                  id(media_shuffle_enabled) = runtime.media.shuffle;
+                  id(media_repeat_single_enabled) = runtime.media.repeat_one;
+                  id(media_position_seconds) =
+                    runtime.media.position_seconds;
+                  id(media_duration_seconds) =
+                    runtime.media.duration_seconds;
+                  for (int slot = 0; slot < 4; slot++) {
+                    const bool on = runtime.light_on[slot];
+                    const int brightness = runtime.light_brightness[slot];
+                    if (slot == 0) {
+                      id(light_1_on) = on;
+                      id(light_1_brightness_pct) = brightness;
+                    } else if (slot == 1) {
+                      id(light_2_on) = on;
+                      id(light_2_brightness_pct) = brightness;
+                    } else if (slot == 2) {
+                      id(light_3_on) = on;
+                      id(light_3_brightness_pct) = brightness;
+                    } else {
+                      id(light_4_on) = on;
+                      id(light_4_brightness_pct) = brightness;
+                    }
+                    if (id(light_source_index) == slot &&
+                        millis() >= id(light_local_change_deadline_ms)) {
+                      id(light_brightness_pct) = on ? brightness : 0;
+                    }
+                  }
+                  id(dual_mcu_runtime_status).publish_state(
+                    "R" + std::to_string(runtime.session) + ":" +
+                    std::to_string(runtime.sequence) + " V" +
+                    std::to_string(confirmed_pct) + " L" +
+                    std::to_string(runtime.light_on[0]) +
+                    std::to_string(runtime.light_on[1]) +
+                    std::to_string(runtime.light_on[2]) +
+                    std::to_string(runtime.light_on[3]));
+                  id(dual_mcu_ha_bridge_last_state_ms) = millis();
+                  id(media_ui_dirty) = true;
+                  id(light_ui_dirty) = true;
+                  id(refresh_media_ui_if_needed).execute();
+                  id(refresh_light_ui_if_needed).execute();
+                }
+                break;
+              case dual_mcu::MessageType::MEDIA_STATE:
+                if (id(dual_mcu_ha_bridge_ready) &&
+                    !id(dual_mcu_runtime_authoritative)) {
                   dual_mcu::MediaState media;
                   if (!dual_mcu::Link::decode_media_state(frame, &media)) break;
                   id(dual_mcu_ha_bridge_last_state_ms) = millis();
@@ -1346,7 +1514,8 @@ interval:
                 break;
               case dual_mcu::MessageType::LIGHT_STATE:
                 if (frame.length == 3 && frame.payload[0] < 4 &&
-                    id(dual_mcu_ha_bridge_ready)) {
+                    id(dual_mcu_ha_bridge_ready) &&
+                    !id(dual_mcu_runtime_authoritative)) {
                   const int slot = frame.payload[0];
                   const bool on = (frame.payload[1] & 0x01) != 0;
                   const int brightness = std::min(100, static_cast<int>(frame.payload[2]));
@@ -1459,13 +1628,23 @@ interval:
                 break;
               case dual_mcu::MessageType::LIGHT_DETAIL_CATALOG_META:
                 if (id(dual_mcu_ha_bridge_light_details) &&
-                    frame.length == 5 && frame.payload[0] < 4 &&
+                    (frame.length == 5 || frame.length == 9) &&
+                    frame.payload[0] < 4 &&
                     frame.payload[2] <= 2 &&
                     frame.payload[3] <= dual_mcu::LIGHT_DETAIL_MAX_ITEMS) {
                   const uint8_t slot = frame.payload[0];
                   const uint8_t generation = frame.payload[1];
                   const uint8_t kind = frame.payload[2];
                   const uint8_t count = frame.payload[3];
+                  const std::string current_entity =
+                    slot == 0 ? id(light_slot_1_entity_text).state :
+                    slot == 1 ? id(light_slot_2_entity_text).state :
+                    slot == 2 ? id(light_slot_3_entity_text).state :
+                                id(light_slot_4_entity_text).state;
+                  const bool matching_entity =
+                    frame.length == 5 ||
+                    dual_mcu::Link::read_u32(&frame.payload[5]) ==
+                      dual_mcu::Link::fnv1a(current_entity);
                   const uint32_t expected_mask =
                     count == 0 ? 0 :
                     count == 32 ? UINT32_MAX :
@@ -1477,7 +1656,7 @@ interval:
                        id(dual_mcu_light_detail_pending_generation) &&
                      (id(dual_mcu_light_detail_pending_mask) &
                        expected_mask) == expected_mask);
-                  if (complete) {
+                  if (complete && matching_entity) {
                     auto &labels = id(light_detail_labels)[slot];
                     auto &commands = id(light_detail_commands)[slot];
                     labels.clear();
@@ -1492,11 +1671,7 @@ interval:
                     id(light_detail_targets)[slot].clear();
                     id(light_detail_selected)[slot] =
                       frame.payload[4] < count ? frame.payload[4] : -1;
-                    id(light_detail_loaded_entities)[slot] =
-                      slot == 0 ? id(light_slot_1_entity_text).state :
-                      slot == 1 ? id(light_slot_2_entity_text).state :
-                      slot == 2 ? id(light_slot_3_entity_text).state :
-                                  id(light_slot_4_entity_text).state;
+                    id(light_detail_loaded_entities)[slot] = current_entity;
                     std::string status;
                     for (int index = 0; index < 4; index++) {
                       if (!status.empty()) status += " · ";
@@ -1888,7 +2063,13 @@ interval:
                            ? static_cast<int>(id(ma_playlists_names_cache).size())
                            : 0);
               id(playlist_request_offset) = completed_page.next_offset;
-              id(playlist_has_more) = completed_page.has_more;
+              const bool full_page_without_authoritative_total =
+                completed_entries.size() >=
+                  static_cast<size_t>(atoi("${playlist_page_limit}")) &&
+                completed_page.total <= completed_page.next_offset;
+              id(playlist_has_more) =
+                completed_page.has_more ||
+                full_page_without_authoritative_total;
               id(playlist_autoload_inflight) = false;
               id(playlist_paged_mode_ready) = true;
               id(last_accepted_playlist_request_id) = id(pending_playlist_request_id);
@@ -1903,6 +2084,14 @@ interval:
                   0, static_cast<int>(id(ma_playlists_names_cache).size()) - 1);
               id(playlist_autoload_anchor_count) = 0;
               id(media_picker_more_requested) = false;
+              // Keep one page buffered ahead of the initial viewport. This
+              // absorbs touch/encoder bursts without downloading the complete
+              // catalog at startup.
+              if (page_offset == 0 &&
+                  id(playlist_has_more) &&
+                  id(pending_playlist_request_id).empty()) {
+                id(request_more_playlist_page).execute();
+              }
             } else if (completed_kind == dual_mcu::LibraryKind::PLAYLIST_TRACKS) {
               const size_t page_offset = completed_page.offset;
               const size_t cached_count = id(ma_track_titles_cache).size();

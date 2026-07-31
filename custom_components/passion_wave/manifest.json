@@ -8,10 +8,18 @@
   "documentation": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob",
   "integration_type": "device",
   "iot_class": "local_push",
-  "version": "3.0.0b7",
+  "version": "3.0.0b10",
   "dependencies": [
     "esphome",
     "zeroconf"
+  ],
+  "zeroconf": [
+    {
+      "type": "_esphomelib._tcp.local.",
+      "properties": {
+        "project_name": "passion-wave.rotaryknob-s3"
+      }
+    }
   ],
   "after_dependencies": [
     "music_assistant"

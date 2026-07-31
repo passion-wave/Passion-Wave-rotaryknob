@@ -15,7 +15,7 @@ substitutions:
   name: "passionwave-rotaryknob"
   friendly_name: "PassionWave Rotaryknob"
   project_name: "passion-wave.rotaryknob-s3"
-  project_version: "3.0.0-beta.3"
+  project_version: "3.0.0-beta.10"
   factory_onboarding_guard: "true"
   ha_weather: "weather.forecast_home"
   weather_location: "Home"
@@ -55,6 +55,8 @@ provisioning:
 ota:
   - platform: esphome
     id: ota_esphome
+  - platform: http_request
+    id: ota_http_request
 
 wifi:
   ssid: !remove

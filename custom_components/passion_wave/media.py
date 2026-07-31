@@ -33,9 +33,7 @@ def normalize_library_page(
     root = unwrap_response(response)
     source = root.get("items", [])
     items = (
-        source
-        if isinstance(source, Sequence) and not isinstance(source, str)
-        else []
+        source if isinstance(source, Sequence) and not isinstance(source, str) else []
     )
 
     normalized: list[dict[str, str]] = []
@@ -43,15 +41,10 @@ def normalize_library_page(
         if not isinstance(item, Mapping):
             continue
         name = str(
-            item.get("name")
-            or item.get("title")
-            or f"Eintrag {offset + index + 1}"
+            item.get("name") or item.get("title") or f"Eintrag {offset + index + 1}"
         )
         uri = str(
-            item.get("uri")
-            or item.get("id")
-            or item.get("media_content_id")
-            or ""
+            item.get("uri") or item.get("id") or item.get("media_content_id") or ""
         )
         item_id = str(item.get("item_id") or item.get("playlist_item_id") or "")
         normalized.append(
@@ -67,13 +60,15 @@ def normalize_library_page(
         )
 
     returned = len(normalized)
+    explicit_more = root.get("has_more")
+    has_more = bool(explicit_more) if explicit_more is not None else returned >= limit
     total_value = root.get("total")
     try:
         total = max(offset + returned, int(total_value))
     except (TypeError, ValueError):
-        total = offset + returned
-    explicit_more = root.get("has_more")
-    has_more = bool(explicit_more) if explicit_more is not None else returned >= limit
+        # Music Assistant currently omits a total. A full page therefore means
+        # "unknown total", not "this page ends the catalog".
+        total = 0 if has_more else offset + returned
     if total > offset + returned:
         has_more = True
 
@@ -97,9 +92,7 @@ def filter_library_page(
     """Filter a complete MA catalog and return one firmware-sized page."""
     complete = normalize_library_page(response, media_type, 0, 1)
     allowed = set(allowed_uris)
-    selected = [
-        item for item in complete["items"] if item["uri"] in allowed
-    ]
+    selected = [item for item in complete["items"] if item["uri"] in allowed]
     page = selected[offset : offset + limit]
     return {
         "offset": offset,
@@ -123,9 +116,7 @@ def normalize_browse_page(
     node = unwrap_response(node)
     source = node.get("children", [])
     children = (
-        source
-        if isinstance(source, Sequence) and not isinstance(source, str)
-        else []
+        source if isinstance(source, Sequence) and not isinstance(source, str) else []
     )
     total = len(children)
 
