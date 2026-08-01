@@ -1,6 +1,6 @@
-# Version 3.0.0-beta.11
+# Version 3.0.0-beta.12
 
-Release description: `screensaver-media-and-discovery-hardening`
+Release description: `customer-update-reconnect-hardening`
 
 ## Status
 
@@ -30,6 +30,10 @@ coordinated release.
 - Media presentation is reconciled after reconnects, and Bridge discovery is
   kept behind the single PassionWave product flow.
 - Firmware update manifests use the published PassionWave site directly.
+- The coordinated updater refreshes ESPHome's Bridge action registration before
+  starting the S3 phase, including when an OTA changes the compiled node name.
+- A forecast request missed during reconnect is retried every ten seconds until
+  the first valid daily response reaches the Bridge.
 
 ## Coordinated customer update
 
@@ -53,10 +57,10 @@ The sequence stops before touching the S3 if the Bridge cannot be verified.
 ## Public artifact checksums
 
 ```text
-a9cf470e17920afc0f9e0773f4155c7bc16c8cf4fe526d7bbc1085958a13ad81  s3/passion-wave-rotaryknob-s3-3.0.0-beta.11.factory.bin
-4d44e5800924e3259b7f50b280372c3bd05c33cd78dca65b8ade86b7b6080407  s3/passion-wave-rotaryknob-s3-3.0.0-beta.11.ota.bin
-8be5b178db9ec25b3c97f7793a12364670b37773149fd1b3ee891acbdc093c07  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.11.factory.bin
-a336fc28a13703ed92b8562880492cbc12600353307e782a868034a00e275b98  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.11.ota.bin
+27caa43074ad9b5d82a8ba726a0d87cde49cee81d88acfb3476802996a4691ba  s3/passion-wave-rotaryknob-s3-3.0.0-beta.12.factory.bin
+79362dcb7818a682122edafee76a1be97314e916e23aec24292707a38d324a2b  s3/passion-wave-rotaryknob-s3-3.0.0-beta.12.ota.bin
+c4a4127145af91468e0e3c31b46df9f5b5c0010db085aad8dd6e09c6e8bfffaa  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.12.factory.bin
+e74ed5d47404abd6eccdcd8bbd3cef48818241ad8a5245ac281c9b0588a0c68b  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.12.ota.bin
 ```
 
 Known issues and remaining physical acceptance gates are documented in

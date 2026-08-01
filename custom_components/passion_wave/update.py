@@ -200,6 +200,9 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         try:
             await self._async_install_source(self._bridge_entity_id, target)
             self._attr_update_percentage = 50
+            self._phase = "bridge_reload"
+            self.async_write_ha_state()
+            await self._async_reload_bridge_entry()
             self._phase = "s3"
             self.async_write_ha_state()
             await self._async_install_source(self._s3_entity_id, target)
@@ -248,6 +251,16 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             ) from err
         finally:
             remove_listener()
+
+    async def _async_reload_bridge_entry(self) -> None:
+        """Refresh ESPHome actions after an OTA may have changed the node name."""
+        bridge_entry_id = _bridge_config_entry_id(self.hass, self._entry)
+        if not bridge_entry_id:
+            raise HomeAssistantError("The PassionWave bridge entry is unavailable")
+        if not await self.hass.config_entries.async_reload(bridge_entry_id):
+            raise HomeAssistantError(
+                "The PassionWave bridge did not reload after its firmware update"
+            )
 
     async def async_added_to_hass(self) -> None:
         """Mirror native source changes without polling."""
