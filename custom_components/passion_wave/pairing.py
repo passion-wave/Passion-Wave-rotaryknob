@@ -34,6 +34,8 @@ ESPHOME_SERVICE_TYPE = "_esphomelib._tcp.local."
 # authenticate the peer until the generated device key has been installed.
 ZERO_NOISE_PSK = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 SUPPORTED_PROJECTS = {S3_PROJECT_NAME, BRIDGE_PROJECT_NAME}
+_SUPPRESSION_TASKS_KEY = "passion_wave_esphome_discovery_suppression"
+_DISCOVERED_ENDPOINTS_KEY = "passion_wave_discovered_endpoints"
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +61,16 @@ class UnexpectedEndpoint(PairingError):
     """The selected host is not the expected PassionWave processor."""
 
 
+def cache_discovered_endpoint(
+    hass: HomeAssistant, endpoint: DiscoveredEndpoint
+) -> None:
+    """Retain endpoints already resolved by Home Assistant Zeroconf."""
+    endpoints: dict[tuple[str, str], DiscoveredEndpoint] = hass.data.setdefault(
+        _DISCOVERED_ENDPOINTS_KEY, {}
+    )
+    endpoints[(endpoint.project_name, endpoint.host)] = endpoint
+
+
 def _decode_property(value: bytes | str | None) -> str:
     if isinstance(value, bytes):
         return value.decode(errors="replace")
@@ -70,7 +82,9 @@ async def async_discover_endpoints(
 ) -> list[DiscoveredEndpoint]:
     """Discover supported PassionWave endpoints on the local network."""
     zc = await zeroconf.async_get_instance(hass)
-    endpoints: dict[tuple[str, str], DiscoveredEndpoint] = {}
+    endpoints: dict[tuple[str, str], DiscoveredEndpoint] = dict(
+        hass.data.get(_DISCOVERED_ENDPOINTS_KEY, {})
+    )
     pending: set[asyncio.Task[None]] = set()
 
     async def resolve(service_type: str, name: str) -> None:
@@ -118,6 +132,7 @@ async def async_discover_endpoints(
             await asyncio.gather(*tuple(pending), return_exceptions=True)
     finally:
         await browser.async_cancel()
+    endpoints.update(hass.data.get(_DISCOVERED_ENDPOINTS_KEY, {}))
     return sorted(
         endpoints.values(), key=lambda item: (item.project_name, item.friendly_name)
     )
@@ -147,6 +162,39 @@ async def async_abort_pending_esphome_flow(
     ):
         if progress.get("context", {}).get("unique_id") == normalized_mac:
             hass.config_entries.flow.async_abort(progress["flow_id"])
+
+
+async def async_suppress_pending_esphome_discovery(
+    hass: HomeAssistant, mac_address: str
+) -> None:
+    """Hide technical discovery until PassionWave owns the endpoint."""
+    while _existing_esphome_entry(hass, mac_address) is None:
+        await async_abort_pending_esphome_flow(hass, mac_address)
+        await asyncio.sleep(1)
+
+
+def schedule_esphome_discovery_suppression(
+    hass: HomeAssistant, mac_address: str
+) -> None:
+    """Watch for technical discovery without delaying the customer flow."""
+    normalized_mac = dr.format_mac(mac_address)
+    tasks: dict[str, asyncio.Task[None]] = hass.data.setdefault(
+        _SUPPRESSION_TASKS_KEY, {}
+    )
+    if (existing := tasks.get(normalized_mac)) is not None and not existing.done():
+        return
+
+    task = hass.async_create_background_task(
+        async_suppress_pending_esphome_discovery(hass, mac_address),
+        f"Suppress ESPHome discovery for PassionWave {normalized_mac}",
+    )
+    tasks[normalized_mac] = task
+
+    def remove_finished(finished: asyncio.Task[None]) -> None:
+        if tasks.get(normalized_mac) is finished:
+            tasks.pop(normalized_mac)
+
+    task.add_done_callback(remove_finished)
 
 
 async def async_secure_pair_endpoint(

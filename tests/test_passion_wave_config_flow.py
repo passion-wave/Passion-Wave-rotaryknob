@@ -2,7 +2,7 @@
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from custom_components.passion_wave.config_flow import (
     PassionWaveConfigFlow,
@@ -11,6 +11,7 @@ from custom_components.passion_wave.config_flow import (
     _lights_schema,
 )
 from custom_components.passion_wave.const import (
+    BRIDGE_PROJECT_NAME,
     BRIDGE_REGISTRATION_ORIGINAL_NAME,
     CONF_BRIDGE_REGISTRATION_ENTITY,
     CONF_LIGHT_SLOT_1,
@@ -24,6 +25,9 @@ from custom_components.passion_wave.const import (
     MEDIA_ENTITY_ORIGINAL_NAME,
 )
 from custom_components.passion_wave.entity import target_options
+from custom_components.passion_wave.pairing import (
+    async_suppress_pending_esphome_discovery,
+)
 
 
 class FakeStates:
@@ -52,6 +56,31 @@ class FakeConfigEntries:
         )
 
 
+class FakeFlowManager:
+    """Config-flow subset that exposes a delayed ESPHome race."""
+
+    def __init__(self, mac_address):
+        self._mac_address = mac_address
+        self._polls = 0
+        self.aborted = []
+
+    def async_progress_by_handler(self, handler, *, include_uninitialized):
+        assert handler == "esphome"
+        assert include_uninitialized is True
+        self._polls += 1
+        if self._polls < 3 or self.aborted:
+            return []
+        return [
+            {
+                "flow_id": "delayed-esphome-flow",
+                "context": {"unique_id": self._mac_address},
+            }
+        ]
+
+    def async_abort(self, flow_id):
+        self.aborted.append(flow_id)
+
+
 def _entity(
     entity_id,
     *,
@@ -76,6 +105,60 @@ def _state(value, friendly_name=None):
         state=value,
         attributes=({"friendly_name": friendly_name} if friendly_name else {}),
     )
+
+
+def test_bridge_discovery_stays_hidden_behind_passion_wave():
+    """The Bridge matcher suppresses ESPHome without a second customer tile."""
+    flow = PassionWaveConfigFlow()
+    flow.hass = SimpleNamespace()
+    discovery_info = SimpleNamespace(
+        properties={
+            "mac": "44:1d:64:91:8d:3c",
+            "project_name": BRIDGE_PROJECT_NAME,
+        },
+        hostname="passionwave-knob-bridge-918d3c.local.",
+    )
+
+    with (
+        patch(
+            "custom_components.passion_wave.config_flow."
+            "schedule_esphome_discovery_suppression"
+        ) as suppress,
+        patch(
+            "custom_components.passion_wave.config_flow.cache_discovered_endpoint"
+        ) as cache_endpoint,
+    ):
+        result = asyncio.run(flow.async_step_zeroconf(discovery_info))
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "bridge_transport"
+    suppress.assert_called_once_with(flow.hass, "44:1d:64:91:8d:3c")
+    cached = cache_endpoint.call_args.args[1]
+    assert cached.host == "passionwave-knob-bridge-918d3c.local"
+    assert cached.project_name == BRIDGE_PROJECT_NAME
+
+
+def test_delayed_esphome_discovery_is_suppressed():
+    """A native ESPHome tile appearing after PassionWave is still removed."""
+    mac_address = "44:1d:64:91:8d:3c"
+    flow_manager = FakeFlowManager(mac_address)
+    hass = SimpleNamespace(
+        config_entries=SimpleNamespace(flow=flow_manager),
+    )
+
+    with (
+        patch(
+            "custom_components.passion_wave.pairing.asyncio.sleep",
+            new=AsyncMock(),
+        ),
+        patch(
+            "custom_components.passion_wave.pairing._existing_esphome_entry",
+            side_effect=[None, None, None, object()],
+        ),
+    ):
+        asyncio.run(async_suppress_pending_esphome_discovery(hass, mac_address))
+
+    assert flow_manager.aborted == ["delayed-esphome-flow"]
 
 
 def test_connection_schema_exposes_all_customer_assignments():

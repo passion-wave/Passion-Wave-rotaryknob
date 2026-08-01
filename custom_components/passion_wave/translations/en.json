@@ -50,6 +50,7 @@
     },
     "abort": {
       "already_configured": "This PassionWave bridge is already configured.",
+      "bridge_transport": "The Bridge is configured automatically behind the PassionWave component.",
       "pairing_complete": "S3 and Bridge are now securely connected to ESPHome. Reopen PassionWave after a few seconds to assign Music Assistant."
     }
   },

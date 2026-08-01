@@ -180,6 +180,12 @@ async def async_sync_runtime_state(
         "duration": max(0, round(float(attributes.get("media_duration") or 0))),
         "shuffle": bool(attributes.get("shuffle")),
         "repeat_one": attributes.get("repeat") == "one",
+        "cover_url": str(
+            attributes.get("entity_picture")
+            or attributes.get("entity_picture_local")
+            or attributes.get("media_image_url")
+            or ""
+        )[:512],
         "lights": lights,
     }
     await _async_send_to_bridge(

@@ -1,6 +1,6 @@
-# Version 3.0.0-beta.10
+# Version 3.0.0-beta.11
 
-Release description: `single-device-discovery-and-coordinated-update`
+Release description: `screensaver-media-and-discovery-hardening`
 
 ## Status
 
@@ -23,6 +23,13 @@ coordinated release.
   screensaver timing and volume feedback are consolidated in this beta.
 - Home Assistant commands use the bounded PassionWave broker; ESPHome's broad
   Home Assistant action permission remains disabled.
+- Album covers now load through the selected Home Assistant media player and
+  can replace the active weather screensaver after the playback delay.
+- The S3 cover pipeline keeps a safe memory reserve without blocking normal
+  operation once the compiled weather photographs are resident.
+- Media presentation is reconciled after reconnects, and Bridge discovery is
+  kept behind the single PassionWave product flow.
+- Firmware update manifests use the published PassionWave site directly.
 
 ## Coordinated customer update
 
@@ -39,17 +46,17 @@ The sequence stops before touching the S3 if the Bridge cannot be verified.
 - ESPHome 2026.7.0 Factory S3 and Bridge configurations validated and compiled.
 - S3 image: 54.5% RAM, 72.5% flash.
 - Bridge image: 42.1% RAM, 64.4% flash.
-- 13 Home Assistant integration tests passed against Home Assistant 2026.7.4.
+- Home Assistant integration tests pass against Home Assistant 2026.7.4.
 - Python lint, formatting, compilation, shell syntax, manifests and release
   checksums passed.
 
 ## Public artifact checksums
 
 ```text
-5536427b231a3ab0d1b35124b583158b10099a861fb543ce9d178d09e13baee5  s3/passion-wave-rotaryknob-s3-3.0.0-beta.10.factory.bin
-ff0cdb62b9fae7ee5172a9c1b4d309c3fb3bc964b1d0b7d34aa47451592f464c  s3/passion-wave-rotaryknob-s3-3.0.0-beta.10.ota.bin
-de04693b9dfeddc03323caefbc667a58e3615fbc99bd1cd504538d9b39cfd6f8  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.10.factory.bin
-c90417435820f76eac19f1c2402237df62da0d7055854868c6dbdb92eecbbb02  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.10.ota.bin
+a9cf470e17920afc0f9e0773f4155c7bc16c8cf4fe526d7bbc1085958a13ad81  s3/passion-wave-rotaryknob-s3-3.0.0-beta.11.factory.bin
+4d44e5800924e3259b7f50b280372c3bd05c33cd78dca65b8ade86b7b6080407  s3/passion-wave-rotaryknob-s3-3.0.0-beta.11.ota.bin
+8be5b178db9ec25b3c97f7793a12364670b37773149fd1b3ee891acbdc093c07  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.11.factory.bin
+a336fc28a13703ed92b8562880492cbc12600353307e782a868034a00e275b98  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.11.ota.bin
 ```
 
 Known issues and remaining physical acceptance gates are documented in

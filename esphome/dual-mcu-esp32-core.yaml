@@ -18,7 +18,7 @@ substitutions:
   photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
   house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan-render/live.png"
   latency_request_entity: "input_button.passion_wave_latency_request"
-  firmware_update_manifest_url: "https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest.json"
+  firmware_update_manifest_url: "https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest.json"
 
 esphome:
   name: "${name}"
@@ -31,7 +31,7 @@ esphome:
     - dual_mcu_library_proxy.h
   project:
     name: "passion-wave.rotaryknob-test-esp32"
-    version: "3.0.0-beta.10"
+    version: "3.0.0-beta.11"
   on_boot:
     priority: -100
     then:
@@ -174,6 +174,15 @@ api:
               static_cast<uint32_t>(std::max(root["duration"].as<int>(), 0));
             id(bridge_media_shuffle) = root["shuffle"] | false;
             id(bridge_media_repeat_one) = root["repeat_one"] | false;
+            const char *cover_url = root["cover_url"] | "";
+            id(bridge_media_entity_picture) = cover_url == nullptr ? "" : cover_url;
+            id(bridge_media_entity_picture_local).clear();
+            id(bridge_media_image_url).clear();
+            id(bridge_media_cover_url_status).publish_state(
+              std::string("raw=") +
+              std::to_string(id(bridge_media_entity_picture).size()) +
+              (id(bridge_media_entity_picture).rfind("http", 0) == 0
+                 ? " http" : " invalid"));
             bool *states[] = {
               &id(bridge_light_1_on), &id(bridge_light_2_on),
               &id(bridge_light_3_on), &id(bridge_light_4_on)};
@@ -196,6 +205,7 @@ api:
               std::to_string(id(bridge_light_3_on)) +
               std::to_string(id(bridge_light_4_on)));
         - script.execute: send_bridge_runtime_state
+        - script.execute: resolve_bridge_media_cover_url
     - action: passion_wave_complete_media
       variables:
         kind: int
@@ -1106,6 +1116,11 @@ text_sensor:
   - platform: template
     id: bridge_media_cover_proxy_status
     name: "ESP32 Media Cover Proxy Status"
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: bridge_media_cover_url_status
+    name: "ESP32 Media Cover URL Status"
     update_interval: never
     entity_category: diagnostic
   - platform: template
@@ -2346,6 +2361,9 @@ script:
           if (source.empty()) source = id(bridge_media_entity_picture_local);
           if (source.empty()) source = id(bridge_media_image_url);
           const std::string resolved = normalize(source);
+          id(bridge_media_cover_url_status).publish_state(
+            std::string("resolved=") + std::to_string(resolved.size()) +
+            (resolved.rfind("http", 0) == 0 ? " http" : " invalid"));
           if (resolved == id(bridge_media_cover_url)) return;
           id(bridge_media_cover_url) = resolved;
           if (dual_mcu::cover_url_sender.queue(resolved)) {

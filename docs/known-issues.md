@@ -28,13 +28,19 @@ Die Laufzeit ist MQTT-frei, aber alte Registry-Einträge sind mit dem Gerät zus
 Signierte Release-Weiterleitungen waren nicht CORS-stabil; Manifeste nutzen nun getaggte Raw-Dateien mit Cache-Buster und geprüften SHA-256-Summen.
 
 ### PW-REL-001: Öffentlicher Installer lag hinter dem Quellstand
-Website, Firmware und HACS-Integration veröffentlichen gemeinsam `3.0.0-beta.10`; die vier unveränderlichen Images besitzen veröffentlichte Prüfsummen.
+Website, Firmware und HACS-Integration veröffentlichen gemeinsam `3.0.0-beta.11`; die vier unveränderlichen Images besitzen veröffentlichte Prüfsummen.
 
 ### PW-UPD-001: Firmware-Update war nicht öffentlich erreichbar
-Die Website liefert beide stabilen OTA-Manifeste und Binärdateien; das kombinierte HA-Geräteupdate kann beta.10 für Bridge und S3 abrufen.
+Die Website liefert beide stabilen OTA-Manifeste und Binärdateien; das kombinierte HA-Geräteupdate kann beta.11 für Bridge und S3 abrufen.
+
+### PW-UPD-003: Firmware fragte einen nicht auflösbaren Update-Host ab
+`www.passion-wave.com` besaß kein DNS-Ziel; beide Chips verwenden nun direkt die veröffentlichte Passion-Wave-Site für ihre OTA-Manifeste.
 
 ### PW-UI-002: Screensaver startete hinter UI Next und ließ die Lichtseite blitzen
 UI Next wird ausgeblendet und Seite 7 atomar gesetzt; Testgerät wechselte nach 30 s genau einmal, ohne 100-%-Wiederholung oder Encodertrigger.
+
+### PW-UI-003: Albumcover erschien nicht aus dem Wetter-Screensaver
+Behoben: HA sendet die dynamische Cover-URL an die Bridge; Heap-Reserve und Wechsel aus Seite 7 sind korrigiert, die Helligkeit wird wiederhergestellt.
 
 ### PW-LIGHT-001: Externe Lichtänderungen erschienen nicht am Rotaryknob
 Ein autoritativer Snapshot synchronisiert alle vier Slots; externe Änderung und Rücksetzung wurden auf Bridge und S3 identisch live bestätigt.
@@ -55,10 +61,10 @@ Der 32-px-Titelfont enthält statt Ziffern-only nun 319 Latin-Glyphen inklusive 
 Eine PassionWave-Update-Entität führt Bridge → Reconnect → S3 → Reconnect aus; die beiden ESPHome-Quellen sind nur noch verborgene Recovery-Transporte.
 
 ### PW-HA-010: Zwei ESPHome-Kacheln statt einer PassionWave-Komponente
-S3-Zeroconf startet nun einen PassionWave-Flow pro Gerät; technische ESPHome-Flows werden MAC-genau abgebrochen und intern sicher gekoppelt.
+S3 startet genau einen PassionWave-Flow; Bridge-, Zeroconf- und verzögerte retained MQTT-Flows werden MAC-genau verborgen und intern gekoppelt.
 
 ### PW-SEC-003: ESPHome verlangte breite Home-Assistant-Aktionsrechte
-Integration `3.0.0-beta.10` vermittelt validierte Commands; beide Firmwareprofile melden `homeassistant_services: false`.
+Integration `3.0.0-beta.11` vermittelt validierte Commands; beide Firmwareprofile melden `homeassistant_services: false`.
 
 ### PW-HA-005: Integration startete vor den Bridge-Aktionen
 Reload-Reihenfolge und Retry sind abgesichert; Bridge → S3 → PassionWave wurde live mit Bibliothek, Radar und Floorplan geprüft.
