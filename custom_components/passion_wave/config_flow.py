@@ -29,6 +29,7 @@ from .const import (
     CONF_S3_CONFIG_ENTRY_ID,
     CONF_S3_HOST,
     DOMAIN,
+    ESPHOME_API_PORT,
     LIGHT_ENTITY_ORIGINAL_NAMES,
     LIGHT_SLOT_KEYS,
     LIBRARY_FILTER_KEYS,
@@ -42,10 +43,11 @@ from .pairing import (
     DiscoveredEndpoint,
     PairingError,
     ProvisioningWindowClosed,
-    async_abort_pending_esphome_flow,
     async_discover_endpoints,
     async_secure_pair_endpoint,
+    cache_discovered_endpoint,
     endpoint_is_configured,
+    schedule_esphome_discovery_suppression,
 )
 
 
@@ -318,8 +320,29 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="endpoints_not_found")
 
         normalized_mac = dr.format_mac(mac_address)
+        project_name = str(discovery_info.properties.get("project_name", ""))
+        if project_name not in {S3_PROJECT_NAME, BRIDGE_PROJECT_NAME}:
+            return self.async_abort(reason="endpoints_not_found")
+
+        host = discovery_info.hostname.removesuffix(".")
+        cache_discovered_endpoint(
+            self.hass,
+            DiscoveredEndpoint(
+                host=host,
+                port=getattr(discovery_info, "port", None) or ESPHOME_API_PORT,
+                project_name=project_name,
+                friendly_name=str(
+                    discovery_info.properties.get("friendly_name", "") or host
+                ),
+                mac_address=normalized_mac,
+            ),
+        )
+        schedule_esphome_discovery_suppression(self.hass, normalized_mac)
+        if project_name == BRIDGE_PROJECT_NAME:
+            return self.async_abort(reason="bridge_transport")
+
         self._discovery_unique_id = f"rotaryknob_{normalized_mac}"
-        self._suggested_s3_host = discovery_info.hostname.removesuffix(".")
+        self._suggested_s3_host = host
         s3_entry = self.hass.config_entries.async_entry_for_domain_unique_id(
             "esphome", normalized_mac
         )
@@ -337,7 +360,7 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         discovered = await async_discover_endpoints(self.hass)
         self._discovered_endpoints = {item.host: item for item in discovered}
         for endpoint in discovered:
-            await async_abort_pending_esphome_flow(self.hass, endpoint.mac_address)
+            schedule_esphome_discovery_suppression(self.hass, endpoint.mac_address)
         return await self.async_step_pair()
 
     async def async_step_user(

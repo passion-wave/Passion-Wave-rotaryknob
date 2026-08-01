@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave Rotaryknob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.0-beta.10"
+  project_version: "3.0.0-beta.11"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -4757,6 +4757,15 @@ script:
   - id: show_media_cover_page
     mode: restart
     then:
+      - if:
+          condition:
+            lambda: 'return id(current_page) == 7;'
+          then:
+            - script.stop: boost_screensaver_brightness
+            - light.turn_on:
+                id: display_backlight
+                brightness: 70%
+                transition_length: 150ms
       - lambda: |-
           if (id(ui_next_enabled) && ui_next::framework.built()) {
             // Hide every UI-Next view and the main rail before exposing the
@@ -5008,7 +5017,15 @@ script:
             return;
           }
 
-          if (heap < 2097152) {
+          // The managed dual-MCU path receives a bounded JPEG through the
+          // Bridge and decodes it in the dedicated asset task. Requiring the
+          // former 2 MiB direct-HTTP reserve permanently blocks covers once
+          // the compiled weather photographs are active (steady state is
+          // about 1.7 MiB free). Keep 1.25 MiB as a conservative floor; this
+          // still leaves substantially more than the 64 KiB transfer buffer
+          // and the 12 KiB decoder task need together.
+          constexpr uint32_t cover_proxy_min_free_heap = 1310720U;
+          if (heap < cover_proxy_min_free_heap) {
             id(media_cover_pipeline_state) = 4;
             id(media_cover_backoff_until_ms) = now + 5000;
             publish_skip("esp_cover_update_skip_heap", std::string("heap=") + std::to_string(heap));
@@ -9431,6 +9448,7 @@ interval:
                 id(current_page) == 1 ||
                 id(current_page) == 2 ||
                 id(current_page) == 4 ||
+                id(current_page) == 7 ||
                 (id(current_page) >= 20 && id(current_page) <= 24);
               const bool media_list_active = id(current_page) == 2 && id(control_mode) == 2;
               return cover_allowed_page &&

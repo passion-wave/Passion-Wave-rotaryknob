@@ -558,6 +558,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
             try:
                 await _async_push_runtime_snapshot(hass, entry)
                 await _async_sync_s3_targets(hass, entry)
+                await _async_sync_media_runtime(hass, entry)
             except HomeAssistantError as err:
                 _LOGGER.debug("PassionWave periodic reconciliation deferred: %s", err)
 

@@ -26,11 +26,11 @@ def test_update_installs_bridge_before_s3():
         calls.append((entity_id, target))
 
     entity._async_install_source = install_source
-    asyncio.run(entity.async_install("3.0.0-beta.10", False))
+    asyncio.run(entity.async_install("3.0.0-beta.11", False))
 
     assert calls == [
-        ("update.bridge", "3.0.0-beta.10"),
-        ("update.s3", "3.0.0-beta.10"),
+        ("update.bridge", "3.0.0-beta.11"),
+        ("update.s3", "3.0.0-beta.11"),
     ]
     assert entity._phase == "complete"
 
@@ -46,11 +46,11 @@ def test_bridge_failure_stops_before_s3():
 
     entity._async_install_source = fail_bridge
     try:
-        asyncio.run(entity.async_install("3.0.0-beta.10", False))
+        asyncio.run(entity.async_install("3.0.0-beta.11", False))
     except RuntimeError:
         pass
     else:
         raise AssertionError("Bridge failure did not propagate")
 
-    assert calls == [("update.bridge", "3.0.0-beta.10")]
+    assert calls == [("update.bridge", "3.0.0-beta.11")]
     assert entity._phase == "failed"
