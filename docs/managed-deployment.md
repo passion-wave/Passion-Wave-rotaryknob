@@ -2,7 +2,7 @@
 
 > V3 is intentionally MQTT-free and not backward compatible.
 
-Current coordinated beta: `3.0.0-beta.11`.
+Current coordinated beta: `3.0.0-beta.12`.
 
 Deployment status: source and builds under validation; not flashed.
 

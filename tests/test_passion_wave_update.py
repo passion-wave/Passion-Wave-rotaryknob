@@ -25,12 +25,17 @@ def test_update_installs_bridge_before_s3():
     async def install_source(entity_id, target):
         calls.append((entity_id, target))
 
+    async def reload_bridge():
+        calls.append(("reload", None))
+
     entity._async_install_source = install_source
-    asyncio.run(entity.async_install("3.0.0-beta.11", False))
+    entity._async_reload_bridge_entry = reload_bridge
+    asyncio.run(entity.async_install("3.0.0-beta.12", False))
 
     assert calls == [
-        ("update.bridge", "3.0.0-beta.11"),
-        ("update.s3", "3.0.0-beta.11"),
+        ("update.bridge", "3.0.0-beta.12"),
+        ("reload", None),
+        ("update.s3", "3.0.0-beta.12"),
     ]
     assert entity._phase == "complete"
 
@@ -45,12 +50,41 @@ def test_bridge_failure_stops_before_s3():
         raise RuntimeError("bridge failed")
 
     entity._async_install_source = fail_bridge
+    entity._async_reload_bridge_entry = lambda: None
     try:
-        asyncio.run(entity.async_install("3.0.0-beta.11", False))
+        asyncio.run(entity.async_install("3.0.0-beta.12", False))
     except RuntimeError:
         pass
     else:
         raise AssertionError("Bridge failure did not propagate")
 
-    assert calls == [("update.bridge", "3.0.0-beta.11")]
+    assert calls == [("update.bridge", "3.0.0-beta.12")]
+    assert entity._phase == "failed"
+
+
+def test_bridge_reload_failure_stops_before_s3():
+    """The S3 must stay untouched until refreshed Bridge actions are ready."""
+    entity = _entity()
+    calls = []
+
+    async def install_source(entity_id, target):
+        calls.append((entity_id, target))
+
+    async def fail_reload():
+        calls.append(("reload", None))
+        raise RuntimeError("bridge actions unavailable")
+
+    entity._async_install_source = install_source
+    entity._async_reload_bridge_entry = fail_reload
+    try:
+        asyncio.run(entity.async_install("3.0.0-beta.12", False))
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("Bridge reload failure did not propagate")
+
+    assert calls == [
+        ("update.bridge", "3.0.0-beta.12"),
+        ("reload", None),
+    ]
     assert entity._phase == "failed"

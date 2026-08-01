@@ -28,10 +28,16 @@ Die Laufzeit ist MQTT-frei, aber alte Registry-Einträge sind mit dem Gerät zus
 Signierte Release-Weiterleitungen waren nicht CORS-stabil; Manifeste nutzen nun getaggte Raw-Dateien mit Cache-Buster und geprüften SHA-256-Summen.
 
 ### PW-REL-001: Öffentlicher Installer lag hinter dem Quellstand
-Website, Firmware und HACS-Integration veröffentlichen gemeinsam `3.0.0-beta.11`; die vier unveränderlichen Images besitzen veröffentlichte Prüfsummen.
+Website, Firmware und HACS-Integration veröffentlichen gemeinsam `3.0.0-beta.12`; die vier unveränderlichen Images besitzen veröffentlichte Prüfsummen.
 
 ### PW-UPD-001: Firmware-Update war nicht öffentlich erreichbar
-Die Website liefert beide stabilen OTA-Manifeste und Binärdateien; das kombinierte HA-Geräteupdate kann beta.11 für Bridge und S3 abrufen.
+Die Website liefert beide stabilen OTA-Manifeste und Binärdateien; das kombinierte HA-Geräteupdate kann beta.12 für Bridge und S3 abrufen.
+
+### PW-UPD-004: Bridge-Aktionen fehlten nach dem Kunden-OTA
+Der kombinierte Updater lädt den ESPHome-Bridge-Eintrag zwischen Bridge und S3 neu; die umbenannten API-Aktionen sind dadurch sofort registriert.
+
+### PW-WEATHER-001: Forecast-Anfrage konnte beim Neustart verloren gehen
+Die Bridge wiederholt eine unbeantwortete Forecast-Anfrage alle zehn Sekunden; nach gültiger Tagesprognose endet der Retry automatisch.
 
 ### PW-UPD-003: Firmware fragte einen nicht auflösbaren Update-Host ab
 `www.passion-wave.com` besaß kein DNS-Ziel; beide Chips verwenden nun direkt die veröffentlichte Passion-Wave-Site für ihre OTA-Manifeste.
@@ -64,7 +70,7 @@ Eine PassionWave-Update-Entität führt Bridge → Reconnect → S3 → Reconnec
 S3 startet genau einen PassionWave-Flow; Bridge-, Zeroconf- und verzögerte retained MQTT-Flows werden MAC-genau verborgen und intern gekoppelt.
 
 ### PW-SEC-003: ESPHome verlangte breite Home-Assistant-Aktionsrechte
-Integration `3.0.0-beta.11` vermittelt validierte Commands; beide Firmwareprofile melden `homeassistant_services: false`.
+Integration `3.0.0-beta.12` vermittelt validierte Commands; beide Firmwareprofile melden `homeassistant_services: false`.
 
 ### PW-HA-005: Integration startete vor den Bridge-Aktionen
 Reload-Reihenfolge und Retry sind abgesichert; Bridge → S3 → PassionWave wurde live mit Bibliothek, Radar und Floorplan geprüft.

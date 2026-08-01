@@ -15,7 +15,7 @@ substitutions:
   name: "passionwave-rotaryknob"
   friendly_name: "PassionWave Rotaryknob"
   project_name: "passion-wave.rotaryknob-s3"
-  project_version: "3.0.0-beta.11"
+  project_version: "3.0.0-beta.12"
   factory_onboarding_guard: "true"
   ha_weather: "weather.forecast_home"
   weather_location: "Home"

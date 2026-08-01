@@ -31,7 +31,7 @@ esphome:
     - dual_mcu_library_proxy.h
   project:
     name: "passion-wave.rotaryknob-test-esp32"
-    version: "3.0.0-beta.11"
+    version: "3.0.0-beta.12"
   on_boot:
     priority: -100
     then:
@@ -479,10 +479,14 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
-  - id: bridge_forecast_requested
+  - id: bridge_forecast_received
     type: bool
     restore_value: false
     initial_value: 'false'
+  - id: bridge_forecast_last_request_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
   - id: bridge_light_1_on
     type: bool
     restore_value: false
@@ -2386,6 +2390,7 @@ script:
           if (deserializeJson(doc, payload)) return;
           JsonArrayConst forecasts = doc["forecast"].as<JsonArrayConst>();
           if (forecasts.isNull() || forecasts.size() == 0) return;
+          id(bridge_forecast_received) = true;
           auto read_float = [](JsonVariantConst value, float fallback) -> float {
             if (value.isNull()) return fallback;
             if (value.is<float>() || value.is<double>() || value.is<int>())
@@ -3804,14 +3809,17 @@ interval:
                   id(bridge_light_detail_retry_due_ms) = millis() + 30000UL;
                   id(refresh_all_bridge_light_details).execute();
                 }
-                if (!id(bridge_forecast_requested)) {
-                  id(bridge_forecast_requested) = true;
+                if (!id(bridge_forecast_received) &&
+                    (id(bridge_forecast_last_request_ms) == 0 ||
+                     millis() - id(bridge_forecast_last_request_ms) >= 10000UL)) {
+                  id(bridge_forecast_last_request_ms) = millis();
                   id(fetch_bridge_forecast).execute();
                 }
           else:
             - lambda: |-
                 id(bridge_api_connected) = false;
-                id(bridge_forecast_requested) = false;
+                id(bridge_forecast_received) = false;
+                id(bridge_forecast_last_request_ms) = 0;
                 id(bridge_library_bootstrap_requested) = false;
       - lambda: |-
           dual_mcu::link.send_u32(dual_mcu::MessageType::HEARTBEAT, millis());
