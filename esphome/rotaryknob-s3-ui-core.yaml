@@ -13,6 +13,9 @@ substitutions:
   # Public factory builds stay discoverable until Home Assistant has connected
   # once. Adopted and development builds retain the normal idle policy.
   factory_onboarding_guard: "false"
+  responsive_power_policy_enabled: "false"
+  responsive_power_idle_ms: "3000"
+  battery_deep_sleep_after_inactivity_ms: "90000"
   ha_player: "media_player.passion_wave_media"
   light_1_name: "Light 1"
   light_1_entity: "light.passion_wave_light_1"
@@ -68,6 +71,7 @@ esphome:
     - dual_mcu_link.h
     - dual_mcu_library_proxy.h
     - dual_mcu_radar_proxy.h
+    - responsive_power_policy.h
     - scrollwheel_dynamic_targets.h
     - squareline_font_bridge.h
     - ui_next_framework.h
@@ -8960,6 +8964,28 @@ time:
     timezone: Europe/Berlin
 
 interval:
+  # Stay fully responsive during interaction and asset transfer. On battery,
+  # connected modem sleep starts only after the short quiet window.
+  - interval: 250ms
+    then:
+      - lambda: |-
+          if (!${responsive_power_policy_enabled}) return;
+          const uint32_t now = millis();
+          const bool recent_activity =
+            now < 30000U ||
+            (id(ui_last_activity_ms) != 0 &&
+             now - id(ui_last_activity_ms) < ${responsive_power_idle_ms}U);
+          const bool asset_active =
+            dual_mcu::asset_decode_running ||
+            dual_mcu::radar_client.active() ||
+            id(dual_mcu_asset_active_kind) != 0 ||
+            id(dual_mcu_asset_pending_kind) != 0 ||
+            id(rain_radar_loading) ||
+            id(photo_slideshow_loading) ||
+            id(house_floorplan_loading);
+          responsive_power::wifi_policy().update(
+            id(external_power_detected), recent_activity || asset_active, now);
+
   # Optional full-screen images are decoded lazily. Once their page has been
   # left, release pixel buffers after a short grace period. Radar and
   # floorplan will therefore fetch a current frame on the next visit; photos
@@ -9044,7 +9070,8 @@ interval:
                      id(music_state_cache) != "playing" &&
                      !id(timer_running) &&
                      !id(alarm_alert_active) &&
-                     (millis() - id(ui_last_activity_ms)) >= 90000;
+                     (millis() - id(ui_last_activity_ms)) >=
+                       ${battery_deep_sleep_after_inactivity_ms}UL;
           then:
             - deep_sleep.enter: battery_deep_sleep
       - script.execute: timer_tick

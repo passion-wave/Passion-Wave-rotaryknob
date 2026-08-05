@@ -59,6 +59,40 @@ cover/radar/floorplan downloads still succeed, UART errors stay at zero, and
 touch/encoder wake restores the complete state. Compare battery energy per
 hour, not only instantaneous current.
 
+## Marco experiment branch
+
+The branch `agent/extreme-power-responsiveness` contains the first isolated
+implementation tranche. It is enabled only by Marco's
+`managed-production-{s3,esp32}.yaml` overlays; Timo, factory builds and the
+Beta.14 release remain unchanged.
+
+- Both processors retain `WIFI_PS_NONE` on external power and for the first
+  three seconds after a local interaction. On battery idle they switch to
+  `WIFI_PS_MIN_MODEM`, which keeps the association alive.
+- S3 image/radar/floorplan activity holds the responsive Wi-Fi policy until
+  the transfer and decode are complete.
+- The Bridge treats encoder deltas and actionable S3 control frames as user
+  activity, so the next command does not wait for the idle policy window.
+- Marco's non-playing, battery-only display-off window now enters deep sleep
+  at 75 seconds of inactivity instead of 90 seconds. With the existing
+  60-second display-off point, this removes 15 seconds of invisible awake time.
+- Automatic light sleep and CPU frequency scaling are deliberately not part
+  of this first tranche: the 2 Mbit/s inter-MCU UART and active LVGL path first
+  need current and P95-latency measurements under the modem-sleep policy.
+
+This branch must not be flashed before both managed configs compile and the
+test plan is reviewed. The intended first hardware target is Marco only.
+
+Pre-flash verification on 2026-08-05:
+
+- ESPHome 2026.7.0 configuration and full compilation succeeded for Marco S3
+  and Bridge.
+- S3 uses 52.5% RAM and 71.6% flash; Bridge uses 39.9% RAM and 62.5% flash.
+- The Home Assistant 2026.7.4 test environment passes 43 tests and four
+  subtests.
+- No binary from this branch has been flashed, uploaded to a device or placed
+  in a customer update manifest.
+
 ## Reference basis
 
 - Espressif documents that Wi-Fi modem sleep retains the connection, while
