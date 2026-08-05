@@ -63,6 +63,10 @@ The sequence stops before touching the S3 if the Bridge cannot be verified.
 - Home Assistant integration tests pass against Home Assistant 2026.7.4.
 - Python lint, formatting, compilation, shell syntax, manifests and release
   checksums passed.
+- HACS loaded integration Beta 14; both customer devices completed the
+  coordinated Bridge → reconnect → S3 update through Home Assistant.
+- Both logical updates and all four transport updates report installed and
+  latest Beta 14; system status and support diagnostics finish `off`.
 
 ## Public artifact checksums
 

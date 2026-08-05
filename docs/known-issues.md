@@ -29,6 +29,26 @@ bestätigen, danach ohne weitere Aktion den 15-Minuten-Snapshot im
 Supportprotokoll nachweisen, Supportdiagnose ein/aus testen und kontrollieren,
 dass das Kundengerät keine technischen Entity-Listen mehr zeigt.
 
+Live-Abnahme 2026-08-05: HACS installierte die Integration
+`v3.0.0-beta.14`; beide PassionWave Config Entries wurden nach gültigem
+Konfigurationscheck und Home-Assistant-Neustart geladen. Beim ersten
+Updateversuch verwiesen die Website-Manifeste auf GitHub-Release-Assets mit
+Weiterleitung. Marcos koordinierter Updater brach deshalb nach fünf Minuten
+kontrolliert in der Bridge-Phase ab, ohne Bridge oder S3 zu verändern. Die
+vier bereits geprüften Binärdateien wurden anschließend in den öffentlichen
+unveränderlichen Tagpfad aufgenommen und die Website-Manifeste auf direkte
+CORS-fähige Raw-URLs umgestellt. Alle vier Ziele antworteten danach mit HTTP
+200 und exakt den veröffentlichten Dateigrößen.
+
+Nach erneutem Katalogabgleich aktualisierte Home Assistant Marco und Timo
+jeweils in der Reihenfolge Bridge → verifizierter Reconnect → S3. Beide
+logischen Updateentities und alle vier verborgenen Transportentities melden
+installiert und aktuell `3.0.0-beta.14`; beide logischen Phasen stehen auf
+`complete`. `Systemstatus` blieb bei beiden Geräten `off`. Die beiden
+`Supportdiagnose`-Schalter waren nach gezieltem Reload der S3 Config Entries
+verfügbar, ließen sich jeweils erfolgreich ein- und wieder ausschalten und
+stehen abschließend `off`.
+
 Live-Stand 2026-08-03: Home Assistant wurde mit gültiger Konfiguration neu
 gestartet und beide PassionWave Config Entries auf Registry-Migration V4
 angehoben. Beim erreichbaren Gerät wurden Bridge und S3 aus frisch erzeugten
