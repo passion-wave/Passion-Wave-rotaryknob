@@ -90,12 +90,13 @@ Its config flow should:
 The integration replaces brittle entity-name searches, copied MQTT credentials,
 manual REST commands, setup blueprints, packages and Pyscript as core
 requirements. Existing target values are migrated into the Config Entry before
-the retired blueprint is removed.
+the retired blueprint is removed; beta.12 has completed that migration.
 
 ## Buyer journey
 
 1. Scan the QR code on the device or packaging.
-2. Open `passion-wave.com/install/rotaryknob` in Chrome or Edge on desktop.
+2. Open the published PassionWave installer linked from `README.md` in Chrome
+   or Edge on desktop.
 3. Connect the device and flash the detected ESP32-S3.
 4. Enter Wi-Fi and wait for the green S3 verification.
 5. Unplug, reverse USB-C, reconnect and flash the detected ESP32.

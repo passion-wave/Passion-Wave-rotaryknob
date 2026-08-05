@@ -2,16 +2,21 @@
 
 > V3 is intentionally MQTT-free and not backward compatible.
 
-Current coordinated beta: `3.0.0-beta.12`.
+Current coordinated beta: `3.0.0-beta.14`.
 
-Deployment status: source and builds under validation; not flashed.
+Deployment status: beta.14 source and release artifacts are built and
+validated. One physical dual-MCU device has passed the documented live checks;
+the clean-device run on the second configured Rotaryknob and the long-duration
+acceptance remain open.
 
 One physical Rotaryknob contains two separately addressable ESPHome endpoints:
-S3/display and ESP32/bridge. The current test installation contains two
-physical Rotaryknobs and therefore four endpoints. Every device uses the same
-release sources and Managed security policy. Only stable network identity,
-build directory and physical-device target overlay differ. This avoids copied
-configurations while preserving independent OTA recovery for each processor.
+S3/display and ESP32/bridge. The repository contains entrypoints for two
+physical Rotaryknobs and therefore four endpoints. Only one physical pair is
+confirmed by the current live-test evidence; configured entrypoints must not
+be mistaken for installed firmware. Every device uses the same release sources
+and Managed security policy. Only stable network identity, build directory and
+physical-device target overlay differ. This avoids copied configurations while
+preserving independent OTA recovery for each processor.
 
 ## What runs where
 
@@ -78,8 +83,8 @@ It is not necessary to create an ESPHome integration device in Home Assistant
 before flashing. The two concepts are separate:
 
 1. **ESPHome Device Builder App:** stores YAML, validates, compiles and flashes
-   firmware. Placing the YAML files in `/config/esphome/` creates the four thin
-   build configurations used by the current two-device test installation; a
+   firmware. Placing the YAML files in `/config/esphome/` creates four thin
+   build configurations for the two configured device identities; a
    separate project wizard is not required.
 2. **ESPHome integration:** connects a running device to Home Assistant through
    the native API. Home Assistant normally discovers it after the first
@@ -142,9 +147,8 @@ discovers or flashes an ambiguous endpoint.
 ## Register the devices in Home Assistant
 
 After both processors join Wi-Fi, Home Assistant should contain two technical
-ESPHome endpoints for each physical Rotaryknob. In the current two-device test
-installation that means four endpoints in total, but still only two product
-devices.
+ESPHome endpoints for each physical Rotaryknob. With both configured devices
+online that means four endpoints in total, but still only two product devices.
 
 1. Open **Settings > Devices & services**.
 2. Confirm that both production endpoints remain available.
@@ -155,8 +159,10 @@ devices.
    - `passion-wave-managed-2-bridge.local`, port `6053`.
 6. When requested during the controlled Factory-to-Managed migration, use the
    Native API encryption key from private `secrets.yaml`.
-7. Enable **Allow the device to perform Home Assistant actions** on both ESP32
-   Bridge entries. The S3 does not require application-action permission.
+7. Leave **Allow the device to perform Home Assistant actions** disabled on
+   both endpoints. The PassionWave integration validates bounded command
+   states and answers through named ESPHome API actions; neither processor
+   requires broad Home Assistant action permission.
 8. Add one PassionWave Config Entry per physical Rotaryknob and bind it to that
    device's Display/S3, Bridge registration entity, Music Assistant instance,
    player and four ordered light positions.
@@ -197,8 +203,8 @@ First reset the diagnostic counters, then turn the knob slowly through at least
   `house_refresh`.
 - `S3 Library Proxy Status` reports received ESP32 lists; playlists, radios
   and podcasts remain selectable. If the ESP32 link is interrupted, the S3
-  reports the bridge error without automatically starting MQTT. Only the
-  explicit Rescue switch may start the compatibility path.
+  reports the bridge error without starting MQTT or a compatibility network
+  path.
 - The Ping buttons produce a finite link latency.
 - Disconnecting or resetting the coprocessor does not stop EC1 from controlling
   the S3 interface.
@@ -215,8 +221,10 @@ firmware investigation first demonstrates reliable unit-step behavior.
 
 Both processors are independent ESPHome OTA targets:
 
-- ESP32-S3 display processor: `passion-wave-rotary-test-s3`
-- classic ESP32 network processor: `passion-wave-rotary-test-esp32`
+- Device 1 ESP32-S3: `passion-wave-managed-1-s3`
+- Device 1 classic ESP32: `passion-wave-managed-1-bridge`
+- Device 2 ESP32-S3: `passion-wave-managed-2-s3`
+- Device 2 classic ESP32: `passion-wave-managed-2-bridge`
 
 Always compile both profiles before installing a migration revision. Upload
 only to the matching target; the S3 image is not compatible with the classic

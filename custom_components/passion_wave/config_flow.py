@@ -299,7 +299,7 @@ def _current_s3_light_defaults(hass: HomeAssistant, entry_id: str) -> dict[str, 
 class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle the PassionWave config flow."""
 
-    VERSION = 2
+    VERSION = 4
 
     def __init__(self) -> None:
         """Initialize the two-step flow."""

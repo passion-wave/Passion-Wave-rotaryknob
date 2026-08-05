@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "passion_wave"
-INTEGRATION_VERSION = "3.0.0-beta.12"
+INTEGRATION_VERSION = "3.0.0-beta.14"
 
 CONF_S3_HOST = "s3_host"
 CONF_BRIDGE_HOST = "bridge_host"
@@ -59,15 +59,21 @@ LIGHT_SLOT_KEYS = (
     CONF_LIGHT_SLOT_3,
     CONF_LIGHT_SLOT_4,
 )
+LIGHT_PLACEHOLDER_PREFIX = "light.passion_wave_light_"
+
+
+def is_configured_light_entity(value: object) -> bool:
+    """Return whether a value names a real customer light target."""
+    return (
+        isinstance(value, str)
+        and value.startswith("light.")
+        and not value.startswith(LIGHT_PLACEHOLDER_PREFIX)
+    )
 
 BRIDGE_REGISTRATION_ORIGINAL_NAME = "PassionWave Integration Entry ID"
 FIRMWARE_UPDATE_ORIGINAL_NAME = "Firmware"
 MEDIA_ENTITY_ORIGINAL_NAME = "Rotaryknob Media Entity ID"
 MEDIA_LABEL_ORIGINAL_NAME = "Rotaryknob Media Label"
-MEDIA_RUNTIME_STATE_ORIGINAL_NAME = "Rotaryknob Media Runtime State"
-MEDIA_RUNTIME_TITLE_ORIGINAL_NAME = "Rotaryknob Media Runtime Title"
-MEDIA_RUNTIME_ARTIST_ORIGINAL_NAME = "Rotaryknob Media Runtime Artist"
-MEDIA_RUNTIME_COVER_URL_ORIGINAL_NAME = "Rotaryknob Media Runtime Cover URL"
 LIGHT_ENTITY_ORIGINAL_NAMES = (
     "Rotaryknob Light Slot 1 Entity ID",
     "Rotaryknob Light Slot 2 Entity ID",

@@ -8,11 +8,12 @@ API; MQTT is not part of the device firmware.
 
 - Historical rollback reference: single-profile firmware `1.2.0` (not part of
   the V3 source tree).
-- Current coordinated dual-processor beta: `3.0.0-beta.2`.
+- Current coordinated dual-processor beta: `3.0.0-beta.14`.
 - Public Factory profiles: credential-free first adoption only.
 - Private Managed profiles: encrypted API, authenticated OTA and thin
-  per-endpoint entrypoints over two shared processor roles. The current test
-  installation contains two physical devices and therefore four entrypoints.
+  per-endpoint entrypoints over two shared processor roles. The repository has
+  four entrypoints for two device identities; live evidence currently covers
+  one physical dual-MCU pair.
 
 ## Device Runtime Settings
 
@@ -65,12 +66,26 @@ player and four ordered light slots. Open **Configure** on that entry to change
 any assignment later. The integration writes entity IDs and current friendly
 names to the selected display and follows Home Assistant entity renames.
 
-The logical PassionWave device also exposes five configuration entities:
-`Wiedergabegerät` and `Lichtplatz 1` through `Lichtplatz 4`. They provide quick
-changes directly from the device page. `S3-Verbindung`, `Bridge-Verbindung` and
-`Integrationsversion` are diagnostic entities. Structural reassignment of S3,
-Bridge or Music Assistant and the optional media filters remain in the guided
-**Configure** flow.
+The customer-facing PassionWave device deliberately exposes only the combined
+firmware update, `Systemproblem` and `Supportdiagnose`. Structural assignment of
+S3, Bridge, Music Assistant, player, light slots and media filters remains in
+the guided **Configure** flow. The former quick selects, individual connection
+sensors and integration-version sensor are disabled by default; existing
+entries are migrated once without deleting registry history.
+
+`Systemproblem` is the single normal health signal. It turns on when either the
+S3 display or Bridge contract becomes unavailable and retains both connection
+results as attributes. `Supportdiagnose` enables the detailed diagnostic path
+on both processors together. Keep it off during normal operation and use it
+only while collecting evidence for a fault. Native ESPHome transport and
+configuration entities remain enabled where the runtime contract needs them,
+but are hidden from customer dashboards.
+
+Runtime delivery is event-driven: media and light changes are forwarded
+immediately. Independently of events, Home Assistant sends the current runtime
+and target snapshot every 15 minutes; Bridge and S3 also republish their
+authoritative snapshots on the same cadence. This bounded fallback heals a
+missed event without restoring high-frequency polling.
 
 ## Offline / Promo Demo Mode
 
@@ -189,9 +204,3 @@ address.
 
 On the settings page, `System` is offset to the right of the back button and
 the Home Assistant status label is wide enough for the full text.
-
-## Compile-Time Fallbacks
-
-`esphome/scrollwheel_dynamic_targets.h` still contains generic fallback arrays
-for older UI paths and recovery scenarios. They are intentionally anonymized and
-should not be edited with private names before publishing a fork.

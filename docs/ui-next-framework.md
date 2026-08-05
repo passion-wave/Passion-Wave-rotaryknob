@@ -108,14 +108,63 @@ Only eight popup rows exist as LVGL objects. Encoder movement advances their
 virtual window through all 32 catalog entries, keeping heap use and repaint
 work bounded independently of the number of presets.
 
-The former direct S3 discovery/action implementation remains compiled only for
-the standalone profile and deliberate `S3 Network Rescue Mode`. The fast
-bridge path requires identical compiled light targets in both MCU profiles; a
+Öffentliche `light.passion_wave_light_*`-Werte sind Reservierungsnamen und
+keine Kundenziele. Integration und Bridge behandeln sie daher wie unbelegte
+Slots: Sie erzeugen weder Zustandslistener noch wiederholte Kataloganfragen.
+Der Presetbefehl bleibt absichtlich ein nativer Home-Assistant-Aufruf. Seine
+physische Reaktionszeit umfasst deshalb auch die im WLED-Preset gespeicherte
+Überblendzeit und wird getrennt von der sofortigen lokalen UI-Rückmeldung
+gemessen.
+
+Managed V3 removes the former direct S3 discovery/action and standalone rescue
+path. The Bridge path requires identical compiled light targets in both MCU profiles; a
 runtime target deviation disables bridge ownership instead of ever addressing
 the wrong light. If no matching details exist, the modal states that
 explicitly instead of presenting invented choices. Switching between the
 light picker and details first hides the old row set, so the dropdown is
 revealed atomically without stale content.
+
+### Schnellwechsel über den Leuchtennamen
+
+Der aktuelle Quellstand ersetzt den Picker-Aufruf auf dem Namen durch
+einen lokalen zyklischen Wechsel zur nächsten konfigurierten Leuchte. Die
+Detailtaste bleibt unverändert für WLED-Presets und Hue-Szenen zuständig. Ein
+Tap wählt nur einen Slot aus; er sendet insbesondere keinen Ein-/Aus- oder
+Helligkeitsbefehl an Home Assistant.
+
+Benchmark und Architekturentscheidung:
+
+| Variante | Softwarepfad | Reaktionsbudget | Bewertung |
+| --- | --- | ---: | --- |
+| Lokaler S3-Wechsel mit sofortigem Teil-Render | `LV_EVENT_CLICKED` → neue eindeutige Action → gecachter Slotzustand → `update_light()` | p99 < 25 ms; Ziel typischerweise < 11 ms ab Click-Event | Gewählt |
+| Vorhandener Picker | Popup rendern → zweiter Tap → Slot wählen | zwei Touchschritte; zusätzliche Popup-Arbeit | Bleibt für den Schnellwechsel ungenutzt |
+| Bridge/Home-Assistant-Rundlauf | UART → HA → UART → periodischer Render | historisch 9,528 ms p50 / 14,238 ms p95 allein für den Rundlauf, maximal 31,566 ms | Für reine lokale Auswahl verworfen |
+
+Die Messbasis des lokalen Budgets ist der 10-ms-UI-Dispatcher. Vergleichbare
+lokale Label-/Arc-Aktualisierung wurde mit 0,438 ms gemessen. Die bestehende
+100-ms-Zustandsaktualisierung darf nicht der sichtbare Schnellwechselpfad sein,
+weil sie trotz korrekter Funktion bis zu 100 ms zusätzliche Wartezeit erzeugen
+kann. Der Tap-Handler aktualisiert daher Name, Helligkeit, Zustand und
+Toggle-Stil sofort aus dem S3-Cache; der periodische autoritative Snapshot
+bleibt nur für spätere Konvergenz zuständig.
+
+Umsetzung:
+
+1. `Action::LIGHT_CYCLE` bildet sowohl den LVGL-Button als auch den
+   koordinatenbasierten CST816-Fallback des Namens darauf abbilden.
+2. Die bestehende Slotlogik in eine gemeinsame lokale Auswahlroutine ziehen.
+   Sie prüft höchstens vier feste Slots, überspringt leere Entity-IDs sowie die
+   öffentlichen `light.passion_wave_light_*`-Platzhalter und läuft ohne
+   Heap-Allokation oder Netzwerkzugriff zyklisch weiter.
+3. Beim Wechsel ausstehende lokale Helligkeits-/Farbsynchronisation verwerfen,
+   die gecachten Werte des neuen Slots übernehmen und UI Next unmittelbar mit
+   `update_light()` aktualisieren. Der normale 100-ms-Refresh bestätigt den
+   Stand anschließend idempotent.
+4. Die vorhandene 180-ms-Aktionsentprellung und genau ein haptisches Feedback
+   wiederverwenden. Popup-, Detail- und Lichtbefehlszustände bleiben getrennt.
+5. Ein statischer Vertrag sichert Action, lokalen Pfad, Platzhalterfilter und
+   Sofort-Render. Beide Geräte werden anschließend mit den Lichttests im
+   Responsiveness-Katalog physisch qualifiziert.
 
 With bridge `.13`, paginated playlist and track response JSON is no longer
 parsed on the display processor while the proxy is healthy. UI Next receives a
@@ -147,9 +196,8 @@ and podcast selections are sent as compact library kind/index commands over the
 inter-MCU link. The ESP32 resolves the cached URI and invokes
 the configured network-side action; the S3 no longer depends on its legacy
 direct Home Assistant service path. A result frame reports accepted selections
-back to the S3 diagnostics. Bridge `.15` uses the native
-`music_assistant.play_media` action, and `.17` additionally owns both outbound
-MQTT page requests.
+back to the S3 diagnostics. The current Bridge uses the bounded PassionWave
+broker for `music_assistant.play_media` and subsequent page requests.
 
 Bridge revision `.15` uses the native `music_assistant.play_media` action with
 the cached URI as `media_id`. A success result is no longer emitted when the

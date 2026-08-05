@@ -28,8 +28,9 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
-from homeassistant.helpers import device_registry as dr, entity_registry as er
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.event import (
     async_track_state_change_event,
     async_track_time_interval,
@@ -39,6 +40,7 @@ from .broker import (
     async_handle_command,
     async_sync_light_states,
     async_sync_runtime_state,
+    cancel_playback_coordinator,
     command_entity_id,
 )
 from .const import (
@@ -47,6 +49,8 @@ from .const import (
     ATTR_MEDIA_TYPE,
     ATTR_OFFSET,
     ATTR_PLAYLIST_ID,
+    BRIDGE_COMMAND_ORIGINAL_NAME,
+    BRIDGE_REGISTRATION_ORIGINAL_NAME,
     CONF_BRIDGE_REGISTRATION_ENTITY,
     CONF_BRIDGE_REGISTRATION_UNIQUE_ID,
     CONF_MA_CONFIG_ENTRY_ID,
@@ -54,20 +58,18 @@ from .const import (
     CONF_S3_CONFIG_ENTRY_ID,
     DEFAULT_PAGE_SIZE,
     DOMAIN,
+    FIRMWARE_UPDATE_ORIGINAL_NAME,
     INTEGRATION_VERSION,
     LIGHT_ENTITY_ORIGINAL_NAMES,
     LIGHT_LABEL_ORIGINAL_NAMES,
     LIGHT_SLOT_KEYS,
+    is_configured_light_entity,
     LIBRARY_FILTER_KEYS,
     LIBRARY_SELECTION_LIMIT,
     MAX_LIBRARY_PAGE_SIZE,
     MAX_TRACK_PAGE_SIZE,
     MEDIA_ENTITY_ORIGINAL_NAME,
     MEDIA_LABEL_ORIGINAL_NAME,
-    MEDIA_RUNTIME_ARTIST_ORIGINAL_NAME,
-    MEDIA_RUNTIME_COVER_URL_ORIGINAL_NAME,
-    MEDIA_RUNTIME_STATE_ORIGINAL_NAME,
-    MEDIA_RUNTIME_TITLE_ORIGINAL_NAME,
     SERVICE_GET_LIBRARY,
     SERVICE_GET_PLAYLIST_TRACKS,
     SHOW_ALL,
@@ -86,10 +88,36 @@ PLATFORMS = (
     Platform.BINARY_SENSOR,
     Platform.SELECT,
     Platform.SENSOR,
+    Platform.SWITCH,
     Platform.UPDATE,
 )
 _LOGGER = logging.getLogger(__name__)
 _RUNTIME_SYNC: dict[str, dict[str, Any]] = {}
+
+
+def _hide_native_entities(
+    hass: HomeAssistant, entry: PassionWaveConfigEntry
+) -> None:
+    """Hide both native processor surfaces behind the logical product."""
+    registry = er.async_get(hass)
+    bridge_registration = registry.async_get(
+        _entry_value(entry, CONF_BRIDGE_REGISTRATION_ENTITY)
+    )
+    bridge_entry_id = (
+        bridge_registration.config_entry_id if bridge_registration else None
+    )
+    s3_entry_id = _entry_value(entry, CONF_S3_CONFIG_ENTRY_ID)
+    for registry_entry in list(registry.entities.values()):
+        if (
+            registry_entry.platform == "esphome"
+            and registry_entry.config_entry_id in {s3_entry_id, bridge_entry_id}
+            and registry_entry.hidden_by is None
+        ):
+            registry.async_update_entity(
+                registry_entry.entity_id,
+                hidden_by=er.RegistryEntryHider.INTEGRATION,
+            )
+
 
 _LIBRARY_SCHEMA = vol.Schema(
     {
@@ -203,45 +231,6 @@ async def _async_set_s3_text_values(
         await asyncio.gather(*calls)
 
 
-async def _async_sync_media_runtime(
-    hass: HomeAssistant, entry: PassionWaveConfigEntry
-) -> None:
-    """Mirror the selected player's current presentation state to the S3."""
-    media_player = _entry_value(entry, CONF_MEDIA_PLAYER)
-    state = hass.states.get(media_player)
-    await _async_set_s3_text_values(
-        hass,
-        entry,
-        {
-            MEDIA_RUNTIME_STATE_ORIGINAL_NAME: (
-                state.state[:32] if state else "unavailable"
-            ),
-            MEDIA_RUNTIME_TITLE_ORIGINAL_NAME: str(
-                (state.attributes.get("media_title") or "") if state else ""
-            )[:160],
-            MEDIA_RUNTIME_ARTIST_ORIGINAL_NAME: str(
-                (
-                    state.attributes.get("media_artist")
-                    or state.attributes.get("media_album_artist")
-                    or ""
-                )
-                if state
-                else ""
-            )[:160],
-            MEDIA_RUNTIME_COVER_URL_ORIGINAL_NAME: str(
-                (
-                    state.attributes.get("entity_picture")
-                    or state.attributes.get("entity_picture_local")
-                    or state.attributes.get("media_image_url")
-                    or ""
-                )
-                if state
-                else ""
-            )[:255],
-        },
-    )
-
-
 async def _async_sync_s3_targets(
     hass: HomeAssistant, entry: PassionWaveConfigEntry
 ) -> None:
@@ -257,7 +246,8 @@ async def _async_sync_s3_targets(
         LIGHT_LABEL_ORIGINAL_NAMES,
         strict=True,
     ):
-        light_entity = _entry_value(entry, key) or ""
+        configured = _entry_value(entry, key)
+        light_entity = configured if is_configured_light_entity(configured) else ""
         target_values[entity_original_name] = light_entity
         target_values[label_original_name] = _friendly_name(hass, light_entity)
     await _async_set_s3_text_values(hass, entry, target_values)
@@ -292,7 +282,9 @@ async def _async_sync_targets(
     configured_lights = [
         entity_id
         for key in LIGHT_SLOT_KEYS
-        if isinstance((entity_id := _entry_value(entry, key)), str) and entity_id
+        if is_configured_light_entity(
+            (entity_id := _entry_value(entry, key))
+        )
     ]
     if configured_lights:
         entry.async_on_unload(
@@ -303,7 +295,6 @@ async def _async_sync_targets(
             )
         )
     await _async_sync_s3_targets(hass, entry)
-    await _async_sync_media_runtime(hass, entry)
 
 
 async def _async_push_runtime_snapshot(
@@ -401,50 +392,109 @@ async def async_migrate_entry(
     hass: HomeAssistant, entry: PassionWaveConfigEntry
 ) -> bool:
     """Adopt targets previously written by the retired blueprint."""
-    if entry.version >= 2:
-        return True
-
     registry = er.async_get(hass)
-    candidates: dict[str, str] = {}
-    for registry_entry in registry.entities.values():
-        if (
-            registry_entry.platform == "esphome"
-            and registry_entry.config_entry_id
-            and registry_entry.original_name == MEDIA_ENTITY_ORIGINAL_NAME
-        ):
-            candidates[registry_entry.config_entry_id] = registry_entry.entity_id
-
-    selected_s3: str | None = None
-    configured_player = _entry_value(entry, CONF_MEDIA_PLAYER)
-    for config_entry_id, entity_id in candidates.items():
-        state = hass.states.get(entity_id)
-        if state is not None and state.state == configured_player:
-            selected_s3 = config_entry_id
-            break
-    if selected_s3 is None and len(candidates) == 1:
-        selected_s3 = next(iter(candidates))
-    if selected_s3 is None:
-        return False
-
-    data = dict(entry.data)
-    data[CONF_S3_CONFIG_ENTRY_ID] = selected_s3
-    for key, original_name in zip(
-        LIGHT_SLOT_KEYS, LIGHT_ENTITY_ORIGINAL_NAMES, strict=True
-    ):
-        value = ""
+    if entry.version < 2:
+        candidates: dict[str, str] = {}
         for registry_entry in registry.entities.values():
             if (
                 registry_entry.platform == "esphome"
-                and registry_entry.config_entry_id == selected_s3
-                and registry_entry.original_name == original_name
+                and registry_entry.config_entry_id
+                and registry_entry.original_name == MEDIA_ENTITY_ORIGINAL_NAME
             ):
-                state = hass.states.get(registry_entry.entity_id)
-                if state is not None and state.state.startswith("light."):
-                    value = state.state
-                break
-        data[key] = value
+                candidates[registry_entry.config_entry_id] = registry_entry.entity_id
 
-    hass.config_entries.async_update_entry(entry, data=data, version=2)
+        selected_s3: str | None = None
+        configured_player = _entry_value(entry, CONF_MEDIA_PLAYER)
+        for config_entry_id, entity_id in candidates.items():
+            state = hass.states.get(entity_id)
+            if state is not None and state.state == configured_player:
+                selected_s3 = config_entry_id
+                break
+        if selected_s3 is None and len(candidates) == 1:
+            selected_s3 = next(iter(candidates))
+        if selected_s3 is None:
+            return False
+
+        data = dict(entry.data)
+        data[CONF_S3_CONFIG_ENTRY_ID] = selected_s3
+        for key, original_name in zip(
+            LIGHT_SLOT_KEYS, LIGHT_ENTITY_ORIGINAL_NAMES, strict=True
+        ):
+            value = ""
+            for registry_entry in registry.entities.values():
+                if (
+                    registry_entry.platform == "esphome"
+                    and registry_entry.config_entry_id == selected_s3
+                    and registry_entry.original_name == original_name
+                ):
+                    state = hass.states.get(registry_entry.entity_id)
+                    if state is not None and state.state.startswith("light."):
+                        value = state.state
+                    break
+            data[key] = value
+        hass.config_entries.async_update_entry(entry, data=data, version=2)
+
+    if entry.version < 3:
+        s3_entry_id = _entry_value(entry, CONF_S3_CONFIG_ENTRY_ID)
+        bridge_registration = registry.async_get(
+            _entry_value(entry, CONF_BRIDGE_REGISTRATION_ENTITY)
+        )
+        bridge_entry_id = (
+            bridge_registration.config_entry_id if bridge_registration else None
+        )
+        logical_disabled_suffixes = {
+            "integration_version",
+            "s3_connection",
+            "bridge_connection",
+            "playback_device",
+            *(f"light_position_{index}" for index in range(1, 5)),
+        }
+        contract_names = {
+            MEDIA_ENTITY_ORIGINAL_NAME,
+            MEDIA_LABEL_ORIGINAL_NAME,
+            *LIGHT_ENTITY_ORIGINAL_NAMES,
+            *LIGHT_LABEL_ORIGINAL_NAMES,
+        }
+        for registry_entry in list(registry.entities.values()):
+            disable = False
+            hide = False
+            if (
+                registry_entry.platform == DOMAIN
+                and registry_entry.config_entry_id == entry.entry_id
+            ):
+                disable = any(
+                    registry_entry.unique_id.endswith(f"_{suffix}")
+                    for suffix in logical_disabled_suffixes
+                )
+            elif (
+                registry_entry.platform == "esphome"
+                and registry_entry.config_entry_id in {s3_entry_id, bridge_entry_id}
+            ):
+                disable = (
+                    registry_entry.entity_category == EntityCategory.DIAGNOSTIC
+                    and registry_entry.original_name != BRIDGE_COMMAND_ORIGINAL_NAME
+                )
+                hide = (
+                    registry_entry.original_name in contract_names
+                    or registry_entry.original_name
+                    in {
+                        BRIDGE_REGISTRATION_ORIGINAL_NAME,
+                        BRIDGE_COMMAND_ORIGINAL_NAME,
+                        FIRMWARE_UPDATE_ORIGINAL_NAME,
+                    }
+                )
+            changes: dict[str, Any] = {}
+            if disable and registry_entry.disabled_by is None:
+                changes["disabled_by"] = er.RegistryEntryDisabler.INTEGRATION
+            if hide and registry_entry.hidden_by is None:
+                changes["hidden_by"] = er.RegistryEntryHider.INTEGRATION
+            if changes:
+                registry.async_update_entity(registry_entry.entity_id, **changes)
+        hass.config_entries.async_update_entry(entry, version=3)
+
+    if entry.version < 4:
+        _hide_native_entities(hass, entry)
+        hass.config_entries.async_update_entry(entry, version=4)
     return True
 
 
@@ -463,6 +513,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
         name="PassionWave Rotaryknob",
         sw_version=INTEGRATION_VERSION,
     )
+    _hide_native_entities(hass, entry)
     try:
         await _async_sync_targets(hass, entry)
         await _async_push_runtime_snapshot(hass, entry)
@@ -532,11 +583,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
     def async_media_state_changed(
         event: Event[EventStateChangedData],
     ) -> None:
-        """Schedule a bounded media presentation update."""
-        hass.async_create_task(
-            _async_sync_media_runtime(hass, entry),
-            "Sync PassionWave media presentation",
-        )
+        """Schedule one authoritative media/runtime snapshot."""
         hass.async_create_task(
             _async_push_runtime_snapshot(hass, entry),
             "Sync PassionWave runtime state",
@@ -558,7 +605,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
             try:
                 await _async_push_runtime_snapshot(hass, entry)
                 await _async_sync_s3_targets(hass, entry)
-                await _async_sync_media_runtime(hass, entry)
             except HomeAssistantError as err:
                 _LOGGER.debug("PassionWave periodic reconciliation deferred: %s", err)
 
@@ -568,7 +614,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
         async_track_time_interval(
             hass,
             async_periodic_runtime_snapshot,
-            timedelta(seconds=5),
+            timedelta(minutes=15),
         )
     )
 
@@ -623,5 +669,6 @@ async def async_unload_entry(
     """Unload a PassionWave entry."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
+        cancel_playback_coordinator(entry.entry_id)
         _RUNTIME_SYNC.pop(entry.entry_id, None)
     return unloaded

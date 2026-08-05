@@ -24,6 +24,7 @@ class PassionWaveVersionSensor(PassionWaveEntity, SensorEntity):
     """Expose the integration version on the logical device."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
     _attr_icon = "mdi:puzzle"
     _attr_native_value = INTEGRATION_VERSION
     _attr_translation_key = "integration_version"

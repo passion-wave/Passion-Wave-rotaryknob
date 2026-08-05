@@ -3,7 +3,61 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
+
+
+@dataclass(frozen=True, slots=True)
+class PlaybackCommand:
+    """One immutable desired playback target."""
+
+    generation: int
+    kind: int
+    index: int
+    media_id: str
+    media_type: str
+
+
+class LatestPlaybackQueue:
+    """Collapse pending playback requests while preserving active generations."""
+
+    def __init__(self) -> None:
+        self._generation = 0
+        self._latest: PlaybackCommand | None = None
+
+    def submit(
+        self,
+        *,
+        kind: int,
+        index: int,
+        media_id: str,
+        media_type: str,
+    ) -> PlaybackCommand:
+        """Replace the desired target and return its unique generation."""
+        self._generation += 1
+        self._latest = PlaybackCommand(
+            generation=self._generation,
+            kind=kind,
+            index=index,
+            media_id=media_id,
+            media_type=media_type,
+        )
+        return self._latest
+
+    def latest_after(self, generation: int) -> PlaybackCommand | None:
+        """Return the newest target only when it has not been handled yet."""
+        if self._latest is None or self._latest.generation <= generation:
+            return None
+        return self._latest
+
+    def is_current(self, generation: int) -> bool:
+        """Return whether a completion still belongs to the desired target."""
+        return self._latest is not None and self._latest.generation == generation
+
+    def complete(self, generation: int) -> None:
+        """Forget a completed target without clearing a newer submission."""
+        if self.is_current(generation):
+            self._latest = None
 
 
 def bounded_page(offset: int, limit: int, maximum: int) -> tuple[int, int]:
@@ -11,16 +65,27 @@ def bounded_page(offset: int, limit: int, maximum: int) -> tuple[int, int]:
     return max(0, int(offset)), min(max(1, int(limit)), maximum)
 
 
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    """Return mappings and Home Assistant response objects as dictionaries."""
+    if isinstance(value, Mapping):
+        return value
+    as_dict = getattr(value, "as_dict", None)
+    if callable(as_dict):
+        converted = as_dict()
+        if isinstance(converted, Mapping):
+            return converted
+    return {}
+
+
 def unwrap_response(response: Any) -> Mapping[str, Any]:
     """Unwrap the response envelopes used by HA and ESPHome actions."""
-    current = response
+    current = _as_mapping(response)
     for key in ("response", "service_response", "result", "content"):
-        if not isinstance(current, Mapping):
-            break
         nested = current.get(key)
-        if isinstance(nested, Mapping):
-            current = nested
-    return current if isinstance(current, Mapping) else {}
+        converted = _as_mapping(nested)
+        if converted:
+            current = converted
+    return current
 
 
 def normalize_library_page(

@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave Rotaryknob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.0-beta.12"
+  project_version: "3.0.0-beta.14"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -62,6 +62,7 @@ esphome:
     - <cstdlib>
     - <ctime>
     - <esp_system.h>
+    - <src/misc/cache/instance/lv_image_cache.h>
     - <vector>
     - ec1_pcnt_encoder.h
     - dual_mcu_link.h
@@ -119,6 +120,7 @@ esphome:
                      static_cast<unsigned>(esp_get_free_heap_size()),
                      static_cast<unsigned>(esp_get_minimum_free_heap_size()));
         - script.execute: refresh_media_target_runtime
+        - script.execute: publish_configuration_snapshot
         - delay: 800ms
         - if:
             condition:
@@ -196,6 +198,16 @@ api:
         then:
           - script.execute: refresh_all_light_detail_catalogs
   services:
+    - service: support_diagnostics_on
+      then:
+        - lambda: 'id(support_diagnostics_enabled) = true;'
+        - switch.turn_on: media_latency_debug_enabled
+        - delay: 100ms
+        - script.execute: media_debug_dump_state
+    - service: support_diagnostics_off
+      then:
+        - lambda: 'id(support_diagnostics_enabled) = false;'
+        - switch.turn_off: media_latency_debug_enabled
     - service: media_debug_on
       then:
         - switch.turn_on: media_latency_debug_enabled
@@ -896,6 +908,10 @@ globals:
     type: bool
     restore_value: yes
     initial_value: 'true'
+  - id: support_diagnostics_enabled
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: haptic_effect_index
     type: int
     restore_value: yes
@@ -2430,6 +2446,7 @@ binary_sensor:
     id: ec1_encoder_ready
     device_class: connectivity
     entity_category: diagnostic
+    disabled_by_default: true
 
 script:
   - id: refresh_all_light_detail_catalogs
@@ -2677,23 +2694,6 @@ script:
                         id(light_detail_targets)[slot].c_str(),
                         id(light_detail_commands)[slot][option].c_str());
                   - script.stop: activate_light_detail
-            - if:
-                condition:
-                  lambda: 'return id(light_detail_kinds)[slot] == 2;'
-                then:
-                  - homeassistant.service:
-                      service: scene.turn_on
-                      data_template:
-                        entity_id: !lambda 'return id(light_detail_commands)[slot][option];'
-            - if:
-                condition:
-                  lambda: 'return id(light_detail_kinds)[slot] == 1;'
-                then:
-                  - homeassistant.service:
-                      service: select.select_option
-                      data_template:
-                        entity_id: !lambda 'return id(light_detail_targets)[slot];'
-                        option: !lambda 'return id(light_detail_commands)[slot][option];'
 
   - id: refresh_media_target_runtime
     mode: restart
@@ -3297,6 +3297,25 @@ script:
             id(media_title_cache).empty() ? std::string("-") : id(media_title_cache),
             id(chosen_media_type).empty() ? std::string("-") : id(chosen_media_type),
             detail);
+  - id: publish_configuration_snapshot
+    mode: restart
+    then:
+      - lambda: |-
+          id(haptic_effect_number).publish_state(id(haptic_effect_index));
+          id(timer_done_haptic_effect_number).publish_state(
+            id(timer_done_haptic_effect_index));
+          id(screensaver_timeout_number).publish_state(
+            id(screensaver_timeout_seconds));
+          id(screensaver_fade_duration_number).publish_state(
+            id(screensaver_fade_seconds));
+          id(display_dim_delay_number).publish_state(
+            id(display_dim_delay_seconds));
+          id(display_dim_brightness_number).publish_state(
+            id(display_dim_brightness_percent));
+          id(display_sleep_no_playback_number).publish_state(
+            id(display_sleep_no_playback_seconds));
+          id(display_sleep_playback_number).publish_state(
+            id(display_sleep_playback_seconds));
   - id: play_haptic_feedback
     mode: restart
     then:
@@ -3683,6 +3702,7 @@ script:
           then:
             - script.execute: apply_display_keep_awake
       - script.execute: play_haptic_feedback
+      - script.execute: publish_configuration_snapshot
       - script.execute: refresh_settings_ui
   - id: settings_value_next
     mode: restart
@@ -3754,6 +3774,7 @@ script:
           then:
             - script.execute: apply_display_keep_awake
       - script.execute: play_haptic_feedback
+      - script.execute: publish_configuration_snapshot
       - script.execute: refresh_settings_ui
   - id: settings_toggle_haptic
     mode: restart
@@ -3771,6 +3792,7 @@ script:
           id(haptic_effect_index) -= 1;
           if (id(haptic_effect_index) < 1) id(haptic_effect_index) = 123;
       - script.execute: play_haptic_feedback
+      - script.execute: publish_configuration_snapshot
       - script.execute: refresh_settings_ui
   - id: settings_effect_next
     mode: restart
@@ -3780,6 +3802,7 @@ script:
           id(haptic_effect_index) += 1;
           if (id(haptic_effect_index) > 123) id(haptic_effect_index) = 1;
       - script.execute: play_haptic_feedback
+      - script.execute: publish_configuration_snapshot
       - script.execute: refresh_settings_ui
   - id: settings_timer_done_effect_prev
     mode: restart
@@ -3789,6 +3812,7 @@ script:
           id(timer_done_haptic_effect_index) -= 1;
           if (id(timer_done_haptic_effect_index) < 1) id(timer_done_haptic_effect_index) = 123;
       - script.execute: play_timer_done_haptic
+      - script.execute: publish_configuration_snapshot
       - script.execute: refresh_settings_ui
   - id: settings_timer_done_effect_next
     mode: restart
@@ -3798,6 +3822,7 @@ script:
           id(timer_done_haptic_effect_index) += 1;
           if (id(timer_done_haptic_effect_index) > 123) id(timer_done_haptic_effect_index) = 1;
       - script.execute: play_timer_done_haptic
+      - script.execute: publish_configuration_snapshot
       - script.execute: refresh_settings_ui
   - id: settings_timeout_prev
     mode: restart
@@ -3808,6 +3833,7 @@ script:
           id(screensaver_timeout_seconds) -= 5;
           if (id(screensaver_timeout_seconds) < 10) id(screensaver_timeout_seconds) = 10;
       - script.execute: refresh_settings_ui
+      - script.execute: publish_configuration_snapshot
   - id: settings_timeout_next
     mode: restart
     then:
@@ -3817,6 +3843,7 @@ script:
           id(screensaver_timeout_seconds) += 5;
           if (id(screensaver_timeout_seconds) > 600) id(screensaver_timeout_seconds) = 600;
       - script.execute: refresh_settings_ui
+      - script.execute: publish_configuration_snapshot
   - id: refresh_rain_radar_image
     mode: restart
     then:
@@ -4867,6 +4894,12 @@ script:
           const std::string url = normalize_cover_url(raw_picture);
           if (url.empty()) {
             if (!id(media_cover_url_cache).empty() || id(media_cover_ready) || id(media_page_cover_ready)) {
+              // RuntimeImage keeps a stable LVGL descriptor address while
+              // replacing its PSRAM buffer. Drop cached draw data before the
+              // decoder releases that buffer, otherwise a later cover can
+              // render as a black frame despite a successful JPEG decode.
+              lv_image_cache_drop(id(media_cover_image).get_lv_image_dsc());
+              lv_image_cache_drop(id(media_page_cover_image).get_lv_image_dsc());
               id(media_cover_url_cache).clear();
               id(media_cover_update_pending) = false;
               id(media_cover_pipeline_state) = 0;
@@ -4889,6 +4922,8 @@ script:
           }
 
           if (url != id(media_cover_url_cache)) {
+            lv_image_cache_drop(id(media_cover_image).get_lv_image_dsc());
+            lv_image_cache_drop(id(media_page_cover_image).get_lv_image_dsc());
             id(media_cover_url_cache) = url;
             id(media_runtime_cover_url_text).publish_state(url);
             id(media_cover_update_pending) = true;
@@ -6598,8 +6633,8 @@ script:
             lv_obj_set_style_bg_opa(media_cover_fallback, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
           }
           id(media_ui_dirty) = false;
-  # UI Next wrappers keep the existing local state logic and the original
-  # Home Assistant service behavior behind one lightweight queued action.
+  # UI Next wrappers keep the existing local state logic and route every
+  # remote command through the Bridge command broker.
   - id: ui_next_media_previous
     mode: restart
     then:
@@ -6612,14 +6647,6 @@ script:
                 dual_mcu::link.send_ha_action(
                   dual_mcu::HAAction::MEDIA_PREVIOUS, 0,
                   id(media_effective_entity_id).c_str());
-      - if:
-          condition:
-            lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected);'
-          then:
-            - homeassistant.service:
-                service: media_player.media_previous_track
-                data_template:
-                  entity_id: !lambda 'return id(media_effective_entity_id);'
 
   - id: ui_next_media_next
     mode: restart
@@ -6633,14 +6660,6 @@ script:
                 dual_mcu::link.send_ha_action(
                   dual_mcu::HAAction::MEDIA_NEXT, 0,
                   id(media_effective_entity_id).c_str());
-      - if:
-          condition:
-            lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected);'
-          then:
-            - homeassistant.service:
-                service: media_player.media_next_track
-                data_template:
-                  entity_id: !lambda 'return id(media_effective_entity_id);'
 
   - id: media_prev_track
     mode: restart
@@ -6696,14 +6715,6 @@ script:
                 dual_mcu::link.send_ha_action(
                   dual_mcu::HAAction::MEDIA_PLAY_PAUSE, 0,
                   id(media_effective_entity_id).c_str());
-      - if:
-          condition:
-            lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected);'
-          then:
-            - homeassistant.service:
-                service: media_player.media_play_pause
-                data_template:
-                  entity_id: !lambda 'return id(media_effective_entity_id);'
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(media_last_activity_ms) = millis();
@@ -6751,15 +6762,6 @@ script:
                   dual_mcu::HAAction::MEDIA_SHUFFLE,
                   id(media_shuffle_enabled) ? 1 : 0,
                   id(media_effective_entity_id).c_str());
-      - if:
-          condition:
-            lambda: 'return (!id(dual_mcu_ha_bridge_ready) || !id(dual_mcu_ha_bridge_extended_media)) && !id(demo_mode_active) && id(wifi_connected);'
-          then:
-            - homeassistant.service:
-                service: media_player.shuffle_set
-                data_template:
-                  entity_id: !lambda 'return id(media_effective_entity_id);'
-                  shuffle: !lambda 'return id(media_shuffle_enabled) ? "true" : "false";'
       - script.execute: refresh_media_ui_if_needed
   - id: media_toggle_repeat_one
     mode: restart
@@ -6778,15 +6780,6 @@ script:
                   dual_mcu::HAAction::MEDIA_REPEAT_ONE,
                   id(media_repeat_single_enabled) ? 1 : 0,
                   id(media_effective_entity_id).c_str());
-      - if:
-          condition:
-            lambda: 'return (!id(dual_mcu_ha_bridge_ready) || !id(dual_mcu_ha_bridge_extended_media)) && !id(demo_mode_active) && id(wifi_connected);'
-          then:
-            - homeassistant.service:
-                service: media_player.repeat_set
-                data_template:
-                  entity_id: !lambda 'return id(media_effective_entity_id);'
-                  repeat: !lambda 'return id(media_repeat_single_enabled) ? "one" : "off";'
       - script.execute: refresh_media_ui_if_needed
   - id: media_cycle_menu
     mode: restart
@@ -7450,55 +7443,6 @@ script:
                 id(publish_media_debug).execute(
                   sent ? "esp_track_bridge_play_sent" : "esp_track_bridge_play_failed",
                   id(media_title_cache), id(chosen_media_type), id(chosen_track_uri));
-      - if:
-          condition:
-            lambda: |-
-              return !id(dual_mcu_ha_bridge_media_selection) &&
-                     !id(demo_mode_active) && id(wifi_connected) &&
-                     !id(chosen_track_uri).empty();
-          then:
-            - lambda: |-
-                id(publish_media_debug).execute(
-                  "esp_track_play_media_before",
-                  id(media_title_cache),
-                  id(chosen_media_type),
-                  id(chosen_track_uri));
-            - homeassistant.service:
-                service: media_player.play_media
-                data:
-                  media_content_type: music
-                  enqueue: "play"
-                data_template:
-                  entity_id: !lambda 'return id(media_effective_entity_id);'
-                  media_content_id: !lambda 'return id(chosen_track_uri);'
-            - lambda: |-
-                id(publish_media_debug).execute(
-                  "esp_track_play_media_after_service_action",
-                  id(media_title_cache),
-                  id(chosen_media_type),
-                  id(chosen_track_uri));
-            - script.execute: media_selection_fallback_complete
-
-  - id: media_selection_fallback_complete
-    mode: restart
-    then:
-      - delay: 1500ms
-      - lambda: |-
-          if (!id(media_selection_loading)) return;
-          id(media_selection_loading) = false;
-          id(media_selection_started_ms) = 0;
-          id(media_selection_pending_kind) = -1;
-          id(media_selection_pending_index) = -1;
-          id(media_selection_bridge_accepted) = false;
-          id(media_selection_bridge_accepted) = false;
-          id(media_picker_visible) = false;
-          id(touch_swipe_nav_suppress_until_ms) = millis() + 350;
-          if (media_picker_popup != nullptr) lv_obj_add_flag(media_picker_popup, LV_OBJ_FLAG_HIDDEN);
-          if (id(ui_next_enabled) && ui_next::framework.built()) {
-            ui_next::framework.set_navigation_visible(true);
-          }
-          id(media_ui_dirty) = true;
-      - script.execute: refresh_media_ui_if_needed
 
   - id: media_selection_accept_settle
     mode: restart
@@ -8239,61 +8183,6 @@ script:
                 id(publish_media_debug).execute(
                   sent ? "esp_media_bridge_play_sent" : "esp_media_bridge_play_failed",
                   id(chosen_playlist_name), id(chosen_media_type), id(chosen_playlist_uri));
-      - if:
-          condition:
-            lambda: |-
-              return !id(dual_mcu_ha_bridge_media_selection) &&
-                     !id(demo_mode_active) && id(wifi_connected) &&
-                     !id(chosen_playlist_uri).empty();
-          then:
-            - lambda: |-
-                id(publish_media_debug).execute(
-                  "esp_media_play_media_before",
-                  id(chosen_playlist_name),
-                  id(chosen_media_type),
-                  id(chosen_playlist_uri));
-            - homeassistant.service:
-                service: media_player.play_media
-                data_template:
-                  entity_id: !lambda 'return id(media_effective_entity_id);'
-                  media_content_id: !lambda 'return id(chosen_playlist_uri);'
-                  media_content_type: !lambda 'return id(chosen_media_type);'
-                  enqueue: !lambda |-
-                    return id(media_browser_mode) == 1 ? "replace" : "play";
-            - lambda: |-
-                id(publish_media_debug).execute(
-                  "esp_media_play_media_after_service_action",
-                  id(chosen_playlist_name),
-                  id(chosen_media_type),
-                  id(chosen_playlist_uri));
-            - script.execute: media_selection_fallback_complete
-      - if:
-          condition:
-            lambda: |-
-              return !id(demo_mode_active) && id(wifi_connected) &&
-                     id(media_browser_mode) == 1 && !id(chosen_playlist_name).empty() &&
-                     (!id(dual_mcu_stage2_library_offload_enabled) ||
-                      id(dual_mcu_s3_library_fallback_active)) &&
-                     (!id(dual_mcu_library_request_proxy_available) ||
-                      millis() < id(dual_mcu_library_response_proxy_failed_until_ms));
-          then:
-            - lambda: |-
-                id(publish_media_debug).execute(
-                  "esp_playlist_select_option_before",
-                  id(chosen_playlist_name),
-                  "input_select",
-                  "${playlist_selector}");
-            - homeassistant.service:
-                service: input_select.select_option
-                data:
-                  entity_id: ${playlist_selector}
-                  option: !lambda 'return id(chosen_playlist_name);'
-            - lambda: |-
-                id(publish_media_debug).execute(
-                  "esp_playlist_select_option_after_service_action",
-                  id(chosen_playlist_name),
-                  "input_select",
-                  "${playlist_selector}");
   - id: refresh_media_volume_fast
     mode: restart
     then:
@@ -8396,16 +8285,6 @@ script:
                 id(media_ui_dirty) = true;
             - script.execute: refresh_media_ui_if_needed
             - script.stop: media_sync_remote
-      - if:
-          condition:
-            lambda: 'return id(media_pending_volume_sync);'
-          then:
-            - homeassistant.service:
-                service: media_player.volume_set
-                data_template:
-                  entity_id: !lambda 'return id(media_effective_entity_id);'
-                  volume_level: !lambda 'return to_string(id(display_volume_level));'
-            - lambda: 'id(media_pending_volume_sync) = false;'
   - id: light_rotate_left
     mode: restart
     then:
@@ -8636,10 +8515,34 @@ script:
     then:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
-          id(light_source_index) += 1;
-          if (id(light_source_index) > 3) {
-            id(light_source_index) = 0;
+          const char *entities[4] = {
+            id(light_slot_1_entity_text).state.c_str(),
+            id(light_slot_2_entity_text).state.c_str(),
+            id(light_slot_3_entity_text).state.c_str(),
+            id(light_slot_4_entity_text).state.c_str(),
+          };
+          auto is_configured = [&](int slot) -> bool {
+            if (id(demo_mode_active)) return true;
+            const char *entity = entities[slot];
+            if (entity == nullptr || entity[0] == '\0' ||
+                strcmp(entity, "unknown") == 0 ||
+                strcmp(entity, "unavailable") == 0) {
+              return false;
+            }
+            // Public profiles use these IDs only as safe, non-customer
+            // placeholders. They must not become selectable lamp slots.
+            return strncmp(entity, "light.passion_wave_light_", 25) != 0;
+          };
+          const int current_source = std::clamp(id(light_source_index), 0, 3);
+          int next_source = current_source;
+          for (int offset = 1; offset <= 4; offset++) {
+            const int candidate = (current_source + offset) % 4;
+            if (is_configured(candidate)) {
+              next_source = candidate;
+              break;
+            }
           }
+          id(light_source_index) = next_source;
           id(light_color_selected) = false;
           id(light_pending_brightness_sync) = false;
           id(light_pending_color_sync) = false;
@@ -8666,6 +8569,18 @@ script:
           }
           id(light_color_index) = best_index;
           id(light_ui_dirty) = true;
+          if (id(ui_next_enabled) && ui_next::framework.built()) {
+            const int source = std::clamp(id(light_source_index), 0, 3);
+            const char *name = source == 0 ? id(light_slot_1_label_text).state.c_str() :
+                               source == 1 ? id(light_slot_2_label_text).state.c_str() :
+                               source == 2 ? id(light_slot_3_label_text).state.c_str() :
+                                             id(light_slot_4_label_text).state.c_str();
+            const bool on = source == 0 ? id(light_1_on) :
+                            source == 1 ? id(light_2_on) :
+                            source == 2 ? id(light_3_on) : id(light_4_on);
+            ui_next::framework.prepare_light_source(source);
+            ui_next::framework.update_light(name, id(light_brightness_pct), on);
+          }
       - script.execute: refresh_light_ui_if_needed
   - id: select_light_source
     mode: restart
@@ -8756,14 +8671,6 @@ script:
                                         dual_mcu::link.send_ha_action(
                                           dual_mcu::HAAction::MEDIA_PREVIOUS, 0,
                                           id(media_effective_entity_id).c_str());
-                              - if:
-                                  condition:
-                                    lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected);'
-                                  then:
-                                    - homeassistant.service:
-                                        service: media_player.media_previous_track
-                                        data_template:
-                                          entity_id: !lambda 'return id(media_effective_entity_id);'
   - id: control_next_action
     mode: restart
     then:
@@ -8798,14 +8705,6 @@ script:
                                         dual_mcu::link.send_ha_action(
                                           dual_mcu::HAAction::MEDIA_NEXT, 0,
                                           id(media_effective_entity_id).c_str());
-                              - if:
-                                  condition:
-                                    lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected);'
-                                  then:
-                                    - homeassistant.service:
-                                        service: media_player.media_next_track
-                                        data_template:
-                                          entity_id: !lambda 'return id(media_effective_entity_id);'
   - id: refresh_control_ui_if_needed
     mode: restart
     then:
@@ -8933,138 +8832,6 @@ script:
                 id(light_pending_color_sync) = false;
             - script.execute: refresh_light_ui_if_needed
             - script.stop: light_sync_remote
-      - if:
-          condition:
-            lambda: 'return id(light_pending_brightness_sync) && id(light_brightness_pct) <= 0 && id(light_source_index) == 0;'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
-            - lambda: |-
-                id(light_pending_brightness_sync) = false;
-                id(light_pending_color_sync) = false;
-      - if:
-          condition:
-            lambda: 'return id(light_pending_brightness_sync) && id(light_brightness_pct) <= 0 && id(light_source_index) == 1;'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_2_entity_text).state;'
-            - lambda: |-
-                id(light_pending_brightness_sync) = false;
-                id(light_pending_color_sync) = false;
-      - if:
-          condition:
-            lambda: 'return id(light_pending_brightness_sync) && id(light_brightness_pct) <= 0 && id(light_source_index) == 2;'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_3_entity_text).state;'
-            - lambda: |-
-                id(light_pending_brightness_sync) = false;
-                id(light_pending_color_sync) = false;
-      - if:
-          condition:
-            lambda: 'return id(light_pending_brightness_sync) && id(light_brightness_pct) <= 0 && id(light_source_index) == 3;'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_4_entity_text).state;'
-            - lambda: |-
-                id(light_pending_brightness_sync) = false;
-                id(light_pending_color_sync) = false;
-      - if:
-          condition:
-            lambda: 'return (id(light_pending_brightness_sync) || id(light_pending_color_sync)) && id(light_brightness_pct) > 0 && id(light_source_index) == 0;'
-          then:
-            - homeassistant.service:
-                service: light.turn_on
-                data:
-                  transition: "0.15"
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
-                  brightness_pct: !lambda 'return to_string(id(light_brightness_pct));'
-            - lambda: |-
-                id(light_pending_brightness_sync) = false;
-                id(light_pending_color_sync) = false;
-      - if:
-          condition:
-            lambda: 'return (id(light_pending_brightness_sync) || id(light_pending_color_sync)) && id(light_brightness_pct) > 0 && id(light_source_index) == 1;'
-          then:
-            - homeassistant.service:
-                service: light.turn_on
-                data:
-                  transition: "0.15"
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_2_entity_text).state;'
-                  brightness_pct: !lambda 'return to_string(id(light_brightness_pct));'
-            - lambda: |-
-                id(light_pending_brightness_sync) = false;
-                id(light_pending_color_sync) = false;
-      - if:
-          condition:
-            lambda: 'return (id(light_pending_brightness_sync) || id(light_pending_color_sync)) && id(light_brightness_pct) > 0 && id(light_source_index) == 2;'
-          then:
-            - homeassistant.service:
-                service: light.turn_on
-                data:
-                  transition: "0.15"
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_3_entity_text).state;'
-                  brightness_pct: !lambda 'return to_string(id(light_brightness_pct));'
-            - lambda: |-
-                id(light_pending_brightness_sync) = false;
-                id(light_pending_color_sync) = false;
-      - if:
-          condition:
-            lambda: 'return id(light_pending_color_sync) && id(light_source_index) == 0 && !scrollwheel_targets::scene_slot_is_wled(id(scene_slot_index));'
-          then:
-            - homeassistant.service:
-                service: scene.turn_on
-                data_template:
-                  entity_id: !lambda 'return std::string(scrollwheel_targets::ambiente_scene_entity(id(ambiente_scene_index)));'
-            - lambda: |-
-                id(light_pending_color_sync) = false;
-                id(light_1_on) = true;
-                if (id(light_brightness_pct) <= 0) id(light_brightness_pct) = 100;
-                if (id(light_1_brightness_pct) <= 0) id(light_1_brightness_pct) = 100;
-      - if:
-          condition:
-            lambda: 'return id(light_pending_color_sync) && id(light_source_index) == 0 && scrollwheel_targets::scene_slot_is_wled(id(scene_slot_index));'
-          then:
-            - homeassistant.service:
-                service: select.select_option
-                data_template:
-                  entity_id: !lambda 'return std::string(scrollwheel_targets::wled_preset_entity(id(scene_slot_index)));'
-                  option: !lambda 'return std::string(scrollwheel_targets::scene_value_name(id(scene_slot_index), id(ambiente_scene_index)));'
-            - homeassistant.service:
-                service: light.turn_on
-                data:
-                  transition: "0.15"
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
-                  brightness_pct: !lambda 'return to_string(id(light_brightness_pct) <= 0 ? 100 : id(light_brightness_pct));'
-            - lambda: |-
-                id(light_pending_color_sync) = false;
-                id(light_1_on) = true;
-                if (id(light_brightness_pct) <= 0) id(light_brightness_pct) = 100;
-                if (id(light_1_brightness_pct) <= 0) id(light_1_brightness_pct) = 100;
-      - if:
-          condition:
-            lambda: 'return id(light_pending_brightness_sync) && id(light_brightness_pct) > 0 && id(light_source_index) == 3;'
-          then:
-            - homeassistant.service:
-                service: light.turn_on
-                data:
-                  transition: "0.15"
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_4_entity_text).state;'
-                  brightness_pct: !lambda 'return to_string(id(light_brightness_pct));'
-            - lambda: 'id(light_pending_brightness_sync) = false;'
 
   - id: light_turn_current_off
     mode: restart
@@ -9099,38 +8866,6 @@ script:
                                      id(light_source_index) == 2 ? id(light_slot_3_entity_text).state.c_str() :
                                                                    id(light_slot_4_entity_text).state.c_str();
                 dual_mcu::link.send_ha_action(dual_mcu::HAAction::LIGHT_OFF, 0, entity);
-      - if:
-          condition:
-            lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 0;'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
-      - if:
-          condition:
-            lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 1;'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_2_entity_text).state;'
-      - if:
-          condition:
-            lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 2;'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_3_entity_text).state;'
-      - if:
-          condition:
-            lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 3;'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_4_entity_text).state;'
       - script.execute: refresh_light_ui_if_needed
 
   - id: light_toggle_current
@@ -9176,42 +8911,6 @@ script:
                                            id(light_source_index) == 2 ? id(light_slot_3_entity_text).state.c_str() :
                                                                          id(light_slot_4_entity_text).state.c_str();
                       dual_mcu::link.send_ha_action(dual_mcu::HAAction::LIGHT_ON, 100, entity);
-            - if:
-                condition:
-                  lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 0;'
-                then:
-                  - homeassistant.service:
-                      service: light.turn_on
-                      data_template:
-                        entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
-                        brightness_pct: "100"
-            - if:
-                condition:
-                  lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 1;'
-                then:
-                  - homeassistant.service:
-                      service: light.turn_on
-                      data_template:
-                        entity_id: !lambda 'return id(light_slot_2_entity_text).state;'
-                        brightness_pct: "100"
-            - if:
-                condition:
-                  lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 2;'
-                then:
-                  - homeassistant.service:
-                      service: light.turn_on
-                      data_template:
-                        entity_id: !lambda 'return id(light_slot_3_entity_text).state;'
-                        brightness_pct: "100"
-            - if:
-                condition:
-                  lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected) && id(light_source_index) == 3;'
-                then:
-                  - homeassistant.service:
-                      service: light.turn_on
-                      data_template:
-                        entity_id: !lambda 'return id(light_slot_4_entity_text).state;'
-                        brightness_pct: "100"
             - script.execute: refresh_light_ui_if_needed
 
   - id: light_turn_all_off
@@ -9248,26 +8947,6 @@ script:
                     dual_mcu::link.send_ha_action(
                       dual_mcu::HAAction::LIGHT_OFF, 0, entity);
                 }
-      - if:
-          condition:
-            lambda: 'return !id(dual_mcu_ha_bridge_ready) && !id(demo_mode_active) && id(wifi_connected);'
-          then:
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_1_entity_text).state;'
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_2_entity_text).state;'
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_3_entity_text).state;'
-            - homeassistant.service:
-                service: light.turn_off
-                data_template:
-                  entity_id: !lambda 'return id(light_slot_4_entity_text).state;'
       - script.execute: refresh_light_ui_if_needed
 
 time:
@@ -9796,6 +9475,9 @@ interval:
                   break;
                 case ui_next::Action::LIGHT_TOGGLE:
                   id(light_toggle_current).execute();
+                  break;
+                case ui_next::Action::LIGHT_CYCLE:
+                  id(cycle_light_source).execute();
                   break;
                 case ui_next::Action::LIGHT_DETAILS:
                   ui_next::framework.show_legacy(ui_next::View::LIGHT);
@@ -10565,6 +10247,7 @@ interval:
       - script.execute: refresh_dynamic_media_snapshot
   - interval: 15min
     then:
+      - script.execute: publish_configuration_snapshot
       - if:
           condition:
             lambda: 'return !id(display_sleeping) || id(external_power_detected);'
@@ -10577,6 +10260,7 @@ switch:
     name: "scrollwheel Media Debug"
     id: media_latency_debug_enabled
     entity_category: diagnostic
+    disabled_by_default: true
     icon: mdi:bug-check
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
@@ -10611,6 +10295,7 @@ switch:
     name: "scrollwheel Demo"
     id: demo_mode_enabled_switch
     entity_category: config
+    disabled_by_default: true
     lambda: "return id(demo_mode_enabled);"
     turn_on_action:
       - lambda: 'id(demo_mode_enabled) = true;'
@@ -10624,6 +10309,7 @@ switch:
     name: "Wach halten"
     id: display_keep_awake_switch
     entity_category: config
+    disabled_by_default: true
     icon: mdi:eye-outline
     lambda: "return id(display_keep_awake);"
     turn_on_action:
@@ -10644,8 +10330,9 @@ number:
     name: "scrollwheel Rotary Haptic Effect"
     id: haptic_effect_number
     entity_category: config
+    disabled_by_default: true
     lambda: "return id(haptic_effect_index);"
-    update_interval: 1s
+    update_interval: never
     min_value: 1
     max_value: 123
     step: 1
@@ -10656,14 +10343,16 @@ number:
           if (effect < 1) effect = 1;
           if (effect > 123) effect = 123;
           id(haptic_effect_index) = effect;
+          id(haptic_effect_number).publish_state(effect);
       - script.execute: play_haptic_feedback
       - script.execute: refresh_settings_ui
   - platform: template
     name: "scrollwheel Timer Done Haptic Effect"
     id: timer_done_haptic_effect_number
     entity_category: config
+    disabled_by_default: true
     lambda: "return id(timer_done_haptic_effect_index);"
-    update_interval: 1s
+    update_interval: never
     min_value: 1
     max_value: 123
     step: 1
@@ -10674,6 +10363,7 @@ number:
           if (effect < 1) effect = 1;
           if (effect > 123) effect = 123;
           id(timer_done_haptic_effect_index) = effect;
+          id(timer_done_haptic_effect_number).publish_state(effect);
       - script.execute: play_timer_done_haptic
       - script.execute: refresh_settings_ui
   - platform: template
@@ -10682,7 +10372,7 @@ number:
     entity_category: config
     icon: "mdi:timer-sand"
     lambda: "return id(screensaver_timeout_seconds);"
-    update_interval: 1s
+    update_interval: never
     min_value: 10
     max_value: 600
     step: 5
@@ -10694,6 +10384,7 @@ number:
           if (seconds < 10) seconds = 10;
           if (seconds > 600) seconds = 600;
           id(screensaver_timeout_seconds) = seconds;
+          id(screensaver_timeout_number).publish_state(seconds);
       - script.execute: refresh_settings_ui
   - platform: template
     name: "Screensaver Abdunkeldauer"
@@ -10701,7 +10392,7 @@ number:
     entity_category: config
     icon: "mdi:brightness-6"
     lambda: "return id(screensaver_fade_seconds);"
-    update_interval: 1s
+    update_interval: never
     min_value: 30
     max_value: 1800
     step: 30
@@ -10713,6 +10404,7 @@ number:
           if (seconds < 30) seconds = 30;
           if (seconds > 1800) seconds = 1800;
           id(screensaver_fade_seconds) = seconds;
+          id(screensaver_fade_duration_number).publish_state(seconds);
       - if:
           condition:
             lambda: |-
@@ -10727,7 +10419,7 @@ number:
     entity_category: config
     icon: mdi:timer-outline
     lambda: "return id(display_dim_delay_seconds);"
-    update_interval: 1s
+    update_interval: never
     min_value: 5
     max_value: 120
     step: 5
@@ -10741,6 +10433,8 @@ number:
           const int maximum = std::max(5, latest_sleep - 5);
           id(display_dim_delay_seconds) =
             std::clamp(static_cast<int>(roundf(x)), 5, maximum);
+          id(display_dim_delay_number).publish_state(
+            id(display_dim_delay_seconds));
           id(ui_last_activity_ms) = millis();
   - platform: template
     name: "Display Dimmhelligkeit"
@@ -10748,7 +10442,7 @@ number:
     entity_category: config
     icon: mdi:brightness-4
     lambda: "return id(display_dim_brightness_percent);"
-    update_interval: 1s
+    update_interval: never
     min_value: 5
     max_value: 30
     step: 1
@@ -10758,6 +10452,8 @@ number:
       - lambda: |-
           id(display_dim_brightness_percent) =
             std::clamp(static_cast<int>(roundf(x)), 5, 30);
+          id(display_dim_brightness_number).publish_state(
+            id(display_dim_brightness_percent));
           id(ui_last_activity_ms) = millis();
       - if:
           condition:
@@ -10770,7 +10466,7 @@ number:
     entity_category: config
     icon: mdi:monitor-off
     lambda: "return id(display_sleep_no_playback_seconds);"
-    update_interval: 1s
+    update_interval: never
     min_value: 30
     max_value: 1800
     step: 15
@@ -10781,6 +10477,8 @@ number:
           const int minimum = std::max(30, id(display_dim_delay_seconds) + 5);
           id(display_sleep_no_playback_seconds) =
             std::clamp(static_cast<int>(roundf(x)), minimum, 1800);
+          id(display_sleep_no_playback_number).publish_state(
+            id(display_sleep_no_playback_seconds));
           id(ui_last_activity_ms) = millis();
   - platform: template
     name: "Display aus bei Playback"
@@ -10788,7 +10486,7 @@ number:
     entity_category: config
     icon: mdi:monitor-speaker-off
     lambda: "return id(display_sleep_playback_seconds);"
-    update_interval: 1s
+    update_interval: never
     min_value: 60
     max_value: 3600
     step: 30
@@ -10799,6 +10497,8 @@ number:
           const int minimum = std::max(60, id(display_dim_delay_seconds) + 5);
           id(display_sleep_playback_seconds) =
             std::clamp(static_cast<int>(roundf(x)), minimum, 3600);
+          id(display_sleep_playback_number).publish_state(
+            id(display_sleep_playback_seconds));
           id(ui_last_activity_ms) = millis();
 
 text:
@@ -10855,6 +10555,7 @@ text:
     name: "Rotaryknob Media Runtime State"
     id: media_runtime_state_text
     entity_category: diagnostic
+    disabled_by_default: true
     optimistic: true
     restore_value: false
     initial_value: "idle"
@@ -10889,6 +10590,7 @@ text:
     name: "Rotaryknob Media Runtime Title"
     id: media_runtime_title_text
     entity_category: diagnostic
+    disabled_by_default: true
     optimistic: true
     restore_value: false
     initial_value: ""
@@ -10905,6 +10607,7 @@ text:
     name: "Rotaryknob Media Runtime Artist"
     id: media_runtime_artist_text
     entity_category: diagnostic
+    disabled_by_default: true
     optimistic: true
     restore_value: false
     initial_value: ""
@@ -10920,6 +10623,7 @@ text:
     name: "Rotaryknob Media Runtime Cover URL"
     id: media_runtime_cover_url_text
     entity_category: diagnostic
+    disabled_by_default: true
     optimistic: true
     restore_value: false
     initial_value: ""
@@ -11077,6 +10781,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: ec1_encoder_left_count
@@ -11084,6 +10789,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: ec1_encoder_right_count
@@ -11091,6 +10797,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: ec1_encoder_common_mode_batches
@@ -11098,6 +10805,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: ec1_encoder_read_errors
@@ -11105,6 +10813,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: ec1_encoder_max_batch
@@ -11112,6 +10821,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: adc
     pin: GPIO1
@@ -11405,18 +11115,21 @@ text_sensor:
     name: "scrollwheel Media Debug Status"
     id: media_debug_status_text
     entity_category: diagnostic
+    disabled_by_default: true
     icon: mdi:bug-check
     update_interval: never
   - platform: template
     name: "scrollwheel Last Reset Reason"
     id: media_debug_reset_reason_text
     entity_category: diagnostic
+    disabled_by_default: true
     icon: mdi:restart-alert
     update_interval: never
   - platform: template
     name: "scrollwheel Radar Debug Status"
     id: rain_radar_debug_status_text
     entity_category: diagnostic
+    disabled_by_default: true
     icon: mdi:radar
     update_interval: never
   - platform: wifi_info
@@ -13144,16 +12857,6 @@ lvgl:
             border_width: 0
             on_click:
               - script.execute: media_prev_track
-              - if:
-                  condition:
-                    lambda: |-
-                      return !id(dual_mcu_ha_bridge_enabled) &&
-                             !id(demo_mode_active) && id(wifi_connected);
-                  then:
-                    - homeassistant.service:
-                        service: media_player.media_previous_track
-                        data_template:
-                          entity_id: !lambda 'return id(media_effective_entity_id);'
             widgets:
               - label:
                   align: center
@@ -13187,16 +12890,6 @@ lvgl:
             border_width: 0
             on_click:
               - script.execute: media_next_track
-              - if:
-                  condition:
-                    lambda: |-
-                      return !id(dual_mcu_ha_bridge_enabled) &&
-                             !id(demo_mode_active) && id(wifi_connected);
-                  then:
-                    - homeassistant.service:
-                        service: media_player.media_next_track
-                        data_template:
-                          entity_id: !lambda 'return id(media_effective_entity_id);'
             widgets:
               - label:
                   align: center

@@ -7,7 +7,7 @@ substitutions:
   name: "passion-wave-rotary-test-s3"
   friendly_name: "Passion Wave Rotaryknob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "3.0.0-beta.12"
+  project_version: "3.0.0-beta.14"
   firmware_update_manifest_url: "https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest.json"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"
@@ -130,18 +130,6 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
-  - id: dual_mcu_stage1_fallback_network_active
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  - id: dual_mcu_stage1_fallback_started_ms
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
-  - id: dual_mcu_stage1_fallback_refresh_sent
-    type: bool
-    restore_value: false
-    initial_value: 'false'
   - id: dual_mcu_ui_slice_last_ms
     type: uint32_t
     restore_value: false
@@ -295,21 +283,19 @@ binary_sensor:
     name: "ESP32 Coprocessor Link"
     device_class: connectivity
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: dual_mcu_ha_bridge_connected
     name: "ESP32 Home Assistant Bridge"
     device_class: connectivity
     entity_category: diagnostic
-  - platform: template
-    id: dual_mcu_stage1_fallback_active_sensor
-    name: "S3 Compatibility Network Fallback"
-    device_class: running
-    entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: dual_mcu_bridge_time_synced
     name: "ESP32 Bridge Time Synced"
     device_class: connectivity
     entity_category: diagnostic
+    disabled_by_default: true
 
 switch:
   - id: !remove dual_mcu_s3_network_rescue
@@ -336,6 +322,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: 2s
     entity_category: diagnostic
+    disabled_by_default: true
     lambda: |-
       return static_cast<float>(id(ma_playlists_names_cache).size());
 
@@ -345,6 +332,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: 2s
     entity_category: diagnostic
+    disabled_by_default: true
     lambda: |-
       return static_cast<float>(id(ma_track_titles_cache).size());
 
@@ -354,6 +342,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: dual_mcu_esp32_ec2_count_sensor
@@ -361,6 +350,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: dual_mcu_encoder_difference_sensor
@@ -368,6 +358,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: dual_mcu_protocol_error_sensor
@@ -376,6 +367,7 @@ sensor:
     state_class: total_increasing
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: dual_mcu_link_ping_sensor
@@ -386,6 +378,7 @@ sensor:
     accuracy_decimals: 1
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: dual_mcu_ui_scheduler_gap_sensor
     name: "S3 UI Scheduler Gap"
@@ -395,6 +388,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: dual_mcu_bridge_time_age_sensor
@@ -405,6 +399,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: dual_mcu_radar_proxy_bytes
@@ -414,6 +409,7 @@ sensor:
     state_class: measurement
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_local_dispatch_sensor
@@ -424,6 +420,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_uart_roundtrip_sensor
@@ -434,6 +431,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_ha_roundtrip_sensor
@@ -444,6 +442,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_total_sensor
@@ -454,6 +453,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_p50_sensor
@@ -464,6 +464,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_p95_sensor
@@ -474,6 +475,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_max_sensor
@@ -484,6 +486,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_probe_count_sensor
@@ -492,6 +495,7 @@ sensor:
     state_class: total
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: latency_timeout_count_sensor
@@ -500,6 +504,7 @@ sensor:
     state_class: total
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: music_latency_bridge_accept_sensor
@@ -510,6 +515,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: music_latency_total_sensor
@@ -520,6 +526,7 @@ sensor:
     accuracy_decimals: 1
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: volume_local_render_sensor
@@ -530,6 +537,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: displayed_media_volume_sensor
@@ -539,6 +547,7 @@ sensor:
     accuracy_decimals: 0
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: volume_bridge_accept_sensor
@@ -549,6 +558,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: volume_ha_confirm_sensor
@@ -559,6 +569,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: volume_total_sensor
@@ -569,6 +580,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: volume_p50_sensor
@@ -579,6 +591,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: volume_p95_sensor
@@ -589,6 +602,7 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   - platform: template
     id: volume_max_sensor
@@ -599,13 +613,52 @@ sensor:
     accuracy_decimals: 3
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
+
+text:
+  # Runtime presentation is read-only in managed Dual-MCU builds. The S3
+  # publishes these diagnostics only after receiving the authoritative UART
+  # snapshot; Home Assistant no longer writes a parallel desired state.
+  - id: !remove media_runtime_state_text
+  - id: !remove media_runtime_title_text
+  - id: !remove media_runtime_artist_text
+  - id: !remove media_runtime_cover_url_text
 
 text_sensor:
+  - platform: template
+    id: media_runtime_state_text
+    name: "Rotaryknob Media Runtime State"
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+
+  - platform: template
+    id: media_runtime_title_text
+    name: "Rotaryknob Media Runtime Title"
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+
+  - platform: template
+    id: media_runtime_artist_text
+    name: "Rotaryknob Media Runtime Artist"
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+
+  - platform: template
+    id: media_runtime_cover_url_text
+    name: "Rotaryknob Media Runtime Cover URL"
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+
   - platform: template
     id: dual_mcu_runtime_status
     name: "Authoritative Runtime State"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
   # Remove both the historical JSON transport and all direct HA state
   # subscriptions. The UART cache is the only V3 application-state source.
@@ -639,51 +692,61 @@ text_sensor:
     name: "Coprocessor Status"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: dual_mcu_forecast_conditions_text
     name: "S3 Forecast Conditions Received"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: dual_mcu_radar_proxy_status
     name: "S3 Radar Proxy Status"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: dual_mcu_library_proxy_status
     name: "S3 Library Proxy Status"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: dual_mcu_light_detail_status
     name: "S3 Light Detail Catalog"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: dual_mcu_media_selection_status
     name: "S3 Media Selection Status"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: latency_probe_status
     name: "E2E Latency Probe Status"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: music_latency_probe_status
     name: "Music Assistant Latency Probe Status"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
   - platform: template
     id: volume_probe_status
     name: "Volume SIL Status"
     update_interval: never
     entity_category: diagnostic
+    disabled_by_default: true
 
 button:
   - platform: template
     name: "Ping ESP32 Coprocessor"
     entity_category: diagnostic
+    disabled_by_default: true
     on_press:
       - lambda: |-
           id(dual_mcu_last_ping_token) = millis();
@@ -693,6 +756,7 @@ button:
   - platform: template
     name: "Refresh Current Light Detail Catalog"
     entity_category: diagnostic
+    disabled_by_default: true
     on_press:
       - lambda: |-
           const int slot = std::clamp(id(light_source_index), 0, 3);
@@ -708,12 +772,14 @@ button:
   - platform: template
     name: "Run E2E Latency Probe"
     entity_category: diagnostic
+    disabled_by_default: true
     on_press:
       - script.execute: start_latency_probe
 
   - platform: template
     name: "Run E2E Latency Benchmark"
     entity_category: diagnostic
+    disabled_by_default: true
     on_press:
       - lambda: |-
           if (id(latency_probe_pending)) return;
@@ -731,6 +797,7 @@ button:
   - platform: template
     name: "Run Music Assistant Start Probe"
     entity_category: diagnostic
+    disabled_by_default: true
     on_press:
       - lambda: |-
           if (id(music_latency_probe_pending) ||
@@ -772,6 +839,7 @@ button:
   - platform: template
     name: "Run Playlist Paging Probe"
     entity_category: diagnostic
+    disabled_by_default: true
     on_press:
       - script.execute: request_initial_playlist_page
       - wait_until:
@@ -795,6 +863,7 @@ button:
   - platform: template
     name: "Run Encoder Volume SIL Probe"
     entity_category: diagnostic
+    disabled_by_default: true
     on_press:
       - script.execute:
           id: start_volume_probe
@@ -803,6 +872,7 @@ button:
   - platform: template
     name: "Run Encoder Volume SIL Benchmark"
     entity_category: diagnostic
+    disabled_by_default: true
     on_press:
       - lambda: |-
           if (id(volume_probe_pending) || id(volume_benchmark_active)) return;
@@ -816,6 +886,40 @@ button:
             "Benchmark läuft: 20 Änderungen zwischen 0 und 2 %");
 
 script:
+  # The managed architecture never executes application actions from the S3.
+  # Override inherited standalone fetchers so ESPHome does not compile their
+  # Home Assistant service-call objects into the managed image.
+  - id: !remove refresh_light_detail_catalog
+  - id: !remove refresh_dynamic_media_snapshot
+  - id: !remove fetch_weather
+  - id: !remove fetch_rain_eta
+
+  - id: refresh_light_detail_catalog
+    mode: queued
+    max_runs: 4
+    parameters:
+      slot: int
+      entity: std::string
+    then:
+      - lambda: |-
+          (void) slot;
+          (void) entity;
+
+  - id: refresh_dynamic_media_snapshot
+    mode: restart
+    then:
+      - lambda: 'return;'
+
+  - id: fetch_weather
+    mode: restart
+    then:
+      - lambda: 'return;'
+
+  - id: fetch_rain_eta
+    mode: restart
+    then:
+      - lambda: 'return;'
+
   - id: refresh_house_image_after_change
     mode: restart
     then:
@@ -979,7 +1083,6 @@ interval:
             dual_mcu::link.send(dual_mcu::MessageType::HELLO, role, sizeof(role));
             id(dual_mcu_link_initialized) = true;
             id(dual_mcu_s3_library_fallback_active) = false;
-            id(dual_mcu_stage1_fallback_active_sensor).publish_state(false);
           }
 
           const uint32_t slice_now = millis();
@@ -1270,11 +1373,29 @@ interval:
                       static_cast<int>(lroundf(
                         id(display_volume_level) * 100.0f)),
                       0, 100));
+                  const bool was_playing =
+                    id(music_state_cache) == "playing";
                   const uint8_t media_state = runtime.media.state;
                   id(music_state_cache) = media_state == 3 ? "playing" :
                                           media_state == 2 ? "paused" :
                                           media_state == 4 ? "off" : "idle";
+                  if (id(media_runtime_state_text).state !=
+                      id(music_state_cache))
+                    id(media_runtime_state_text).publish_state(
+                      id(music_state_cache));
                   id(media_is_playing) = media_state == 3;
+                  if (id(media_is_playing)) {
+                    id(media_cover_fullscreen_active) = false;
+                    if (!was_playing ||
+                        id(media_cover_fullscreen_due_ms) == 0)
+                      id(media_cover_fullscreen_due_ms) =
+                        millis() + 10000;
+                  } else {
+                    id(media_cover_fullscreen_active) = false;
+                    id(media_cover_fullscreen_due_ms) = 0;
+                    if (id(current_page) == 6)
+                      id(return_from_media_cover).execute();
+                  }
                   id(media_shuffle_enabled) = runtime.media.shuffle;
                   id(media_repeat_single_enabled) = runtime.media.repeat_one;
                   id(media_position_seconds) =
@@ -1380,9 +1501,13 @@ interval:
                     &frame.payload[1], frame.length - 1);
                   if (frame.payload[0] == static_cast<uint8_t>(dual_mcu::MediaTextField::TITLE)) {
                     id(media_title_cache) = value;
+                    if (id(media_runtime_title_text).state != value)
+                      id(media_runtime_title_text).publish_state(value);
                     if (!value.empty()) id(current_media_label) = value;
                   } else if (frame.payload[0] == static_cast<uint8_t>(dual_mcu::MediaTextField::ARTIST)) {
                     id(media_artist_cache) = value;
+                    if (id(media_runtime_artist_text).state != value)
+                      id(media_runtime_artist_text).publish_state(value);
                   } else if (frame.payload[0] == static_cast<uint8_t>(
                                dual_mcu::MediaTextField::FRIENDLY_NAME)) {
                     const std::string configured_label =
@@ -1415,6 +1540,10 @@ interval:
                   // ESP32. Reuse the proven S3 image-pipeline state machine
                   // with the already resolved absolute URL.
                   id(media_entity_picture_cache) = resolved_cover_url;
+                  if (id(media_runtime_cover_url_text).state !=
+                      resolved_cover_url)
+                    id(media_runtime_cover_url_text).publish_state(
+                      resolved_cover_url);
                   id(media_entity_picture_local_cache).clear();
                   id(media_image_url_cache).clear();
                   id(refresh_media_cover_url).execute();
@@ -2369,10 +2498,17 @@ interval:
               } else if (kind == dual_mcu::AssetKind::MEDIA_COVER) {
                 const bool page = dual_mcu::asset_decode_argument == 1;
                 if (page) {
+                  // The descriptor address is stable across RuntimeImage
+                  // buffer replacements. Invalidate LVGL's old decoded/draw
+                  // entry before exposing the newly populated descriptor.
+                  lv_image_cache_drop(
+                    id(media_page_cover_image).get_lv_image_dsc());
                   id(media_page_cover_ready) = true;
                   id(media_page_cover_loaded_url) = id(media_cover_url_cache);
                   id(media_cover_update_pending) = false;
                 } else {
+                  lv_image_cache_drop(
+                    id(media_cover_image).get_lv_image_dsc());
                   id(media_cover_ready) = true;
                   id(media_full_cover_loaded_url) = id(media_cover_url_cache);
                 }
@@ -2531,7 +2667,10 @@ interval:
             id(dual_mcu_last_snapshot_request_ms) = millis();
           }
 
-          if (millis() - id(dual_mcu_last_encoder_publish_ms) >= 100) {
+          const uint32_t encoder_diagnostic_interval =
+            id(support_diagnostics_enabled) ? 100UL : 900000UL;
+          if (millis() - id(dual_mcu_last_encoder_publish_ms) >=
+              encoder_diagnostic_interval) {
             id(dual_mcu_last_encoder_publish_ms) = millis();
             id(dual_mcu_s3_ec1_count) = static_cast<int32_t>(
               ec1_pcnt::encoder.signed_total());
@@ -2540,7 +2679,10 @@ interval:
                                         id(dual_mcu_remote_ec2_count));
           }
 
-          if (millis() - id(dual_mcu_last_stats_publish_ms) >= 1000) {
+          const uint32_t stats_publish_interval =
+            id(support_diagnostics_enabled) ? 1000UL : 900000UL;
+          if (millis() - id(dual_mcu_last_stats_publish_ms) >=
+              stats_publish_interval) {
             id(dual_mcu_last_stats_publish_ms) = millis();
             const auto &stats = dual_mcu::link.stats();
             id(dual_mcu_protocol_error_sensor).publish_state(
@@ -2573,7 +2715,7 @@ interval:
           const uint32_t now = millis();
           if (battery_pct != id(dual_mcu_last_device_battery_pct) ||
               external_power != id(dual_mcu_last_device_external_power) ||
-              now - id(dual_mcu_last_device_status_ms) >= 15000UL) {
+              now - id(dual_mcu_last_device_status_ms) >= 900000UL) {
             const float voltage = id(battery_voltage).state;
             const uint16_t millivolts = isnan(voltage)
               ? 0xFFFF
@@ -2598,10 +2740,6 @@ interval:
           } else {
             id(dual_mcu_stage1_bridge_ready_since_ms) = 0;
           }
-          if (id(dual_mcu_stage1_fallback_active_sensor).state !=
-              id(dual_mcu_stage1_fallback_network_active))
-            id(dual_mcu_stage1_fallback_active_sensor).publish_state(
-              id(dual_mcu_stage1_fallback_network_active));
       - if:
           condition:
             lambda: |-
