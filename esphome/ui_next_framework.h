@@ -34,6 +34,7 @@ enum class Action : uint8_t {
   WEATHER_RADAR,
   WEATHER_CONTEXT_CLOSE,
   LIGHT_TOGGLE,
+  LIGHT_CYCLE,
   LIGHT_PICKER,
   LIGHT_DETAILS,
   LIGHT_PRESETS,
@@ -299,7 +300,7 @@ class Framework {
           if (inside_(x, y, 58, 58, 236, 183)) action = Action::WEATHER_DETAILS;
           break;
         case View::LIGHT:
-          if (inside_(x, y, 93, 82, 240, 136)) action = Action::LIGHT_PICKER;
+          if (inside_(x, y, 93, 82, 240, 136)) action = Action::LIGHT_CYCLE;
           else if (inside_(x, y, 45, 137, 240, 211)) action = Action::LIGHT_TOGGLE;
           else if (inside_(x, y, 45, 245, 142, 315)) action = Action::LIGHT_TOGGLE;
           else if (inside_(x, y, 140, 245, 245, 315)) action = Action::LIGHT_DETAILS;
@@ -420,6 +421,18 @@ class Framework {
       last_light_on_ = on;
       light_state_valid_ = true;
     }
+  }
+
+  // A source change is rendered immediately by update_light(). Invalidate the
+  // previous source's detail metadata so a very fast follow-up DETAILS tap can
+  // never reveal stale Hue scenes or WLED presets before the next catalog tick.
+  void prepare_light_source(int selected_light) {
+    if (!built_) return;
+    light_selected_source_ = std::clamp(selected_light, 0, 3);
+    light_detail_kind_ = LightDetailKind::NONE;
+    light_selected_preset_ = -1;
+    light_preset_count_ = 0;
+    light_popup_window_start_ = 0;
   }
 
   void update_light_options(const char *const light_names[4], int selected_light,
@@ -926,7 +939,7 @@ class Framework {
     lv_obj_t *view = make_view_(View::LIGHT);
     make_label_(view, 55, 78, 42, 42, "\U0000E0F0", fonts_.icon_large, kMuted);
     light_name_ = make_label_(view, 103, 82, 135, 32, "Licht", fonts_.title, kWhite);
-    auto *name_target = make_button_(view, 96, 72, 145, 55, Action::LIGHT_PICKER,
+    auto *name_target = make_button_(view, 96, 72, 145, 55, Action::LIGHT_CYCLE,
                                      kBlack, kWhite, 0);
     lv_obj_set_style_bg_opa(name_target, LV_OPA_TRANSP, LV_PART_MAIN);
     light_value_ = make_label_(view, 55, 145, 180, 64, "100 %", fonts_.value, kWhite);

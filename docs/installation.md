@@ -3,22 +3,23 @@
 This guide installs the Passion Wave Rotaryknob firmware in ESPHome and links it
 to Home Assistant.
 
-The intended public no-expert path is
-`https://www.passion-wave.com/install/`. It currently delivers
-V3.0.0-beta.12 as an explicitly marked prerelease; V2.1.1 remains the rollback
+The current public no-expert path is
+`https://passion-wave-rotaryknob.thebeater.chatgpt.site/install/`. It delivers
+V3.0.0-beta.14 as an explicitly marked prerelease; V2.1.1 remains the rollback
 tag until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web
 Serial talks directly to the selected ESP32 over USB. Use Chrome or Edge on desktop.
 iOS browsers cannot do this flow.
 
-## Planned Public Browser Install
+## Public Browser Install
 
 This is the intended after-purchase flow:
 
 1. Connect the Rotaryknob to the browser device with USB in the orientation
    that exposes the ESP32-S3.
-2. Open `https://www.passion-wave.com/install/`.
+2. Open
+   `https://passion-wave-rotaryknob.thebeater.chatgpt.site/install/?v=3.0.0-beta.14`.
 3. Press `Install Rotaryknob`.
 4. Let the installer perform a clean erase, verify the ESP32-S3 and flash
    `PassionWave Rotaryknob`.
@@ -43,8 +44,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.12.json
-https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.12.json
+https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest-3.0.0-beta.14.json
+https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest-3.0.0-beta.14.json
 ```
 
 Both published binaries are built from sanitized public factory
@@ -297,7 +298,8 @@ limits of automatic recalibration.
 
 ## Known Limits
 
-- Dynamic entity pickers live in Home Assistant through the blueprint. The
+- Dynamic entity pickers live in Home Assistant through the PassionWave Config
+  Flow. The
   ESPHome device page itself exposes persistent text fields because ESPHome text
   entities do not provide Home Assistant-wide dynamic dropdown options.
 - The firmware invokes no Home Assistant action directly. Commands are bounded

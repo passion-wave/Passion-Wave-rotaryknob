@@ -124,5 +124,6 @@ Acceptance criteria:
 - a sleeping display wakes on the first detent and responds from the next;
 - EC2 mismatch is recorded but never changes UI behavior.
 
-The broader processor split, scheduling rules and staged migration are defined
-in [`dual-mcu-performance-framework.md`](dual-mcu-performance-framework.md).
+The current processor split and scheduling rules are defined in
+[`dual-mcu-ha-bridge.md`](dual-mcu-ha-bridge.md); physical regression steps are
+in [`stage1-responsiveness-test-catalog.md`](stage1-responsiveness-test-catalog.md).

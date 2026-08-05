@@ -55,6 +55,7 @@ class PassionWaveTargetSelect(PassionWaveEntity, SelectEntity):
     """Select one Home Assistant target using a customer-readable label."""
 
     _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = False
 
     def __init__(
         self,

@@ -111,6 +111,9 @@
       }
     },
     "binary_sensor": {
+      "system_problem": {
+        "name": "Systemstatus"
+      },
       "s3_connection": {
         "name": "S3-Verbindung"
       },
@@ -121,6 +124,11 @@
     "sensor": {
       "integration_version": {
         "name": "Integrationsversion"
+      }
+    },
+    "switch": {
+      "support_diagnostics": {
+        "name": "Support-Diagnose"
       }
     },
     "update": {

@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from awesomeversion import AwesomeVersion
+
 from homeassistant.components.update import (
     UpdateDeviceClass,
     UpdateEntity,
@@ -130,6 +132,13 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         """Offer only releases that exist for both processors."""
         versions = self._versions(ATTR_LATEST_VERSION)
         if versions[0] and versions[0] == versions[1]:
+            installed = self._versions(ATTR_INSTALLED_VERSION)
+            if (
+                installed[0]
+                and installed[0] == installed[1]
+                and AwesomeVersion(versions[0]) <= AwesomeVersion(installed[0])
+            ):
+                return installed[0]
             return versions[0]
         if not any(versions):
             installed = self._versions(ATTR_INSTALLED_VERSION)
@@ -170,11 +179,15 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         return values[0], values[1]
 
     def version_is_newer(self, latest_version: str, installed_version: str) -> bool:
-        """Treat either outdated processor or a mixed pair as an update."""
+        """Offer upgrades only; never downgrade a newer installed processor."""
         del installed_version
-        return any(
-            version != latest_version
-            for version in self._versions(ATTR_INSTALLED_VERSION)
+        installed = self._versions(ATTR_INSTALLED_VERSION)
+        if not all(installed):
+            return False
+        latest = AwesomeVersion(latest_version)
+        current = tuple(AwesomeVersion(version) for version in installed)
+        return all(version <= latest for version in current) and any(
+            version < latest for version in current
         )
 
     async def async_install(

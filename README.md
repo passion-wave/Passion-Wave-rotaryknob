@@ -4,11 +4,11 @@ Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
 Current coordinated beta: Home Assistant integration and device firmware
-**3.0.0-beta.12 — `customer-update-reconnect-hardening`**.
+**3.0.0-beta.14 — `consolidated-customer-runtime`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone
 Single-MCU entrypoint, MQTT media transport, S3 application-network fallback,
-All setup blueprints and the YAML media helper have been removed.
+all setup blueprints and the YAML media helper have been removed.
 Both processors of a physical Rotaryknob must be updated together after the
 Home Assistant integration is installed.
 
@@ -49,7 +49,8 @@ repository does not duplicate complete configurations per installation:
 - `devices/production.yaml` and `devices/test.yaml` contain only the
   location-specific Home Assistant targets and private substitutions.
 - `managed-{production,test}-{s3,esp32}.yaml` are thin build and OTA entrypoints
-  for the two physical Rotaryknobs in the current test installation.
+  for two physical Rotaryknob identities. The current live evidence covers one
+  complete pair; the second clean-device acceptance remains open.
 
 The S3 and classic ESP32 cannot share one binary because they use different
 chips, flash layouts and responsibilities. They do share the same firmware
@@ -59,7 +60,7 @@ PassionWave Config Entry and two unique endpoint identities. See
 
 ## Getting Started
 
-The public browser installer delivers **V3.0.0-beta.12** as an explicitly marked
+The public browser installer delivers **V3.0.0-beta.14** as an explicitly marked
 prerelease. Version 2.1.1 remains the rollback tag. The steps below are for
 maintainers and beta testers; promotion beyond beta requires the coordinated
 hardware acceptance.
@@ -186,7 +187,7 @@ The integration writes target IDs and friendly names to the selected display
 and follows player presentation changes. It also preserves selections when a
 target entity is renamed. V3 does not depend on a blueprint, package, MQTT
 broker or manually copied encryption key. See
-[Native API migration](docs/native-api-migration.md).
+[Dual-MCU Home Assistant bridge](docs/dual-mcu-ha-bridge.md).
 
 Each PassionWave device exposes native Home Assistant configuration selects for
 the playback device and light positions 1–4. S3/Bridge connectivity and the
@@ -197,22 +198,20 @@ and large media-library filters.
 ## Documentation
 
 - [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
-- [Version 3.0.0-beta.12 release](RELEASE.md)
+- [Version 3.0.0-beta.14 release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
-- [Project review](docs/project-review.md)
 - [Customer product architecture](docs/customer-product-architecture.md)
-- [Dual-MCU performance framework](docs/dual-mcu-performance-framework.md)
 - [Dual-MCU Home Assistant bridge](docs/dual-mcu-ha-bridge.md)
 - [Radar and floorplan data flow](docs/radar-floorplan-data-flow.md)
 - [UI Next framework](docs/ui-next-framework.md)
-- [Migration roadmap](docs/final-migration-roadmap.md)
 - [Dual-MCU managed deployment](docs/managed-deployment.md)
-- [Native API migration](docs/native-api-migration.md)
 - [Responsiveness test catalog](docs/stage1-responsiveness-test-catalog.md)
 - [End-to-end latency benchmark](docs/end-to-end-latency-benchmark.md)
 - [UX assurance report](docs/ux-assurance-report.md)
 - [Debugging](docs/debugging.md)
+
+The complete maintained documentation index is in [AGENTS.md](AGENTS.md).
 
 ## License
 

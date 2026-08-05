@@ -65,13 +65,10 @@ Keys must never be committed, copied into release binaries, printed in
 diagnostics or shared between customers. The public `secrets.example.yaml`
 contains placeholders only.
 
-The current two-device test installation intentionally uses the already known
-private installation key as a migration bridge across its four endpoints. This
-is safer than inventing new keys immediately before OTA and risking an
-unknown-key lockout, and it removes the plaintext production state in one
-controlled step. It is not the final per-endpoint key policy; splitting the
-key after every Native API connection is verified remains tracked as
-`PW-SEC-001`.
+Every endpoint must retain its own provisioned Native API key across later OTA
+updates. A profile count or shared build source does not imply a shared key.
+Before rotating any existing installation key, verify both independent serial
+recovery paths and the exact endpoint identity to avoid an unknown-key lockout.
 
 ## Migration without losing access
 

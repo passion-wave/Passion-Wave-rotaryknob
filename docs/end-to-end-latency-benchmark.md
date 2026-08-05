@@ -1,9 +1,9 @@
 # End-to-end input latency benchmark
 
 The measurements in this document are historical qualification snapshots. The
-current test candidate is S3 `1.2.0-ui-next.98` and ESP32
-`1.2.0-ha-bridge.50`; re-run the catalog before release rather than treating an
-older result as proof for the current image.
+current coordinated candidate is S3 and Bridge `3.0.0-beta.14`; re-run the
+catalog on both physical devices rather than treating an older result as proof
+for the current image.
 
 ## Purpose
 

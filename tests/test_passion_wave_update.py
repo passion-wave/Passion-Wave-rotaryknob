@@ -88,3 +88,26 @@ def test_bridge_reload_failure_stops_before_s3():
         ("reload", None),
     ]
     assert entity._phase == "failed"
+
+
+def test_older_release_source_never_offers_downgrade():
+    entity = _entity()
+    entity._versions = lambda attribute: (
+        ("3.0.0-beta.14", "3.0.0-beta.14")
+        if attribute == "installed_version"
+        else ("3.0.0-beta.12", "3.0.0-beta.12")
+    )
+
+    assert entity.latest_version == "3.0.0-beta.14"
+    assert not entity.version_is_newer("3.0.0-beta.12", "3.0.0-beta.14")
+
+
+def test_mixed_pair_can_upgrade_but_not_downgrade_newer_processor():
+    entity = _entity()
+    entity._versions = lambda _attribute: (
+        "3.0.0-beta.12",
+        "3.0.0-beta.14",
+    )
+
+    assert entity.version_is_newer("3.0.0-beta.14", "mixed")
+    assert not entity.version_is_newer("3.0.0-beta.12", "mixed")

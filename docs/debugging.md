@@ -1,12 +1,26 @@
 # Debugging
 
+## Supportdiagnose
+
+Im normalen Betrieb bleibt der PassionWave-Schalter `Supportdiagnose` aus und
+die technischen ESPHome-Entities sind deaktiviert. Bei einer Störung den
+Schalter am logischen PassionWave-Gerät einschalten. Er aktiviert die
+hochfrequenten Laufzeitdiagnosen auf S3 und Bridge gemeinsam; die benötigten
+Einzelentities können danach in Home Assistant unter **Gerät > deaktivierte
+Entities** gezielt aktiviert werden. Nach der Aufzeichnung den Schalter wieder
+ausschalten. Die normale ereignisbasierte Steuerung und der 15-Minuten-
+Vollsnapshot bleiben davon unabhängig aktiv.
+
+Für die erste Einordnung genügt `Systemproblem`: Der Zustand `Ein` bedeutet,
+dass mindestens einer der beiden Prozessorpfade nicht erreichbar ist; die
+Attribute `s3_connected` und `bridge_connected` grenzen den Pfad ein.
+
 ## Media-Auswahl-Crash Analysieren
 
-Der Debug-Stack ist im Normalbetrieb deaktiviert. Bei Bedarf schreibt er gezielte Media-Events in drei Kanäle:
+Der Debug-Stack ist im Normalbetrieb deaktiviert. Bei Bedarf schreibt er gezielte Media-Events in zwei Kanäle:
 
 - ESPHome-Logger mit Tag `media_debug`
 - Home-Assistant-Entity `scrollwheel Media Debug Status`
-- MQTT-Topic `passion_wave/rotaryknob/media/debug`
 
 Zusätzlich meldet `scrollwheel Last Reset Reason`, ob der letzte Neustart zum Beispiel durch `panic`, `watchdog`, `brownout` oder einen normalen Software-Neustart ausgelöst wurde.
 

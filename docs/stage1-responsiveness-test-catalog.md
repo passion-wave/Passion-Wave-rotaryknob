@@ -1,9 +1,9 @@
 # Testkatalog: Dual-MCU Performance-Stufe 1
 
-Dieser Katalog qualifiziert das zweite physische Testgerät mit S3-Version
-`1.2.0-ui-next.98` und ESP32-Version `1.2.0-ha-bridge.50`. Das Produktivgerät
-`passion_wave_rotaryknob` ist nicht Teil der Tests und darf nicht verändert
-werden.
+Dieser Katalog qualifiziert jeden physischen Rotaryknob getrennt mit der
+koordinierten S3- und Bridge-Version `3.0.0-beta.14`. Vor einem schreibenden
+Test das Zielgerät eindeutig über PassionWave Config Entry, Endpoint-Namen und
+installierte Version identifizieren.
 
 ## Abnahmekriterien
 
@@ -14,8 +14,9 @@ werden.
 - beide UART-Protokollfehlerzähler: nach dem Start unverändert 0;
 - ungeplanter Seitenwechsel oder Touch-Durchgriff: 0;
 - ungeplanter Neustart: 0;
-- `S3 Compatibility Network Fallback`: im stabilen Normalbetrieb aus;
-- alle Funktionen der Version 1.2.0 bleiben verfügbar.
+- kein direkter S3-Anwendungsnetzpfad und keine unerwartete MQTT-Aktivität;
+- alle in `known-issues.md` als live bestätigt markierten Funktionen bleiben
+  verfügbar.
 
 Vor jedem Block Diagnosezähler zurücksetzen, beide Versionsstände prüfen und
 die Startwerte der Fehlerzähler notieren. Für p99 mindestens 100 Bedienaktionen
@@ -30,9 +31,9 @@ zusätzlich mit einer 120-fps-Aufnahme stichprobenartig kontrolliert.
 | --- | --- | --- |
 | A01 | Beide Prozessoren kalt starten. | Richtige UI erscheint und bleibt sichtbar; keine alte Wetterseite übernimmt. |
 | A02 | 30 Sekunden warten. | Beide Link-Sensoren sind an, Coprocessor-Status meldet den aktiven HA-Bridge-Pfad. |
-| A03 | Weitere 30 Sekunden warten. | `S3 Compatibility Network Fallback` ist aus; Medien-, Licht- und Wetterzustände aktualisieren sich weiter. |
+| A03 | Weitere 30 Sekunden warten. | Medien-, Licht- und Wetterzustände aktualisieren sich weiter; kein S3-Anwendungsfallback wird aktiv. |
 | A04 | OTA-Erreichbarkeit beider IP-Adressen prüfen. | S3 und ESP32 sind separat erreichbar; der Rettungsweg bleibt erhalten. |
-| A05 | Zehn Minuten ohne Bedienung beobachten. | Kein Neustart, keine wachsenden UART-Fehler und kein zyklisches Aktivieren des Fallbacks. |
+| A05 | Zehn Minuten ohne Bedienung beobachten. | Kein Neustart, keine wachsenden UART-Fehler und kein zyklischer Verbindungsabbruch. |
 
 ## B. Navigation und Touch
 
@@ -81,24 +82,27 @@ zusätzlich mit einer 120-fps-Aufnahme stichprobenartig kontrolliert.
 | D14 | Während stabiler Bridge eine Playlist auswählen und S3-Netzwerklog beobachten. | Paging läuft über ESP32; der S3 führt keinen normalen `input_select.select_option`-Aufruf aus. |
 | D15 | Bei stabiler Bridge retained Playlist-, Radio-, Podcast- und Track-Payloads erneut publizieren. | Der S3 ignoriert die JSON-Payloads; Listen und Auswahl kommen ausschließlich über die ESP32-Binärbridge. |
 | D16 | Nach Kaltstart das Medien-Popup erstmals öffnen, schließen und erneut öffnen. | Beide Aufrufe zeigen das vollständige Popup in einem Frame; kein halbseitiger Aufbau. Kalter und warmer Aufruf reagieren ohne wahrnehmbare Blockade. |
+| D17 | Eine Playlist öffnen und während ihres Queue-Aufbaus drei unterschiedliche Titel in Abständen von unter zwei Sekunden wählen; danach denselben Titel zweimal schnell wählen. | Jede Eingabe wird sofort als angenommen angezeigt. Music-Assistant-Aufrufe überholen sich nicht; ausstehende Zwischenziele dürfen entfallen und ausschließlich die letzte Generation erhält den finalen Callback. Spätestens nach dem begrenzten Bestätigungs-/Retryfenster spielt der Player den zuletzt gewählten Titel. Eine alte oder identische Abschlussmeldung darf den neueren Auftrag nicht schließen. |
 
 ## E. Licht
 
 | ID | Durchführung | Soll |
 | --- | --- | --- |
 | E01 | Prozentanzeige zehnmal antippen. | Nur die ausgewählte Leuchte toggelt. |
-| E02 | Leuchtenname antippen und alle verfügbaren Leuchten auswählen. | Popup zeigt korrekte Namen; Zustände und Helligkeit passen zur Auswahl. |
-| E03 | WLED in jedem konfigurierten Slot auswählen, Detail öffnen und jedes Preset einmal wählen. | Der Dialog erscheint vollständig in einem Frame und zeigt die Presets des gewählten WLED-Geräts; pro Auswahl wird genau ein `select.select_option` gesendet. |
+| E02 | Leuchtenname mindestens achtmal antippen. | Jeder Tap wählt lokal genau die nächste konfigurierte Leuchte; leere Slots werden übersprungen, nach dem letzten Slot folgt der erste. Name, Zustand und Helligkeit reagieren p99 unter 25 ms. |
+| E03 | WLED in jedem konfigurierten Slot auswählen, Detail öffnen und jedes Preset einmal wählen. Touchbestätigung, Bridge-Befehl, HA-Select-Zustand und sichtbaren Effekt getrennt zeitlich erfassen. | Der Dialog erscheint vollständig in einem Frame und zeigt die Presets des gewählten WLED-Geräts; pro Auswahl wird genau ein `select.select_option` gesendet. Es gibt keine wiederholten Kataloganfragen für unbelegte Platzhalter-Slots. Die lokale Bedienreaktion bleibt sofort; eine konfigurierte WLED-Überblendzeit wird separat von Transport und Bestätigung bewertet. |
 | E04 | Hue-Leuchte auswählen und Detail öffnen. Danach eine Szene aus dem Popup wählen. | Es erscheinen nur Hue-Szenen aus dem Home-Assistant-Bereich der Leuchte; genau ein `scene.turn_on` wird gesendet. |
-| E05 | Zwischen Leuchten-Popup und Detail-Popup mehrfach schnell wechseln. | Keine alten oder halb aufgebauten Zeilen werden kurz eingeblendet; Schließen und erneutes Öffnen funktionieren sofort. |
+| E05 | Zwischen mehreren Leuchten wechseln und deren Detail-Popup mehrfach schnell öffnen und schließen. | Keine Details des vorherigen Slots oder halb aufgebauten Zeilen werden kurz eingeblendet; Schließen und erneutes Öffnen funktionieren sofort. |
 | E06 | Normale Leuchte ohne Details sowie Hue-Leuchte ohne Bereich testen. | Lesbarer leerer Zustand; kein erfundener Eintrag und kein Home-Assistant-Befehl. |
 | E07 | Helligkeit bei gleichzeitigem HA-Zustandswechsel drehen. | Lokale Eingabe gewinnt während des Override-Fensters; danach konsistente Rückmeldung. |
 | E08 | ESP32 neu starten, Lichtdetail sofort nach Wiederverbindung öffnen. | Der letzte vollständige S3-Katalog bleibt sichtbar; danach stimmen `ESP32 Light Detail Catalog` und `S3 Light Detail Catalog` ohne halbfertige Zwischenliste überein. |
 | E09 | Gemischtes OTA: zuerst nur ESP32 aktualisieren, anschließend S3. | Alte S3-Firmware ignoriert neue Frames; nach S3-Update ist die generische Katalogfähigkeit aktiv. Beide OTA-Endpunkte bleiben erreichbar. |
-| E10 | `S3 Network Rescue Mode` bewusst einschalten und Bridge unterbrechen. | Direkte S3-Erkennung funktioniert nur im Rescue-Pfad; nach Abschalten übernimmt wieder ausschließlich der ESP32. |
+| E10 | Bridge unterbrechen und Lichtdetail öffnen. | Letzter vollständiger Katalog bleibt sichtbar oder zeigt klar „nicht verfügbar“; der S3 sendet keinen direkten Netzwerkbefehl. |
 | E11 | Drei Hue-Slots mit je mindestens 27 Szenen kalt starten und während des Katalogtransfers den Encoder drehen. | Alle drei Kataloge sind in unter einer Sekunde vollständig; Eingabe bleibt direkt und beide Protokollfehlerzähler bleiben nach dem Start-Reset bei null. |
 | E12 | Nur den S3 neu starten, während ESP32, Home Assistant und Bibliotheksproxy weiterlaufen. | Der S3 fordert selbstständig Snapshots an, bis alle vier Slots vollständig sind. Nach dem Start-Reset bleiben beide Fehlerzähler auch über den nächsten 60-s-Snapshot bei null. |
 | E13 | Home Assistant neu starten oder nur die ESP32-API kurz unterbrechen und die Lichtdetails während der Wiederverbindung öffnen. Danach einmal `Refresh Light Detail Catalog` drücken. | Der letzte vollständige Dialog bleibt bedienbar; ein vorübergehend fehlgeschlagener Registry-Aufruf ersetzt ihn nicht durch eine leere Liste. Nach 1,5 s plus Abfragezeit konvergieren ESP32 und S3 automatisch; der Diagnoseknopf erzwingt dasselbe ohne MCU-Neustart. |
+| E14 | Beim Wechsel über den Leuchtennamen Bridge-/HA-Aktionsdiagnose und UART-Traffic beobachten; anschließend sofort Helligkeit drehen und Ein/Aus antippen. | Die reine Slotwahl erzeugt keinen HA-Lichtbefehl und keine neue UART-Aktion. Die Folgeaktionen adressieren ausschließlich den sichtbar ausgewählten Slot; kein veralteter Helligkeits- oder Farbbefehl läuft nach. |
+| E15 | Während schneller Namens-Taps den 100-ms-Snapshot, externe Lichtänderungen und das Öffnen/Schließen des Detail-Popups überlappen lassen. | Auswahl bleibt deterministisch, Popup zeigt nur Details des sichtbaren Slots, kein Touch-Durchgriff; `S3 UI Scheduler Gap` bleibt unter 25 ms und beide UART-Fehlerzähler bleiben unverändert. |
 
 ## F. Wetter, Forecast und Radar
 
@@ -115,19 +119,19 @@ zusätzlich mit einer 120-fps-Aufnahme stichprobenartig kontrolliert.
 
 | ID | Durchführung | Soll |
 | --- | --- | --- |
-| G01 | Nur den ESP32 neu starten und innerhalb von 12 Sekunden wieder verbinden lassen. | EC1 und lokale UI funktionieren durchgehend; ein nur kurz unbereiter Bibliothekscache aktiviert keinen S3-MQTT-Pfad. |
-| G02 | ESP32 wieder verbinden. | Vollständiger Snapshot kommt an; Rescue bleibt aus und die ESP32-Bridge übernimmt wieder vollständig. |
-| G03 | Während ESP32-Ausfall Play/Pause und Licht testen, ohne Rescue zu aktivieren. | Lokale UI bleibt bedienbar, zeigt den Ausfall und sendet keinen direkten Netzwerkbefehl. |
-| G04 | Eine Paging-Proxyanfrage gezielt ablehnen oder MQTT am ESP32 trennen. | S3 zeigt einen begrenzten Fehler und aktiviert MQTT nicht automatisch; keine Endlosschleife und kein falscher Titelstart. |
+| G01 | Nur den ESP32 neu starten und innerhalb von 12 Sekunden wieder verbinden lassen. | EC1 und lokale UI funktionieren durchgehend; ein kurz unbereiter Bibliothekscache startet keinen direkten S3-Netzwerkpfad. |
+| G02 | ESP32 wieder verbinden. | Vollständiger Snapshot kommt an und die ESP32-Bridge übernimmt wieder vollständig. |
+| G03 | Während ESP32-Ausfall Play/Pause und Licht testen. | Lokale UI bleibt bedienbar, zeigt den Ausfall und sendet keinen direkten Netzwerkbefehl. |
+| G04 | Eine Paging-Proxyanfrage gezielt ablehnen. | S3 zeigt einen begrenzten Fehler; keine Endlosschleife und kein falscher Titelstart. |
 | G05 | Home Assistant neu starten. | UI und Encoder bleiben lokal responsiv; Zustände synchronisieren sich nach Wiederkehr. |
 | G06 | WLAN kurz trennen und wiederherstellen. | Kein Reboot; lokale Bedienung bleibt möglich, Bridge und Zustände erholen sich. |
-| G07 | ESP32/Bridge länger als 12 Sekunden getrennt lassen, Rescue bewusst ein- und wieder ausschalten und danach die Bridge wiederherstellen. | Ohne Rescue bleibt S3-MQTT aus; mit Rescue funktioniert der Bibliotheks-Rettungspfad. Nach Abschalten und Wiederherstellung übernimmt ausschließlich der ESP32. |
+| G07 | ESP32/Bridge länger als 12 Sekunden getrennt lassen und danach wiederherstellen. | Remote-Funktionen bleiben klar nicht verfügbar, lokale Funktionen bleiben bedienbar; nach Wiederherstellung übernimmt ausschließlich der ESP32 und alle Zustände konvergieren. |
 
 ## H. Dauer- und Lasttest
 
 | ID | Durchführung | Soll |
 | --- | --- | --- |
-| H01 | 24 Stunden mit Medienfortschritt, Forecast, zehn Radarabrufen und wiederholtem Paging betreiben. | Keine UART-Fehler, keine Encoderfehler, kein ungeplanter Fallback. |
+| H01 | 24 Stunden mit Medienfortschritt, Forecast, zehn Radarabrufen und wiederholtem Paging betreiben. | Keine UART-Fehler, keine Encoderfehler und kein ungeplanter Neustart oder Verbindungswechsel. |
 | H02 | Pro Stunde fünf Minuten schnell zwischen Navigation, Encoder und Popups wechseln. | Kein Touch-Durchgriff, kein Hänger, Scheduler-Ziel während aktiver Phasen erfüllt. |
 | H03 | 72 Stunden gemischter Normalbetrieb. | Kein ungeplanter Neustart und keine fortschreitende Verschlechterung. |
 

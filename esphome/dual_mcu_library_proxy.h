@@ -287,6 +287,10 @@ class LibraryProxyServer {
   }
 
   bool busy() const { return this->active_; }
+  bool ready(LibraryKind kind) const {
+    const size_t slot = static_cast<size_t>(kind);
+    return slot > 0 && slot < this->ready_.size() && this->ready_[slot];
+  }
   void reset_transfer() {
     this->active_ = false;
     this->awaiting_ack_ = false;

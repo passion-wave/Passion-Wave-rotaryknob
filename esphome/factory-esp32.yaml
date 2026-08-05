@@ -13,13 +13,11 @@ packages:
 substitutions:
   name: "passionwave-knob-bridge"
   friendly_name: "PassionWave Rotaryknob Bridge"
-  ha_player: "media_player.passion_wave_media"
   light_1_entity: "light.passion_wave_light_1"
   wled_preset_entity: "select.passion_wave_wled_preset_1"
   light_2_entity: "light.passion_wave_light_2"
   light_3_entity: "light.passion_wave_light_3"
   light_4_entity: "light.passion_wave_light_4"
-  light_4_preset_select: "select.passion_wave_wled_preset"
   ha_weather: "weather.forecast_home"
   ha_base_url: "http://homeassistant.local:8123"
   rain_radar_image_url: "http://homeassistant.local:8123/local/scrollwheel/rain_radar_z1.jpg"
@@ -35,7 +33,7 @@ esphome:
   build_path: build/passion_wave_factory_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "3.0.0-beta.12"
+    version: "3.0.0-beta.14"
 
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main

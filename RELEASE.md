@@ -1,6 +1,6 @@
-# Version 3.0.0-beta.12
+# Version 3.0.0-beta.14
 
-Release description: `customer-update-reconnect-hardening`
+Release description: `consolidated-customer-runtime`
 
 ## Status
 
@@ -34,6 +34,16 @@ coordinated release.
   starting the S3 phase, including when an OTA changes the compiled node name.
 - A forecast request missed during reconnect is retried every ten seconds until
   the first valid daily response reaches the Bridge.
+- Normal customer devices expose one combined health signal and keep detailed
+  ESPHome diagnostics disabled by default.
+- A single Supportdiagnose switch enables the S3 and Bridge diagnostic paths
+  together when fault evidence is needed.
+- Media and light changes remain event-driven; a complete authoritative state
+  is also sent every 15 minutes to heal missed events without rapid polling.
+- Media selection uses a latest-command-wins queue: a newer title supersedes a
+  pending older request while preserving bounded retries for the active item.
+- Tapping the light name cycles directly through the configured lamp slots,
+  reducing the number of touch interactions without delaying light controls.
 
 ## Coordinated customer update
 
@@ -48,8 +58,8 @@ The sequence stops before touching the S3 if the Bridge cannot be verified.
 ## Verification
 
 - ESPHome 2026.7.0 Factory S3 and Bridge configurations validated and compiled.
-- S3 image: 54.5% RAM, 72.5% flash.
-- Bridge image: 42.1% RAM, 64.4% flash.
+- S3 image: 52.5% RAM, 71.7% flash.
+- Bridge image: 40.0% RAM, 62.7% flash.
 - Home Assistant integration tests pass against Home Assistant 2026.7.4.
 - Python lint, formatting, compilation, shell syntax, manifests and release
   checksums passed.
@@ -57,10 +67,10 @@ The sequence stops before touching the S3 if the Bridge cannot be verified.
 ## Public artifact checksums
 
 ```text
-27caa43074ad9b5d82a8ba726a0d87cde49cee81d88acfb3476802996a4691ba  s3/passion-wave-rotaryknob-s3-3.0.0-beta.12.factory.bin
-79362dcb7818a682122edafee76a1be97314e916e23aec24292707a38d324a2b  s3/passion-wave-rotaryknob-s3-3.0.0-beta.12.ota.bin
-c4a4127145af91468e0e3c31b46df9f5b5c0010db085aad8dd6e09c6e8bfffaa  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.12.factory.bin
-e74ed5d47404abd6eccdcd8bbd3cef48818241ad8a5245ac281c9b0588a0c68b  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.12.ota.bin
+919490d1a8326c1bcdf5a92db1a32770a50c3abb9069262b56f1ea538b5b0c60  s3/passion-wave-rotaryknob-s3-3.0.0-beta.14.factory.bin
+5c5eb3762feeb27be9580269e31bc214e8d129004e18a35346b7b6150244a1e1  s3/passion-wave-rotaryknob-s3-3.0.0-beta.14.ota.bin
+16965cf796d9c54b3be24f534f6fb3bd9c8f63ef009f1ddbd64376dc6d9f96a6  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.14.factory.bin
+3817017aa0d26629d0089082dc62917b18f29724d53478c7edef9233a76c1da2  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.14.ota.bin
 ```
 
 Known issues and remaining physical acceptance gates are documented in

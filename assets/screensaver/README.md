@@ -51,7 +51,7 @@ Unknown or empty values deliberately fall back to `partlycloudy`.
   without runtime image analysis. Dark photographs use warm white `#F2F1EE`
   and cool grey `#899297`; light photographs use near-black `#111519` and
   graphite grey `#596268`. The centre and second dots follow the minute hand.
-- The old vector weather objects remain allocated but hidden for a safe
-  rollback during the Version 2.0 test phase.
+- The old vector weather objects remain allocated but hidden; the photographic
+  state mapping is the active beta.12 screensaver.
 - Only the S3 image changes. Encoder, touch, Home Assistant and OTA paths remain
   unchanged.
