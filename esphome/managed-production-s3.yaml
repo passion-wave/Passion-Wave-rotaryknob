@@ -6,9 +6,12 @@ substitutions:
   name: "passion-wave-managed-1-s3"
   friendly_name: "PassionWave Rotaryknob"
   project_name: "passion-wave.rotaryknob-s3"
-  project_version: "3.0.0-beta.14"
+  project_version: "3.0.0-beta.15"
   media_debug_topic: "passion_wave/managed_1_s3/media/debug"
   managed_fallback_ap_ssid: "PW Managed 1 S3"
+  responsive_power_policy_enabled: "true"
+  responsive_power_idle_ms: "3000"
+  battery_deep_sleep_after_inactivity_ms: "75000"
 
 esphome:
   build_path: build/managed_production_s3

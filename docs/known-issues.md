@@ -1,7 +1,32 @@
 # Known issues
 
-Stand: 2026-08-05. Offene Fehler behalten eine eindeutige Statuszeile;
+Stand: 2026-08-16. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
+
+## Beta.15: Responsive Power Runtime
+
+Status: Release-Kandidat für den ausschließlich über Home Assistant geführten
+Kundenupdatepfad. Automatisierte Builds und Prüfungen sind verbindlich;
+physische Installation, Strommessung und Langzeittest werden nicht vorweg als
+bestanden dokumentiert.
+
+- Factory-, Timo- und Marco-Profile aktivieren dieselbe verbundene
+  Modem-Sleep-Policy auf Akku.
+- Externe Versorgung, Bedienung und laufende Asset-Transfers halten beide
+  Prozessoren im responsiven WLAN-Modus.
+- Das kombinierte Update bleibt Bridge → Reconnect → S3 → Reconnect.
+
+### PW-UI-004: Medien-Startfehler kann Screensaver blockieren
+
+Status: Offen und in Beta.15 bewusst nicht geändert.
+
+Live-Diagnose am 2026-08-14 auf Timo: Akku 100 %, `Wach halten` aus,
+Screensaver-Verzögerung 30 Sekunden und Medienzustand `idle`; gleichzeitig
+meldete der S3 `Fehler kind=5 index=0 code=3 match=1`. Der passende Fehlerpfad
+beendet den Ladevorgang, lässt den Medien-Picker aber offen. Da der
+Screensaver nur bei geschlossenem Picker startet, bleibt er bis zum manuellen
+Schließen blockiert. Eine spätere Korrektur muss Fehlerfeedback und
+Idle-Verhalten gemeinsam festlegen.
 
 ## Beta.14: konsolidierter Kundenstand
 
@@ -219,7 +244,7 @@ Bridge-Logs festhalten.
 
 | ID | Prüfung | Sollzustand |
 | --- | --- | --- |
-| V01 | In PassionWave und den beiden verborgenen ESPHome-Updatequellen die installierte Version prüfen. | Integration, S3 und Bridge melden je Gerät exakt `3.0.0-beta.14`; kein gemischtes Prozessorpaar. |
+| V01 | In PassionWave und den beiden verborgenen ESPHome-Updatequellen die installierte Version prüfen. | Integration, S3 und Bridge melden je Gerät exakt `3.0.0-beta.15`; kein gemischtes Prozessorpaar. |
 | V02 | Einen Titel mit bekanntem Cover starten und 15 Sekunden weder Touch noch Encoder bedienen. | Runtime-State ist `playing`, Cover-URL ist nicht leer und das Vollbild-Cover erscheint nach mindestens 10 Sekunden Ruhe. |
 | V03 | Während V02 die Diagnosen `ESP32 Media Cover URL Status`, `ESP32 Media Cover Proxy Status`, `Rotaryknob Media Runtime Cover URL` und `scrollwheel Media Debug Status` beobachten. | URL meldet `resolved=... http`, Proxy bestätigt die S3-Übernahme und der S3-Decoder endet ohne Backoff/Fehler. |
 | V04 | Playlist über mindestens drei Seitengrenzen scrollen, Titel starten und anschließend Vor/Zurück, Pause und Lautstärke testen. | Keine Lücke oder Doppelladung; genau ein Befehl je Eingabe; Lautstärke springt nicht auf einen alten Wert zurück. |
@@ -510,7 +535,7 @@ Eine PassionWave-Update-Entität führt Bridge → Reconnect → S3 → Reconnec
 S3 startet genau einen PassionWave-Flow; Bridge-, Zeroconf- und verzögerte retained MQTT-Flows werden MAC-genau verborgen und intern gekoppelt.
 
 ### PW-SEC-003: ESPHome verlangte breite Home-Assistant-Aktionsrechte
-Integration `3.0.0-beta.14` vermittelt validierte Commands; beide Firmwareprofile melden `homeassistant_services: false`.
+Integration `3.0.0-beta.15` vermittelt validierte Commands; beide Firmwareprofile melden `homeassistant_services: false`.
 
 ### PW-HA-005: Integration startete vor den Bridge-Aktionen
 Reload-Reihenfolge und Retry sind abgesichert; Bridge → S3 → PassionWave wurde live mit Bibliothek, Radar und Floorplan geprüft.

@@ -16,9 +16,37 @@ BROKER = (ROOT / "custom_components" / "passion_wave" / "broker.py").read_text()
 INTEGRATION = (
     ROOT / "custom_components" / "passion_wave" / "__init__.py"
 ).read_text()
+POWER_POLICY = (
+    ROOT / "esphome" / "responsive_power_policy.h"
+).read_text()
+MARCO_S3 = (ROOT / "esphome" / "managed-production-s3.yaml").read_text()
+MARCO_BRIDGE = (
+    ROOT / "esphome" / "managed-production-esp32.yaml"
+).read_text()
+TIMO_S3 = (ROOT / "esphome" / "managed-test-s3.yaml").read_text()
+TIMO_BRIDGE = (ROOT / "esphome" / "managed-test-esp32.yaml").read_text()
+FACTORY_S3 = (ROOT / "esphome" / "factory-s3.yaml").read_text()
+FACTORY_BRIDGE = (ROOT / "esphome" / "factory-esp32.yaml").read_text()
 
 
 class DualMcuRuntimeContractTests(unittest.TestCase):
+    def test_responsive_power_policy_is_enabled_for_all_customer_profiles(self) -> None:
+        self.assertIn('responsive_power_policy_enabled: "true"', MARCO_S3)
+        self.assertIn('responsive_power_policy_enabled: "true"', MARCO_BRIDGE)
+        self.assertIn('responsive_power_policy_enabled: "true"', TIMO_S3)
+        self.assertIn('responsive_power_policy_enabled: "true"', TIMO_BRIDGE)
+        self.assertIn('responsive_power_policy_enabled: "true"', FACTORY_S3)
+        self.assertIn('responsive_power_policy_enabled: "true"', FACTORY_BRIDGE)
+
+    def test_power_policy_prioritizes_active_latency(self) -> None:
+        self.assertIn("WIFI_PS_NONE : WIFI_PS_MIN_MODEM", POWER_POLICY)
+        self.assertIn("recent_activity || asset_active", S3_UI)
+        self.assertIn("bridge_last_interaction_ms", BRIDGE)
+        self.assertGreaterEqual(
+            BRIDGE.count("id(bridge_s3_external_power), true, millis()"), 2
+        )
+        self.assertIn("battery_deep_sleep_after_inactivity_ms", S3_UI)
+
     def test_runtime_snapshot_contains_presentation_metadata(self) -> None:
         for key in ("title", "artist", "friendly_name", "cover_url"):
             self.assertIn(f'"{key}"', BROKER)

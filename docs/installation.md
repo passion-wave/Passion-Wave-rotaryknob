@@ -5,7 +5,7 @@ to Home Assistant.
 
 The current public no-expert path is
 `https://passion-wave-rotaryknob.thebeater.chatgpt.site/install/`. It delivers
-V3.0.0-beta.14 as an explicitly marked prerelease; V2.1.1 remains the rollback
+V3.0.0-beta.15 as an explicitly marked prerelease; V2.1.1 remains the rollback
 tag until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web
@@ -19,7 +19,7 @@ This is the intended after-purchase flow:
 1. Connect the Rotaryknob to the browser device with USB in the orientation
    that exposes the ESP32-S3.
 2. Open
-   `https://passion-wave-rotaryknob.thebeater.chatgpt.site/install/?v=3.0.0-beta.14`.
+   `https://passion-wave-rotaryknob.thebeater.chatgpt.site/install/?v=3.0.0-beta.15`.
 3. Press `Install Rotaryknob`.
 4. Let the installer perform a clean erase, verify the ESP32-S3 and flash
    `PassionWave Rotaryknob`.
@@ -44,8 +44,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest-3.0.0-beta.14.json
-https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest-3.0.0-beta.14.json
+https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest-3.0.0-beta.15.json
+https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest-3.0.0-beta.15.json
 ```
 
 Both published binaries are built from sanitized public factory

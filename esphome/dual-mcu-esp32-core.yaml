@@ -17,6 +17,8 @@ substitutions:
   house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan-render/live.png"
   latency_request_entity: "input_button.passion_wave_latency_request"
   firmware_update_manifest_url: "https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest.json"
+  responsive_power_policy_enabled: "false"
+  responsive_power_idle_ms: "3000"
 
 esphome:
   name: "${name}"
@@ -27,9 +29,10 @@ esphome:
     - dual_mcu_encoder.h
     - dual_mcu_radar_proxy.h
     - dual_mcu_library_proxy.h
+    - responsive_power_policy.h
   project:
     name: "passion-wave.rotaryknob-test-esp32"
-    version: "3.0.0-beta.14"
+    version: "3.0.0-beta.15"
   on_boot:
     priority: -100
     then:
@@ -373,6 +376,10 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  - id: bridge_last_interaction_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
   - id: bridge_action_count
     type: uint32_t
     restore_value: false
@@ -2504,6 +2511,20 @@ script:
           media_type: !lambda 'return media_type;'
 
 interval:
+  # Keep command bursts in the minimum-latency mode. Only battery idle uses
+  # connected modem sleep, so Home Assistant and UART remain online.
+  - interval: 250ms
+    then:
+      - lambda: |-
+          if (!${responsive_power_policy_enabled}) return;
+          const uint32_t now = millis();
+          const bool latency_critical =
+            now < 30000U ||
+            (id(bridge_last_interaction_ms) != 0 &&
+             now - id(bridge_last_interaction_ms) < ${responsive_power_idle_ms}U);
+          responsive_power::wifi_policy().update(
+            id(bridge_s3_external_power), latency_critical, now);
+
   - interval: 1ms
     then:
       - lambda: |-
@@ -2511,6 +2532,10 @@ interval:
           int32_t accumulated = 0;
           while (dual_mcu::encoder.pop(&delta)) accumulated += delta;
           if (accumulated != 0) {
+            id(bridge_last_interaction_ms) = millis();
+            if (${responsive_power_policy_enabled})
+              responsive_power::wifi_policy().update(
+                id(bridge_s3_external_power), true, millis());
             id(esp32_ec2_count) += accumulated;
             dual_mcu::link.send_i32(dual_mcu::MessageType::ENCODER_DELTA, accumulated);
           }
@@ -2518,6 +2543,17 @@ interval:
           dual_mcu::link.poll();
           dual_mcu::Frame frame;
           while (dual_mcu::link.pop_priority(&frame)) {
+            if (frame.type != dual_mcu::MessageType::HEARTBEAT &&
+                frame.type != dual_mcu::MessageType::DEVICE_STATUS &&
+                frame.type != dual_mcu::MessageType::ENCODER_DIAG &&
+                frame.type != dual_mcu::MessageType::TIME_STATE &&
+                frame.type != dual_mcu::MessageType::PING &&
+                frame.type != dual_mcu::MessageType::PONG) {
+              id(bridge_last_interaction_ms) = millis();
+              if (${responsive_power_policy_enabled})
+                responsive_power::wifi_policy().update(
+                  id(bridge_s3_external_power), true, millis());
+            }
             switch (frame.type) {
               case dual_mcu::MessageType::HELLO:
                 id(last_s3_heartbeat_ms) = millis();

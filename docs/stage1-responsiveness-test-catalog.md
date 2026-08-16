@@ -1,7 +1,7 @@
 # Testkatalog: Dual-MCU Performance-Stufe 1
 
 Dieser Katalog qualifiziert jeden physischen Rotaryknob getrennt mit der
-koordinierten S3- und Bridge-Version `3.0.0-beta.14`. Vor einem schreibenden
+koordinierten S3- und Bridge-Version `3.0.0-beta.15`. Vor einem schreibenden
 Test das Zielgerät eindeutig über PassionWave Config Entry, Endpoint-Namen und
 installierte Version identifizieren.
 

@@ -6,9 +6,11 @@ substitutions:
   name: "passion-wave-managed-1-bridge"
   friendly_name: "PassionWave Rotaryknob Bridge"
   managed_fallback_ap_ssid: "PW Managed 1 Bridge"
+  responsive_power_policy_enabled: "true"
+  responsive_power_idle_ms: "3000"
 
 esphome:
   build_path: build/managed_production_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "3.0.0-beta.14"
+    version: "3.0.0-beta.15"

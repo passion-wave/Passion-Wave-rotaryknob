@@ -1,17 +1,19 @@
 # Power and runtime optimization
 
-This analysis describes the Beta.13 dual-MCU implementation. Current values
+This analysis describes the Beta.15 dual-MCU implementation. Current values
 are code and vendor-reference values, not whole-device measurements. Display,
 backlight, regulators, haptics and the second MCU must be measured on the real
 product before publishing a battery-runtime claim.
 
 ## Current power behavior
 
-- S3 and Bridge are fixed at 240 MHz and use `wifi.power_save_mode: none`.
+- S3 and Bridge are fixed at 240 MHz. On external power and during interaction
+  they use `WIFI_PS_NONE`; after three seconds of battery idle they use
+  connected `WIFI_PS_MIN_MODEM`.
 - The visible LVGL UI updates every 33 ms. The backlight normally runs at 70%.
 - On battery, the S3 dims after 15 seconds by default, switches the display off
   after 60 seconds without playback or 180 seconds during playback, and enters
-  deep sleep after 90 seconds of inactivity if no timer or alarm blocks sleep.
+  deep sleep after 75 seconds of inactivity if no timer or alarm blocks sleep.
 - Display-off turns off the backlight and pauses LVGL. GPIO9 wakes the S3.
 - Runtime and diagnostic traffic is event-driven with a 15-minute full-state
   fallback. Support mode alone restores high-frequency diagnostics.
@@ -58,6 +60,39 @@ latency does not regress materially, every visible page remains current,
 cover/radar/floorplan downloads still succeed, UART errors stay at zero, and
 touch/encoder wake restores the complete state. Compare battery energy per
 hour, not only instantaneous current.
+
+## Beta.15 responsive power policy
+
+The first optimization tranche is enabled in the public Factory images and in
+both maintained managed device profiles. It remains intentionally conservative:
+both processors stay associated with Wi-Fi and all Home Assistant and UART
+paths remain available.
+
+- Both processors retain `WIFI_PS_NONE` on external power and for the first
+  three seconds after a local interaction. On battery idle they switch to
+  `WIFI_PS_MIN_MODEM`, which keeps the association alive.
+- S3 image/radar/floorplan activity holds the responsive Wi-Fi policy until
+  the transfer and decode are complete.
+- The Bridge treats encoder deltas and actionable S3 control frames as user
+  activity, so the next command does not wait for the idle policy window.
+- The non-playing, battery-only display-off window now enters deep sleep
+  at 75 seconds of inactivity instead of 90 seconds. With the existing
+  60-second display-off point, this removes 15 seconds of invisible awake time.
+- Automatic light sleep and CPU frequency scaling are deliberately not part
+  of this first tranche: the 2 Mbit/s inter-MCU UART and active LVGL path first
+  need current and P95-latency measurements under the modem-sleep policy.
+
+Pre-release verification on 2026-08-16:
+
+- Both public Factory configurations and all four managed configurations are
+  required to compile before publication.
+- Home Assistant integration tests, manifest checks and website validation are
+  required to pass from the same source version.
+- Installation is performed only by the customer's coordinated Home Assistant
+  update entity (Bridge, reconnect, S3, reconnect); this release process does
+  not directly flash a device.
+- Whole-product current and battery-runtime claims remain blocked until a
+  repeatable physical measurement is recorded.
 
 ## Reference basis
 
