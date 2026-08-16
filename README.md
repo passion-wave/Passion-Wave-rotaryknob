@@ -3,8 +3,8 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current coordinated beta: Home Assistant integration and device firmware
-**3.0.0-beta.16 — `consolidated-update-contract`**.
+Current coordinated baseline: device firmware **3.0.0-beta.16** and Home
+Assistant integration **3.0.0-beta.16.1 — `consolidated-update-contract`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone
 Single-MCU entrypoint, MQTT media transport, S3 application-network fallback,

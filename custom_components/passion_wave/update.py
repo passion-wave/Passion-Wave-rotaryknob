@@ -251,6 +251,28 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             state and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
         )
 
+    async def _refresh_legacy_source(self, entity_id: str, target: str) -> None:
+        """Refresh a Beta-15 transport and require its target before install."""
+        await self.hass.services.async_call(
+            "homeassistant",
+            "update_entity",
+            {ATTR_ENTITY_ID: entity_id},
+            blocking=True,
+        )
+        for _ in range(10):
+            state = self.hass.states.get(entity_id)
+            if state and state.attributes.get(ATTR_LATEST_VERSION) == target:
+                return
+            await asyncio.sleep(1)
+        state = self.hass.states.get(entity_id)
+        advertised = (
+            state.attributes.get(ATTR_LATEST_VERSION) if state else None
+        )
+        raise HomeAssistantError(
+            f"Firmware transport {entity_id} advertises "
+            f"{advertised or 'no release'} instead of {target}"
+        )
+
     async def _save_job(self) -> None:
         if self._store is None:
             return
@@ -350,6 +372,7 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             legacy = _legacy_update_entities(self.hass, self._entry)[index]
             if not self._legacy_source_available(legacy):
                 raise HomeAssistantError("Firmware transport became unavailable")
+            await self._refresh_legacy_source(legacy, target)
             await self.hass.services.async_call(
                 "update", "install", {ATTR_ENTITY_ID: legacy}, blocking=True
             )

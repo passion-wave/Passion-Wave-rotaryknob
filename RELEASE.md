@@ -1,4 +1,10 @@
-# Version 3.0.0-beta.16
+# Firmware 3.0.0-beta.16 / integration 3.0.0-beta.16.1
+
+Integration hotfix `3.0.0-beta.16.1` refreshes each hidden Beta-15 ESPHome
+transport immediately before the one-time migration install and verifies that
+it advertises the requested Beta.16 target. This prevents an install click
+from failing when the transport still holds its six-hour-old Beta.15 manifest
+state. Firmware artifacts and checksums remain unchanged.
 
 Release description: `consolidated-update-contract`
 
@@ -34,7 +40,7 @@ internal firmware actions.
 
 ## Verification
 
-- Home Assistant 2026.7.4 and 2026.8.2 integration suites: 47 tests and four subtests passed per version.
+- Home Assistant 2026.7.4 and 2026.8.2 integration suites: 50 tests and four subtests passed per version.
 - Factory S3 and Bridge configurations validated and compiled with ESPHome
   2026.7.0.
 - Marco and Timo managed S3 and Bridge profiles validated and compiled.
