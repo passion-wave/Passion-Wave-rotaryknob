@@ -4,7 +4,7 @@ Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
 Current coordinated beta: Home Assistant integration and device firmware
-**3.0.0-beta.15 — `responsive-power-runtime`**.
+**3.0.0-beta.16 — `consolidated-update-contract`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone
 Single-MCU entrypoint, MQTT media transport, S3 application-network fallback,
@@ -22,7 +22,8 @@ Home Assistant integration is installed.
 - Home Assistant: the `passion_wave` Custom Integration with a typed Config
   Flow and bounded Music Assistant response services.
 
-Both processors retain independent OTA update paths. The S3 network surface is
+Both processors retain independent internal OTA transports. PassionWave owns
+the sole customer-facing, persistent update transaction. The S3 network surface is
 limited to provisioning, encrypted ESPHome Native API and OTA. All application
 state, commands and network assets are transported by the Bridge and framed
 UART. MQTT is not compiled into either role.
@@ -60,7 +61,7 @@ PassionWave Config Entry and two unique endpoint identities. See
 
 ## Getting Started
 
-The public browser installer delivers **V3.0.0-beta.15** as an explicitly marked
+The public browser installer delivers **V3.0.0-beta.16** as an explicitly marked
 prerelease. Version 2.1.1 remains the rollback tag. The steps below are for
 maintainers and beta testers; promotion beyond beta requires the coordinated
 hardware acceptance.
@@ -198,7 +199,7 @@ and large media-library filters.
 ## Documentation
 
 - [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
-- [Version 3.0.0-beta.15 release](RELEASE.md)
+- [Version 3.0.0-beta.16 release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
 - [Customer product architecture](docs/customer-product-architecture.md)

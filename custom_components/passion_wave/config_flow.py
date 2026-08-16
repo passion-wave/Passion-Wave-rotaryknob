@@ -38,6 +38,7 @@ from .const import (
     SHOW_ALL,
     S3_PROJECT_NAME,
 )
+from .identity import s3_product_unique_id
 from .media import normalize_library_page
 from .pairing import (
     DiscoveredEndpoint,
@@ -473,9 +474,17 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             elif registration is None:
                 errors["base"] = "invalid_bridge_registration_entity"
             else:
-                await self.async_set_unique_id(
-                    self._discovery_unique_id or registration.unique_id
+                product_unique_id = s3_product_unique_id(
+                    self.hass, user_input[CONF_S3_CONFIG_ENTRY_ID]
                 )
+                if product_unique_id is None:
+                    errors["base"] = "invalid_s3_device"
+                    return self.async_show_form(
+                        step_id="connection",
+                        data_schema=_connection_schema(self.hass, user_input),
+                        errors=errors,
+                    )
+                await self.async_set_unique_id(product_unique_id)
                 self._abort_if_unique_id_configured()
                 user_input[CONF_BRIDGE_REGISTRATION_UNIQUE_ID] = registration.unique_id
                 s3_entry = self.hass.config_entries.async_get_entry(

@@ -83,6 +83,7 @@ enum class MessageType : uint8_t {
   LIGHT_DETAIL_CATALOG_META = 54,
   RUNTIME_STATE = 55,
   LIGHT_DETAIL_REQUEST = 56,
+  VERSION_STATE = 57,
 };
 
 enum class HAAction : uint8_t {

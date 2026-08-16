@@ -32,6 +32,7 @@ from .const import (
     LATENCY_REQUEST_ENTITY,
     CONF_BRIDGE_REGISTRATION_ENTITY,
     CONF_MEDIA_PLAYER,
+    INTEGRATION_VERSION,
     LIGHT_SLOT_KEYS,
     is_configured_light_entity,
     MAX_COMMAND_STATE_LENGTH,
@@ -210,6 +211,7 @@ async def async_sync_runtime_state(
             }
         )
     payload = {
+        "integration_version": INTEGRATION_VERSION,
         "state": state_code,
         "title": str(attributes.get("media_title") or "")[:120],
         "artist": str(

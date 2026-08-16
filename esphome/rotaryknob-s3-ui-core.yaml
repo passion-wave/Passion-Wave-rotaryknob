@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave Rotaryknob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.0-beta.15"
+  project_version: "3.0.0-beta.16"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -202,6 +202,9 @@ api:
         then:
           - script.execute: refresh_all_light_detail_catalogs
   services:
+    - service: passion_wave_install_firmware
+      then:
+        - update.perform: passion_wave_firmware_update
     - service: support_diagnostics_on
       then:
         - lambda: 'id(support_diagnostics_enabled) = true;'
@@ -3529,7 +3532,7 @@ script:
     then:
       - script.execute: refresh_control_time
       - lambda: |-
-          const int focus_count = 11;
+          const int focus_count = 12;
           id(settings_focus_index) = scrollwheel_targets::clamp_index(id(settings_focus_index), focus_count);
           const char *focus_names[focus_count] = {
             "Haptik",
@@ -3543,6 +3546,7 @@ script:
             "Licht 3",
             "Licht 4",
             "DEV: Wach halten",
+            "Versionen",
           };
           std::string value;
           const bool demo = id(demo_mode_active);
@@ -3583,8 +3587,11 @@ script:
             case 9:
               value = demo ? "Accent" : id(light_slot_4_label_text).state;
               break;
-            default:
+            case 10:
               value = id(display_keep_awake) ? "Wach halten EIN" : "Wach halten AUS";
+              break;
+            default:
+              value = "S3 ${project_version}";
               break;
           }
           lv_label_set_text(settings_status_label, focus_names[id(settings_focus_index)]);
@@ -3598,7 +3605,14 @@ script:
           lv_obj_set_style_text_color(settings_wifi_status_label, lv_color_hex(wifi_ok ? 0xCBD5E1 : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_text_color(settings_ha_check_label, lv_color_hex(ha_ok ? 0x22C55E : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
           lv_obj_set_style_text_color(settings_ha_status_label, lv_color_hex(ha_ok ? 0xCBD5E1 : 0x64748B), LV_PART_MAIN | LV_STATE_DEFAULT);
-          lv_label_set_text_fmt(settings_ip_address_label, "IP %s", wifi_ok ? ip_address.c_str() : "--");
+          if (id(settings_focus_index) == 11) {
+            const std::string versions =
+              "B " + id(dual_mcu_bridge_version) +
+              " · HA " + id(dual_mcu_integration_version);
+            lv_label_set_text(settings_ip_address_label, versions.c_str());
+          } else {
+            lv_label_set_text_fmt(settings_ip_address_label, "IP %s", wifi_ok ? ip_address.c_str() : "--");
+          }
           const bool route_setting =
             id(settings_focus_index) >= 5 && id(settings_focus_index) <= 9;
           const bool demo_setting = id(settings_focus_index) == 4;
@@ -3625,7 +3639,7 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(settings_focus_index) -= 1;
-          if (id(settings_focus_index) < 0) id(settings_focus_index) = 10;
+          if (id(settings_focus_index) < 0) id(settings_focus_index) = 11;
       - script.execute: refresh_settings_ui
   - id: settings_focus_next
     mode: restart
@@ -3634,7 +3648,7 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(settings_focus_index) += 1;
-          if (id(settings_focus_index) > 10) id(settings_focus_index) = 0;
+          if (id(settings_focus_index) > 11) id(settings_focus_index) = 0;
       - script.execute: refresh_settings_ui
   - id: settings_value_prev
     mode: restart
@@ -3690,9 +3704,11 @@ script:
             case 9:
               id(light_ui_dirty) = true;
               break;
-            default:
+            case 10:
               id(display_keep_awake) = !id(display_keep_awake);
               id(display_keep_awake_switch).publish_state(id(display_keep_awake));
+              break;
+            default:
               break;
           }
       - if:
@@ -3762,9 +3778,11 @@ script:
             case 9:
               id(light_ui_dirty) = true;
               break;
-            default:
+            case 10:
               id(display_keep_awake) = !id(display_keep_awake);
               id(display_keep_awake_switch).publish_state(id(display_keep_awake));
+              break;
+            default:
               break;
           }
       - if:

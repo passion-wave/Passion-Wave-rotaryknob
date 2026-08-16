@@ -1,76 +1,59 @@
-# Version 3.0.0-beta.15
+# Version 3.0.0-beta.16
 
-Release description: `responsive-power-runtime`
+Release description: `consolidated-update-contract`
 
 ## Status
 
-Coordinated public prerelease for the Home Assistant integration and both
-Rotaryknob processors. S3 and Bridge images are built from this source and must
-always be installed together through the single PassionWave firmware update.
+Automated release candidate for the Home Assistant integration and both
+Rotaryknob processors. Public artifacts are reproducibly built. Physical
+installation and clean Home Assistant onboarding remain explicit manual gates.
 
 ## Customer-visible changes
 
-- The supported update path remains entirely in Home Assistant: update the
-  PassionWave integration through HACS, restart Home Assistant and install the
-  one `PassionWave Rotaryknob Firmware` update.
-- The updater installs the Bridge first, verifies its reconnect, then installs
-  and verifies the S3. A failed Bridge phase stops before the display processor
-  is touched.
-- On battery, both processors now enter connected Wi-Fi modem sleep after a
-  three-second idle window. External power and active interaction retain the
-  lowest-latency Wi-Fi mode.
-- Encoder input, actionable inter-processor frames and S3 image transfers
-  immediately hold or restore the responsive Wi-Fi mode.
-- With no playback, timer or alarm, the S3 deep-sleep point is shortened from
-  90 to 75 seconds after activity; the existing display-off point remains 60
-  seconds.
-- CPU frequency scaling and automatic light sleep remain disabled until UART,
-  visual and latency acceptance has been measured on complete hardware.
-- Factory and both maintained managed profiles use the same Beta.15 runtime
-  policy and coordinated version.
+- One physical Rotaryknob exposes exactly one PassionWave firmware update.
+- The S3 and Bridge ESPHome update components are internal and no longer
+  appear as separate customer updates after Beta.16 is installed.
+- One click creates a persistent transaction. It waits up to 24 hours for a
+  sleeping processor and survives a Home Assistant restart.
+- The safe sequence remains Bridge → verified reconnect → S3 → verified
+  reconnect. Success is reported only after both installed versions match.
+- New onboarding derives the logical product identity only from the selected
+  S3 MAC. Bridge registration IDs can no longer identify another device.
+- Legacy identity migration is deliberately omitted. Existing beta devices
+  may be removed and onboarded again without preserving old logical entries.
+- The local Settings page contains a `Versionen` item showing the running S3,
+  Bridge and PassionWave integration versions. Missing remote information is
+  displayed as `nicht verfügbar`.
 
-## Coordinated customer update
+## Beta.15 transition
 
-1. Install PassionWave `3.0.0-beta.15` through HACS and restart Home Assistant.
-2. Open the device page of the logical PassionWave Rotaryknob.
-3. Open `PassionWave Rotaryknob Firmware` and press **Install** once.
-4. Wait for Bridge update and verified reconnect.
-5. Wait for S3 update and verified reconnect.
-6. Confirm that the integration, Bridge and S3 all report `3.0.0-beta.15`.
-
-Do not install the two hidden ESPHome transport updates separately during the
-normal customer flow. They remain recovery transports only.
+The Beta.16 integration can use the two Beta.15 ESPHome update sources once to
+install Beta.16. After both processors reconnect with Beta.16, their obsolete
+registry update entities are disabled and all later releases use only the
+internal firmware actions.
 
 ## Verification
 
-- Public Factory S3 and Bridge configurations validated and compiled with the
-  pinned ESPHome release environment.
-- All four maintained managed profiles validated and compiled from the same
-  source generation.
-- Home Assistant integration tests, Python checks, shell syntax, manifests,
-  firmware checksums and website validation passed.
-- The release process did not directly flash either physical Rotaryknob.
-- Physical Beta.15 update, power and long-duration acceptance remains a
-  post-publication customer-process check and is not claimed as completed.
+- Home Assistant 2026.7.4 and 2026.8.2 integration suites: 47 tests and four subtests passed per version.
+- Factory S3 and Bridge configurations validated and compiled with ESPHome
+  2026.7.0.
+- Marco and Timo managed S3 and Bridge profiles validated and compiled.
+- Factory S3: 52.6% RAM, 71.7% flash.
+- Managed S3: 52.5% RAM, 71.6% flash.
+- Managed Bridge: 40.0% RAM, 62.6% flash.
+- Physical update, Settings rendering, clean onboarding and offline resume are
+  not claimed until the manual gates are completed.
 
 ## Public artifact checksums
 
-The final SHA-256 values below are generated from the release build and copied
-unchanged to the website and the cross-repository release record.
-
 ```text
-8baa584ada20da273a1fc0e301bab3573880f0e9cbad5246650ce01a2b4d16d0  s3/passion-wave-rotaryknob-s3-3.0.0-beta.15.factory.bin
-76532eb8458347b92e8f11e285602c18c66cfac1550c3aa0dae7a4d85b23035b  s3/passion-wave-rotaryknob-s3-3.0.0-beta.15.ota.bin
-0bc0ab35450f48bebc4fb31599bc784e18a468c584e315708dc369c7d6840d44  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.15.factory.bin
-2bbccf59a015d2a7460eee667190b6ecec53dd26358e8c163f28c55be962b10d  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.15.ota.bin
+06791ffc529d39ab40d5fd9954353c65b4cf38142cc3526f6404ad6a598e0f74  s3/passion-wave-rotaryknob-s3-3.0.0-beta.16.factory.bin
+2b77d125b4afd2e28df619722c5b4c5f3b5abea29bd9019b27eb7f46965cc49c  s3/passion-wave-rotaryknob-s3-3.0.0-beta.16.ota.bin
+12a44683c80082d941616ad5a0fdc3287079be81e002c1649697649ede0487f2  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.16.factory.bin
+8bab06949d6f263557fc600ba068e96e30d9790930509ee83bb19e61fee03b79  esp32/passion-wave-rotaryknob-esp32-3.0.0-beta.16.ota.bin
 ```
 
 ## Known limitation
 
-The previously diagnosed media-selection failure can leave the media picker
-open after a rejected playlist-track start. Because an open media picker
-intentionally blocks idle mode, the weather screensaver will not start until
-the picker is closed. Beta.15 does not silently change that behavior.
-
-All remaining physical acceptance gates are tracked in
-`docs/known-issues.md`.
+The playlist-start failure can still leave the media picker open and thereby
+block the screensaver. This unrelated defect remains explicitly open.

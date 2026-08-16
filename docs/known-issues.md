@@ -3,6 +3,33 @@
 Stand: 2026-08-16. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
 
+## Beta.16: Konsolidierter Updatevertrag
+
+Status: Automatisierte Tests und alle sechs Firmware-Builds bestanden. Die
+manuelle Installation, lokale Versionsanzeige, saubere Neuanlage von Marco und
+Timo sowie der wartende Auftrag bei schlafendem S3 sind noch offen.
+
+- Neue Config Entries verwenden ausschließlich `rotaryknob_<S3-MAC>` als
+  Produktidentität. Legacy-Einträge werden nicht migriert und dürfen für den
+  Abnahmetest neu angelegt werden.
+- S3 und Bridge besitzen interne OTA-Aktionen; nur die PassionWave-Integration
+  erzeugt eine sichtbare Firmwareentität.
+- Der Auftrag bleibt bei fehlendem Prozessor bis zu 24 Stunden gespeichert und
+  führt Bridge → Reconnect → S3 → Reconnect aus.
+- Die Settings-Seite zeigt S3-, Bridge- und Integrationsversion über den
+  versionierten UART-Vertrag `VERSION_STATE`.
+
+Manuelle Release-Gates:
+
+| Schritt | Erwartung | Status |
+| --- | --- | --- |
+| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Offen |
+| M02 Marco aktualisieren | Eine sichtbare Firmwareaktion; beide MCU Beta.16. | Offen |
+| M03 Timo im Schlafzustand anstoßen | Auftrag wartet und setzt nach Aufwecken fort. | Offen |
+| M04 Settings prüfen | S3, Bridge und HA zeigen Beta.16 lesbar an. | Offen |
+| M05 Neu-Onboarding | Marco/Timo erhalten ihre eigene S3-basierte Identität. | Offen |
+| M06 Neustart/Recovery | Wartender Auftrag bleibt nach HA-Neustart erhalten. | Offen |
+
 ## Beta.15: Responsive Power Runtime
 
 Status: Release-Kandidat für den ausschließlich über Home Assistant geführten

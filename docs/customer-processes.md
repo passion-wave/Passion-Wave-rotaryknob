@@ -19,14 +19,17 @@
    ein Geräteupdate `PassionWave Rotaryknob Firmware`.
 2. Falls beide angeboten werden, zuerst die Integration über HACS aktualisieren
    und Home Assistant wie von HACS verlangt neu starten.
-3. Danach beim Rotaryknob **Installieren** wählen. Das ist eine Kundenaktion
-   für beide Firmwares.
+3. Danach beim Rotaryknob **Installieren** wählen. Das ist die einzige
+   Kundenaktion für beide Firmwares; technische ESPHome-Updates erscheinen ab
+   Beta.16 nicht mehr.
 4. PassionWave aktualisiert zuerst die Bridge und wartet auf deren bestätigte
    Rückkehr mit der Zielversion.
 5. Nur bei erfolgreicher Bridge aktualisiert PassionWave anschließend den S3
    und prüft auch dessen Rückkehr.
-6. Bei einem Fehler bleibt der Ablauf stehen und nennt die betroffene Phase.
-   Die verborgenen Einzelupdates dienen Support und Wiederherstellung.
+6. Schläft ein Prozessor, bleibt der Auftrag als `Wartet auf Rotaryknob`
+   gespeichert und läuft nach dem Aufwecken weiter.
+7. Bei einem Fehler bleibt der Ablauf stehen und nennt die betroffene Phase.
+   Ein Neustart von Home Assistant verliert einen laufenden Auftrag nicht.
 
 ## Konfiguration
 
