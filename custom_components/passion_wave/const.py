@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "passion_wave"
-INTEGRATION_VERSION = "3.0.0-beta.16"
+INTEGRATION_VERSION = "3.0.0-beta.16.1"
 
 CONF_S3_HOST = "s3_host"
 CONF_BRIDGE_HOST = "bridge_host"

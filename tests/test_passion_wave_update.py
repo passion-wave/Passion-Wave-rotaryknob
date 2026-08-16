@@ -3,6 +3,11 @@
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
+from homeassistant.exceptions import HomeAssistantError
+
+import custom_components.passion_wave.update as update_module
 from custom_components.passion_wave.update import PassionWaveFirmwareUpdate
 
 
@@ -82,3 +87,117 @@ def test_mixed_pair_can_upgrade_but_not_downgrade_newer_processor():
 
     assert entity.version_is_newer("3.0.0-beta.16", "mixed")
     assert not entity.version_is_newer("3.0.0-beta.15", "mixed")
+
+
+def test_legacy_transport_is_refreshed_before_install():
+    entity = _entity()
+    state = SimpleNamespace(
+        state="off", attributes={"latest_version": "3.0.0-beta.15"}
+    )
+    calls = []
+
+    class Services:
+        async def async_call(self, domain, service, data, *, blocking):
+            calls.append((domain, service, data, blocking))
+            state.attributes["latest_version"] = "3.0.0-beta.16"
+
+    entity.hass = SimpleNamespace(
+        services=Services(), states=SimpleNamespace(get=lambda entity_id: state)
+    )
+
+    asyncio.run(
+        entity._refresh_legacy_source(
+            "update.bridge_firmware", "3.0.0-beta.16"
+        )
+    )
+
+    assert calls == [
+        (
+            "homeassistant",
+            "update_entity",
+            {"entity_id": "update.bridge_firmware"},
+            True,
+        )
+    ]
+
+
+def test_legacy_transport_rejects_stale_manifest(monkeypatch):
+    entity = _entity()
+    state = SimpleNamespace(
+        state="off", attributes={"latest_version": "3.0.0-beta.15"}
+    )
+
+    class Services:
+        async def async_call(self, domain, service, data, *, blocking):
+            return None
+
+    async def no_wait(_seconds):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", no_wait)
+    entity.hass = SimpleNamespace(
+        services=Services(), states=SimpleNamespace(get=lambda entity_id: state)
+    )
+
+    with pytest.raises(
+        HomeAssistantError,
+        match=(
+            "update.bridge_firmware advertises 3.0.0-beta.15 "
+            "instead of 3.0.0-beta.16"
+        ),
+    ):
+        asyncio.run(
+            entity._refresh_legacy_source(
+                "update.bridge_firmware", "3.0.0-beta.16"
+            )
+        )
+
+
+def test_legacy_endpoint_refreshes_before_install(monkeypatch):
+    entity = _entity()
+    calls = []
+
+    class Services:
+        async def async_call(self, domain, service, data, *, blocking):
+            calls.append((domain, service, data["entity_id"]))
+
+        def has_service(self, domain, service):
+            return False
+
+    class ConfigEntries:
+        async def async_reload(self, entry_id):
+            calls.append(("reload", entry_id))
+
+    async def refresh(entity_id, target):
+        calls.append(("refresh", entity_id, target))
+
+    async def wait_for_version(entry_id, target):
+        calls.append(("verify", entry_id, target))
+
+    entity.hass = SimpleNamespace(
+        services=Services(), config_entries=ConfigEntries()
+    )
+    entity._device_version = lambda entry_id: "3.0.0-beta.15"
+    entity._service_name = lambda entry_id, action=None: None
+    entity._legacy_source_available = lambda entity_id: True
+    entity._refresh_legacy_source = refresh
+    entity._wait_for_version = wait_for_version
+    monkeypatch.setattr(
+        update_module,
+        "_endpoint_entry_ids",
+        lambda hass, entry: ("bridge_entry", "s3_entry"),
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_legacy_update_entities",
+        lambda hass, entry: ("update.bridge_firmware", "update.s3_firmware"),
+    )
+
+    asyncio.run(entity._install_endpoint(0, "3.0.0-beta.16"))
+
+    assert calls == [
+        ("refresh", "update.bridge_firmware", "3.0.0-beta.16"),
+        ("update", "install", "update.bridge_firmware"),
+        ("verify", "bridge_entry", "3.0.0-beta.16"),
+        ("reload", "bridge_entry"),
+    ]
