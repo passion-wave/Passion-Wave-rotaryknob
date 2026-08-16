@@ -25,14 +25,18 @@ MARCO_BRIDGE = (
 ).read_text()
 TIMO_S3 = (ROOT / "esphome" / "managed-test-s3.yaml").read_text()
 TIMO_BRIDGE = (ROOT / "esphome" / "managed-test-esp32.yaml").read_text()
+FACTORY_S3 = (ROOT / "esphome" / "factory-s3.yaml").read_text()
+FACTORY_BRIDGE = (ROOT / "esphome" / "factory-esp32.yaml").read_text()
 
 
 class DualMcuRuntimeContractTests(unittest.TestCase):
-    def test_responsive_power_experiment_is_marco_only(self) -> None:
+    def test_responsive_power_policy_is_enabled_for_all_customer_profiles(self) -> None:
         self.assertIn('responsive_power_policy_enabled: "true"', MARCO_S3)
         self.assertIn('responsive_power_policy_enabled: "true"', MARCO_BRIDGE)
-        self.assertNotIn('responsive_power_policy_enabled: "true"', TIMO_S3)
-        self.assertNotIn('responsive_power_policy_enabled: "true"', TIMO_BRIDGE)
+        self.assertIn('responsive_power_policy_enabled: "true"', TIMO_S3)
+        self.assertIn('responsive_power_policy_enabled: "true"', TIMO_BRIDGE)
+        self.assertIn('responsive_power_policy_enabled: "true"', FACTORY_S3)
+        self.assertIn('responsive_power_policy_enabled: "true"', FACTORY_BRIDGE)
 
     def test_power_policy_prioritizes_active_latency(self) -> None:
         self.assertIn("WIFI_PS_NONE : WIFI_PS_MIN_MODEM", POWER_POLICY)

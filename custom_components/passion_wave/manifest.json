@@ -8,7 +8,7 @@
   "documentation": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob",
   "integration_type": "device",
   "iot_class": "local_push",
-  "version": "3.0.0b14",
+  "version": "3.0.0b15",
   "dependencies": [
     "esphome",
     "zeroconf"

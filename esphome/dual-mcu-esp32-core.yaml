@@ -32,7 +32,7 @@ esphome:
     - responsive_power_policy.h
   project:
     name: "passion-wave.rotaryknob-test-esp32"
-    version: "3.0.0-beta.14"
+    version: "3.0.0-beta.15"
   on_boot:
     priority: -100
     then:
