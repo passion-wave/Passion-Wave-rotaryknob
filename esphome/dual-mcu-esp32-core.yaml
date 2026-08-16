@@ -1,4 +1,5 @@
 substitutions:
+  project_version: "3.0.0-beta.16"
   name: "passion-wave-rotary-test-esp32"
   friendly_name: "Passion Wave Rotaryknob Test ESP32"
   passion_wave_config_entry_id: ""
@@ -32,7 +33,7 @@ esphome:
     - responsive_power_policy.h
   project:
     name: "passion-wave.rotaryknob-test-esp32"
-    version: "3.0.0-beta.15"
+    version: "${project_version}"
   on_boot:
     priority: -100
     then:
@@ -45,6 +46,12 @@ esphome:
           id(bridge_last_action_text).publish_state("keine");
           const uint8_t role[] = {'E', '3', '2'};
           dual_mcu::link.send(dual_mcu::MessageType::HELLO, role, sizeof(role));
+          const std::string bridge_version = "${project_version}";
+          std::vector<uint8_t> version_payload(bridge_version.size() + 1);
+          version_payload[0] = 'B';
+          std::copy(bridge_version.begin(), bridge_version.end(), version_payload.begin() + 1);
+          dual_mcu::link.send(dual_mcu::MessageType::VERSION_STATE,
+                              version_payload.data(), version_payload.size());
 
 esp32:
   board: esp32dev
@@ -63,6 +70,21 @@ api:
   # instead of holding each UI action in ESPHome's default 100 ms batch.
   batch_delay: 0ms
   actions:
+    - action: passion_wave_install_firmware
+      then:
+        - update.perform: passion_wave_firmware_update
+    - action: passion_wave_receive_integration_version
+      variables:
+        version: string
+      then:
+        - lambda: |-
+            id(bridge_integration_version) = version.substr(0, 32);
+            std::vector<uint8_t> payload(id(bridge_integration_version).size() + 1);
+            payload[0] = 'H';
+            std::copy(id(bridge_integration_version).begin(),
+                      id(bridge_integration_version).end(), payload.begin() + 1);
+            dual_mcu::link.send(dual_mcu::MessageType::VERSION_STATE,
+                                payload.data(), payload.size());
     - action: support_diagnostics_on
       then:
         - lambda: |-
@@ -163,6 +185,21 @@ api:
             JsonObjectConst root = doc.as<JsonObjectConst>();
             JsonArrayConst lights = root["lights"].as<JsonArrayConst>();
             if (lights.isNull() || lights.size() != 4) return;
+            const char *integration_version =
+              root["integration_version"].is<const char *>()
+                ? root["integration_version"].as<const char *>() : nullptr;
+            if (integration_version != nullptr) {
+              id(bridge_integration_version) =
+                std::string(integration_version).substr(0, 32);
+              std::vector<uint8_t> version_payload(
+                id(bridge_integration_version).size() + 1);
+              version_payload[0] = 'H';
+              std::copy(id(bridge_integration_version).begin(),
+                        id(bridge_integration_version).end(),
+                        version_payload.begin() + 1);
+              dual_mcu::link.send(dual_mcu::MessageType::VERSION_STATE,
+                                  version_payload.data(), version_payload.size());
+            }
             id(bridge_runtime_session) = static_cast<uint32_t>(session);
             id(bridge_runtime_sequence) = static_cast<uint32_t>(sequence);
             id(bridge_runtime_authoritative) = true;
@@ -285,7 +322,7 @@ http_request:
 update:
   - platform: http_request
     id: passion_wave_firmware_update
-    name: "Firmware"
+    internal: true
     source: "${firmware_update_manifest_url}"
     update_interval: 6h
 
@@ -312,6 +349,10 @@ time:
     timezone: Europe/Berlin
 
 globals:
+  - id: bridge_integration_version
+    type: std::string
+    restore_value: false
+    initial_value: '"nicht verfügbar"'
   - id: esp32_ec2_count
     type: int32_t
     restore_value: false
@@ -2566,6 +2607,20 @@ interval:
                 if (id(coprocessor_status).state != "S3 verbunden")
                   id(coprocessor_status).publish_state("S3 verbunden");
                 id(send_bridge_snapshot).execute();
+                {
+                  const std::string bridge_version = "${project_version}";
+                  std::vector<uint8_t> payload(bridge_version.size() + 1);
+                  payload[0] = 'B';
+                  std::copy(bridge_version.begin(), bridge_version.end(), payload.begin() + 1);
+                  dual_mcu::link.send(dual_mcu::MessageType::VERSION_STATE,
+                                      payload.data(), payload.size());
+                  payload.assign(id(bridge_integration_version).size() + 1, 0);
+                  payload[0] = 'H';
+                  std::copy(id(bridge_integration_version).begin(),
+                            id(bridge_integration_version).end(), payload.begin() + 1);
+                  dual_mcu::link.send(dual_mcu::MessageType::VERSION_STATE,
+                                      payload.data(), payload.size());
+                }
                 break;
               case dual_mcu::MessageType::HEARTBEAT:
                 if (!id(dual_mcu_link_connected).state)

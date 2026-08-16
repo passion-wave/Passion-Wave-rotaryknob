@@ -7,7 +7,7 @@ substitutions:
   name: "passion-wave-rotary-test-s3"
   friendly_name: "Passion Wave Rotaryknob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "3.0.0-beta.15"
+  project_version: "3.0.0-beta.16"
   firmware_update_manifest_url: "https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest.json"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"
@@ -45,7 +45,7 @@ dashboard_import: !remove
 update:
   - platform: http_request
     id: passion_wave_firmware_update
-    name: "Firmware"
+    internal: true
     source: "${firmware_update_manifest_url}"
     update_interval: 6h
 
@@ -62,6 +62,14 @@ uart:
   rx_buffer_size: 4096
 
 globals:
+  - id: dual_mcu_bridge_version
+    type: std::string
+    restore_value: false
+    initial_value: '"nicht verfügbar"'
+  - id: dual_mcu_integration_version
+    type: std::string
+    restore_value: false
+    initial_value: '"nicht verfügbar"'
   - id: dual_mcu_link_initialized
     type: bool
     restore_value: false
@@ -1119,6 +1127,17 @@ interval:
                 id(dual_mcu_last_esp32_heartbeat_ms) = millis();
                 if (!id(dual_mcu_esp32_link_connected).state)
                   id(dual_mcu_esp32_link_connected).publish_state(true);
+                break;
+              case dual_mcu::MessageType::VERSION_STATE:
+                if (frame.length >= 2) {
+                  const char role = static_cast<char>(frame.payload[0]);
+                  const std::string version(
+                    reinterpret_cast<const char *>(frame.payload.data() + 1),
+                    frame.length - 1);
+                  if (role == 'B') id(dual_mcu_bridge_version) = version;
+                  if (role == 'H') id(dual_mcu_integration_version) = version;
+                  if (id(current_page) == 5) id(refresh_settings_ui).execute();
+                }
                 break;
               case dual_mcu::MessageType::ENCODER_DELTA:
                 if (frame.length == 4) {

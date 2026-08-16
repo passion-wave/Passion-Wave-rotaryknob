@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "passion_wave"
-INTEGRATION_VERSION = "3.0.0-beta.15"
+INTEGRATION_VERSION = "3.0.0-beta.16"
 
 CONF_S3_HOST = "s3_host"
 CONF_BRIDGE_HOST = "bridge_host"
@@ -30,6 +30,9 @@ BRIDGE_RECEIVE_LIGHT_CATALOG_ACTION = "passion_wave_receive_light_catalog"
 BRIDGE_RECEIVE_LIGHT_STATE_ACTION = "passion_wave_receive_light_state"
 BRIDGE_RECEIVE_RUNTIME_STATE_ACTION = "passion_wave_receive_runtime_state"
 BRIDGE_COMPLETE_MEDIA_ACTION = "passion_wave_complete_media"
+BRIDGE_RECEIVE_INTEGRATION_VERSION_ACTION = (
+    "passion_wave_receive_integration_version"
+)
 COMMAND_PROTOCOL_VERSION = 1
 MAX_COMMAND_STATE_LENGTH = 255
 LATENCY_REQUEST_ENTITY = "input_button.passion_wave_latency_request"

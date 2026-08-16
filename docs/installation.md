@@ -44,8 +44,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest-3.0.0-beta.15.json
-https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest-3.0.0-beta.15.json
+https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest-3.0.0-beta.16.json
+https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest-3.0.0-beta.16.json
 ```
 
 Both published binaries are built from sanitized public factory

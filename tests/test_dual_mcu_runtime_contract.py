@@ -223,6 +223,42 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertIn("def _hide_native_entities(", INTEGRATION)
         self.assertIn("entry.version < 4", INTEGRATION)
 
+    def test_beta16_clean_onboarding_uses_the_selected_s3_mac(self) -> None:
+        """A new entry must never use the Bridge registration as product ID."""
+        config_flow = (
+            ROOT / "custom_components" / "passion_wave" / "config_flow.py"
+        ).read_text()
+        identity = (
+            ROOT / "custom_components" / "passion_wave" / "identity.py"
+        ).read_text()
+
+        self.assertIn("VERSION = 4", config_flow)
+        self.assertIn("s3_product_unique_id(", config_flow)
+        self.assertNotIn(
+            "self._discovery_unique_id or registration.unique_id", config_flow
+        )
+        self.assertIn('return f"rotaryknob_{normalized}"', identity)
+        self.assertNotIn("entry.version < 5", INTEGRATION)
+
+    def test_beta16_has_one_customer_update_and_local_versions(self) -> None:
+        update = (
+            ROOT / "custom_components" / "passion_wave" / "update.py"
+        ).read_text()
+        s3 = (ROOT / "esphome" / "dual-mcu-s3-core.yaml").read_text()
+        bridge = (ROOT / "esphome" / "dual-mcu-esp32-core.yaml").read_text()
+        ui = (ROOT / "esphome" / "rotaryknob-s3-ui-core.yaml").read_text()
+        link = (ROOT / "esphome" / "dual_mcu_link.h").read_text()
+
+        self.assertIn("internal: true", s3)
+        self.assertIn("internal: true", bridge)
+        self.assertIn("passion_wave_install_firmware", ui)
+        self.assertIn("passion_wave_install_firmware", bridge)
+        self.assertIn("JOB_WAIT_SECONDS = 24 * 60 * 60", update)
+        self.assertIn('self._phase = "waiting_for_devices"', update)
+        self.assertIn("VERSION_STATE = 57", link)
+        self.assertIn('"Versionen"', ui)
+        self.assertIn('value = "S3 ${project_version}"', ui)
+
 
 if __name__ == "__main__":
     unittest.main()
