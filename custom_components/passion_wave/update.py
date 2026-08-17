@@ -212,6 +212,24 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         )
         if self._both_internal_actions_available():
             self._disable_legacy_sources()
+        if self._reconcile_completed_target():
+            await self._save_job()
+
+    def _reconcile_completed_target(self) -> bool:
+        """Clear a stale job when both processors already run its target."""
+        target = self._target_version
+        if not target or any(
+            version != target for version in self._installed_versions()
+        ):
+            return False
+        self._phase = "complete"
+        self._target_version = None
+        self._last_error = None
+        self._attr_in_progress = False
+        self._attr_update_percentage = 100
+        if self._both_internal_actions_available():
+            self._disable_legacy_sources()
+        return True
 
     def _service_name(
         self, config_entry_id: str | None, action: str = INSTALL_ACTION
@@ -349,8 +367,9 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         except asyncio.CancelledError:
             raise
         except Exception as err:  # noqa: BLE001 - surface firmware transport failures
-            self._phase = "failed"
-            self._last_error = str(err)
+            if not self._reconcile_completed_target():
+                self._phase = "failed"
+                self._last_error = str(err)
         finally:
             if self._phase in {"complete", "failed"}:
                 self._attr_in_progress = False
@@ -373,9 +392,13 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             if not self._legacy_source_available(legacy):
                 raise HomeAssistantError("Firmware transport became unavailable")
             await self._refresh_legacy_source(legacy, target)
-            await self.hass.services.async_call(
-                "update", "install", {ATTR_ENTITY_ID: legacy}, blocking=True
-            )
+            try:
+                await self.hass.services.async_call(
+                    "update", "install", {ATTR_ENTITY_ID: legacy}, blocking=True
+                )
+            except HomeAssistantError as err:
+                if "already in progress" not in str(err).lower():
+                    raise
         await self._wait_for_version(entry_ids[index], target)
         if index == 0:
             await self.hass.config_entries.async_reload(entry_ids[index])
@@ -415,7 +438,9 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         if stored and stored.get("target_version"):
             self._target_version = str(stored["target_version"])
             stored_phase = str(stored.get("phase") or "waiting_for_devices")
-            if stored_phase == "failed":
+            if self._reconcile_completed_target():
+                await self._save_job()
+            elif stored_phase == "failed":
                 self._phase = "failed"
             else:
                 self._phase = "waiting_for_devices"

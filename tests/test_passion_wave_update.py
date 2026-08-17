@@ -55,6 +55,10 @@ def test_update_installs_bridge_before_s3():
 def test_bridge_failure_stops_before_s3():
     entity = _entity()
     calls = []
+    entity._installed_versions = lambda: (
+        "3.0.0-beta.15",
+        "3.0.0-beta.15",
+    )
 
     async def install_endpoint(index, target):
         calls.append((index, target))
@@ -67,6 +71,36 @@ def test_bridge_failure_stops_before_s3():
     assert calls == [(0, "3.0.0-beta.16")]
     assert entity._phase == "failed"
     assert entity._last_error == "bridge failed"
+
+
+def test_failed_job_reconciles_when_both_processors_reached_target():
+    entity = _entity()
+    entity._installed_versions = lambda: (
+        "3.0.0-beta.16",
+        "3.0.0-beta.16",
+    )
+    entity._both_internal_actions_available = lambda: True
+    disabled = []
+    entity._disable_legacy_sources = lambda: disabled.append(True)
+
+    assert entity._reconcile_completed_target()
+    assert entity._phase == "complete"
+    assert entity._target_version is None
+    assert entity._last_error is None
+    assert not entity._attr_in_progress
+    assert entity._attr_update_percentage == 100
+    assert disabled == [True]
+
+
+def test_failed_job_does_not_reconcile_a_mixed_pair():
+    entity = _entity()
+    entity._installed_versions = lambda: (
+        "3.0.0-beta.16",
+        "3.0.0-beta.15",
+    )
+
+    assert not entity._reconcile_completed_target()
+    assert entity._target_version == "3.0.0-beta.16"
 
 
 def test_manifest_versions_must_match():
@@ -200,4 +234,50 @@ def test_legacy_endpoint_refreshes_before_install(monkeypatch):
         ("update", "install", "update.bridge_firmware"),
         ("verify", "bridge_entry", "3.0.0-beta.16"),
         ("reload", "bridge_entry"),
+    ]
+
+
+def test_legacy_endpoint_verifies_an_install_already_in_progress(monkeypatch):
+    entity = _entity()
+    calls = []
+
+    class Services:
+        async def async_call(self, domain, service, data, *, blocking):
+            calls.append((domain, service, data["entity_id"]))
+            raise HomeAssistantError(
+                "Update installation already in progress for update.s3_firmware"
+            )
+
+        def has_service(self, domain, service):
+            return False
+
+    async def refresh(entity_id, target):
+        calls.append(("refresh", entity_id, target))
+
+    async def wait_for_version(entry_id, target):
+        calls.append(("verify", entry_id, target))
+
+    entity.hass = SimpleNamespace(services=Services())
+    entity._device_version = lambda entry_id: "3.0.0-beta.15"
+    entity._service_name = lambda entry_id, action=None: None
+    entity._legacy_source_available = lambda entity_id: True
+    entity._refresh_legacy_source = refresh
+    entity._wait_for_version = wait_for_version
+    monkeypatch.setattr(
+        update_module,
+        "_endpoint_entry_ids",
+        lambda hass, entry: ("bridge_entry", "s3_entry"),
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_legacy_update_entities",
+        lambda hass, entry: ("update.bridge_firmware", "update.s3_firmware"),
+    )
+
+    asyncio.run(entity._install_endpoint(1, "3.0.0-beta.16"))
+
+    assert calls == [
+        ("refresh", "update.s3_firmware", "3.0.0-beta.16"),
+        ("update", "install", "update.s3_firmware"),
+        ("verify", "s3_entry", "3.0.0-beta.16"),
     ]
