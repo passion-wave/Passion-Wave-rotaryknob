@@ -3,17 +3,17 @@
 ## Goal
 
 A buyer with no ESPHome or YAML knowledge should be able to install an
-unflashed Passion Wave Rotaryknob with a USB data cable, a Chromium-based
+unflashed Passion Wave RotaryKnob with a USB data cable, a Chromium-based
 desktop browser and Home Assistant.
 
 With the current board this is feasible as a guided **two-stage** install. It
 cannot honestly be presented as one physical flash: reversing the USB-C plug
 selects the other processor.
 
-Throughout this documentation, **device** means one physical Rotaryknob with
+Throughout this documentation, **device** means one physical RotaryKnob with
 two chips. **Endpoint** means one chip's independently addressable ESPHome
 connection. A customer installs two endpoints but owns and configures one
-product device. Additional Rotaryknobs repeat the same isolated two-endpoint
+product device. Additional RotaryKnobs repeat the same isolated two-endpoint
 model.
 
 ## Recommended repository boundaries

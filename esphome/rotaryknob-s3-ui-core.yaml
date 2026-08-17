@@ -1,9 +1,9 @@
 substitutions:
   name: "passion-wave-rotaryknob"
-  friendly_name: "Passion Wave Rotaryknob"
+  friendly_name: "Passion Wave RotaryKnob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.0-beta.16"
+  project_version: "3.0.0-beta.17"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -265,7 +265,7 @@ wifi:
       - delay: 12s
       - script.execute: sync_demo_mode_with_wifi
   ap:
-    ssid: "Passion-Wave-Rotaryknob"
+    ssid: "Passion-Wave-RotaryKnob"
     password: "passion-wave"
 
 spi:
@@ -10548,7 +10548,7 @@ number:
 
 text:
   - platform: template
-    name: "Rotaryknob Media Entity ID"
+    name: "RotaryKnob Media Entity ID"
     id: media_target_entity_text
     entity_category: config
     optimistic: true
@@ -10581,7 +10581,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_media_ui_if_needed
   - platform: template
-    name: "Rotaryknob Media Label"
+    name: "RotaryKnob Media Label"
     id: media_target_label_text
     entity_category: config
     optimistic: true
@@ -10597,7 +10597,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_media_ui_if_needed
   - platform: template
-    name: "Rotaryknob Media Runtime State"
+    name: "RotaryKnob Media Runtime State"
     id: media_runtime_state_text
     entity_category: diagnostic
     disabled_by_default: true
@@ -10632,7 +10632,7 @@ text:
           then:
             - script.execute: return_from_media_cover
   - platform: template
-    name: "Rotaryknob Media Runtime Title"
+    name: "RotaryKnob Media Runtime Title"
     id: media_runtime_title_text
     entity_category: diagnostic
     disabled_by_default: true
@@ -10649,7 +10649,7 @@ text:
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_ui_if_needed
   - platform: template
-    name: "Rotaryknob Media Runtime Artist"
+    name: "RotaryKnob Media Runtime Artist"
     id: media_runtime_artist_text
     entity_category: diagnostic
     disabled_by_default: true
@@ -10665,7 +10665,7 @@ text:
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_ui_if_needed
   - platform: template
-    name: "Rotaryknob Media Runtime Cover URL"
+    name: "RotaryKnob Media Runtime Cover URL"
     id: media_runtime_cover_url_text
     entity_category: diagnostic
     disabled_by_default: true
@@ -10683,7 +10683,7 @@ text:
           id(media_ui_dirty) = true;
       - script.execute: refresh_media_cover_url
   - platform: template
-    name: "Rotaryknob Light Slot 1 Entity ID"
+    name: "RotaryKnob Light Slot 1 Entity ID"
     id: light_slot_1_entity_text
     entity_category: config
     optimistic: true
@@ -10702,7 +10702,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
-    name: "Rotaryknob Light Slot 1 Label"
+    name: "RotaryKnob Light Slot 1 Label"
     id: light_slot_1_label_text
     entity_category: config
     optimistic: true
@@ -10717,7 +10717,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
-    name: "Rotaryknob Light Slot 2 Entity ID"
+    name: "RotaryKnob Light Slot 2 Entity ID"
     id: light_slot_2_entity_text
     entity_category: config
     optimistic: true
@@ -10736,7 +10736,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
-    name: "Rotaryknob Light Slot 2 Label"
+    name: "RotaryKnob Light Slot 2 Label"
     id: light_slot_2_label_text
     entity_category: config
     optimistic: true
@@ -10751,7 +10751,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
-    name: "Rotaryknob Light Slot 3 Entity ID"
+    name: "RotaryKnob Light Slot 3 Entity ID"
     id: light_slot_3_entity_text
     entity_category: config
     optimistic: true
@@ -10770,7 +10770,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
-    name: "Rotaryknob Light Slot 3 Label"
+    name: "RotaryKnob Light Slot 3 Label"
     id: light_slot_3_label_text
     entity_category: config
     optimistic: true
@@ -10785,7 +10785,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
-    name: "Rotaryknob Light Slot 4 Entity ID"
+    name: "RotaryKnob Light Slot 4 Entity ID"
     id: light_slot_4_entity_text
     entity_category: config
     optimistic: true
@@ -10804,7 +10804,7 @@ text:
       - script.execute: refresh_settings_ui
       - script.execute: refresh_light_ui_if_needed
   - platform: template
-    name: "Rotaryknob Light Slot 4 Label"
+    name: "RotaryKnob Light Slot 4 Label"
     id: light_slot_4_label_text
     entity_category: config
     optimistic: true

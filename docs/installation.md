@@ -1,10 +1,10 @@
 # Installation
 
-This guide installs the Passion Wave Rotaryknob firmware in ESPHome and links it
+This guide installs the Passion Wave RotaryKnob firmware in ESPHome and links it
 to Home Assistant.
 
 The current public no-expert path is
-`https://passion-wave-rotaryknob.thebeater.chatgpt.site/install/`. It delivers
+`https://www.passion-wave.com/install/`. It delivers
 V3.0.0-beta.15 as an explicitly marked prerelease; V2.1.1 remains the rollback
 tag until physical acceptance is complete.
 
@@ -16,24 +16,24 @@ iOS browsers cannot do this flow.
 
 This is the intended after-purchase flow:
 
-1. Connect the Rotaryknob to the browser device with USB in the orientation
+1. Connect the RotaryKnob to the browser device with USB in the orientation
    that exposes the ESP32-S3.
 2. Open
-   `https://passion-wave-rotaryknob.thebeater.chatgpt.site/install/?v=3.0.0-beta.15`.
-3. Press `Install Rotaryknob`.
+   `https://www.passion-wave.com/install/?v=3.0.0-beta.15`.
+3. Press `Install RotaryKnob`.
 4. Let the installer perform a clean erase, verify the ESP32-S3 and flash
-   `PassionWave Rotaryknob`.
+   `PassionWave RotaryKnob`.
 5. At 100 percent keep the ESP Web Tools dialog open, press `Next`, provision
    Wi-Fi and verify the S3.
 6. Unplug the cable, reverse the USB-C plug and reconnect it.
 7. Let the installer perform a clean erase, verify the classic ESP32 and flash
-   `PassionWave Rotaryknob Bridge`.
+   `PassionWave RotaryKnob Bridge`.
 8. Keep the dialog open, press `Next`, provision Wi-Fi and verify both
    processors. If the browser does not reconnect Improv automatically, use the
    separate bridge Wi-Fi button; it reconnects without another flash.
 9. Install PassionWave through HACS and restart Home Assistant.
-10. Power-cycle the Rotaryknob. Home Assistant shows one discovered
-    `PassionWave Rotaryknob`, not two technical ESPHome setup tiles.
+10. Power-cycle the RotaryKnob. Home Assistant shows one discovered
+    `PassionWave RotaryKnob`, not two technical ESPHome setup tiles.
 11. Open that tile within 20 minutes and select the matching S3 and Bridge.
     PassionWave creates one unique API encryption key per endpoint and keeps
     the two ESPHome transports behind the logical PassionWave component.
@@ -44,8 +44,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest-3.0.0-beta.16.json
-https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest-3.0.0-beta.16.json
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.17.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.17.json
 ```
 
 Both published binaries are built from sanitized public factory
@@ -75,7 +75,7 @@ website firmware.
 ## Customer Updates After Installation
 
 Home Assistant exposes one customer-facing device update:
-`PassionWave Rotaryknob Firmware`. One press installs the Bridge first, waits
+`PassionWave RotaryKnob Firmware`. One press installs the Bridge first, waits
 until it has reconnected with the target version, then installs the S3 and
 verifies its reconnect. If the Bridge fails, the S3 is not touched. The two
 native ESPHome update entities remain available as hidden recovery transports.
@@ -172,8 +172,8 @@ Settings page, enables or disables this offline promo behavior.
 ## 4. Select Targets In Home Assistant
 
 After the device connects, install PassionWave through HACS, restart Home
-Assistant, power-cycle the Rotaryknob and add the PassionWave integration.
-Select `PassionWave Rotaryknob` and `PassionWave Rotaryknob Bridge` as the two
+Assistant, power-cycle the RotaryKnob and add the PassionWave integration.
+Select `PassionWave RotaryKnob` and `PassionWave RotaryKnob Bridge` as the two
 processors of the same physical device.
 
 The public factory image contains no pre-shared key. During the 20-minute
@@ -186,7 +186,7 @@ Authenticated OTA still requires the managed deployment step described in
 
 The PassionWave Config Flow is the only customer configuration path. Select:
 
-- the ESPHome Rotaryknob S3/display entry;
+- the ESPHome RotaryKnob S3/display entry;
 - the matching Bridge registration entity;
 - the Music Assistant instance and playback device. For Sonos, choose its
   native Music Assistant entity rather than the generic Sonos entity;
@@ -228,7 +228,7 @@ Copy `custom_components/passion_wave` into
 `/config/custom_components/passion_wave`, restart Home Assistant and add
 **PassionWave** under **Settings > Devices & services**.
 
-Create one Config Entry per physical Rotaryknob. Select its Display/S3, Bridge
+Create one Config Entry per physical RotaryKnob. Select its Display/S3, Bridge
 entity **PassionWave Integration Entry ID**, Music Assistant instance, Music
 Assistant player and four light positions. The integration synchronizes its
 stable Config Entry ID to the Bridge and all customer targets to the display,

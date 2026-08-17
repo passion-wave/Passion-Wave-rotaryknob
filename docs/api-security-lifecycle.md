@@ -4,7 +4,7 @@
 
 An unencrypted ESPHome Native API is acceptable only in the short-lived public
 factory-onboarding state. It is not the target configuration for an installed
-Rotaryknob.
+RotaryKnob.
 
 The supported lifecycle on Home Assistant 2026.7 or newer is:
 
@@ -44,16 +44,16 @@ deployment.
 
 ## Managed profile requirements
 
-One physical Rotaryknob contains two chips with independent network endpoints
+One physical RotaryKnob contains two chips with independent network endpoints
 and therefore needs two distinct API keys:
 
 ```text
-One Rotaryknob
+One RotaryKnob
 ├── S3/display API key
 └── ESP32/bridge API key
 ```
 
-Additional Rotaryknobs repeat this two-endpoint model. Every installation still
+Additional RotaryKnobs repeat this two-endpoint model. Every installation still
 uses only two firmware roles: one common S3 core and one common ESP32 core.
 Small private device overlays provide the hostname, friendly name, Wi-Fi
 credentials, OTA password and installation-specific Home Assistant targets.
@@ -81,7 +81,7 @@ onboarding. Later OTA updates must not rotate or replace that key:
 4. update the S3 and verify its encrypted Native API;
 5. run the light, media, radar and floorplan smoke tests;
 6. for a multi-device installation, repeat the same role images for each
-   additional physical Rotaryknob.
+   additional physical RotaryKnob.
 
 Compiling a repository-wide API key into an update image breaks the existing HA
 pairing and is forbidden. A wrong or lost provisioned key does not brick the

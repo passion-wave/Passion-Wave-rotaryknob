@@ -1,7 +1,7 @@
 # UI Next Framework
 
 UI Next implements the five-view circular interface proposed for the Passion
-Wave Rotaryknob. It is enabled only in the dedicated S3 test profile through
+Wave RotaryKnob. It is enabled only in the dedicated S3 test profile through
 the `ui_next_enabled` substitution. The production profile defaults to false.
 
 ## Runtime architecture

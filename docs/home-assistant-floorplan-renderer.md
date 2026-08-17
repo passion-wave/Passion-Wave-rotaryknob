@@ -4,7 +4,7 @@
 
 Die Haus-Seite des Testgeräts zeigt eine für das runde 360×360-Display
 aufbereitete Momentaufnahme des Home-Assistant-Floorplans. Der produktive
-Rotaryknob auf Version 1.2.0 bleibt davon unabhängig.
+RotaryKnob auf Version 1.2.0 bleibt davon unabhängig.
 
 ## Datenfluss
 

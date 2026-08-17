@@ -5,10 +5,10 @@ packages:
 # application data and assets are owned by the classic ESP32 bridge.
 substitutions:
   name: "passion-wave-rotary-test-s3"
-  friendly_name: "Passion Wave Rotaryknob Test S3"
+  friendly_name: "Passion Wave RotaryKnob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "3.0.0-beta.16"
-  firmware_update_manifest_url: "https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/s3/manifest.json"
+  project_version: "3.0.0-beta.17"
+  firmware_update_manifest_url: "https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"
   dual_mcu_stage1_performance_enabled: "true"
@@ -635,28 +635,28 @@ text:
 text_sensor:
   - platform: template
     id: media_runtime_state_text
-    name: "Rotaryknob Media Runtime State"
+    name: "RotaryKnob Media Runtime State"
     update_interval: never
     entity_category: diagnostic
     disabled_by_default: true
 
   - platform: template
     id: media_runtime_title_text
-    name: "Rotaryknob Media Runtime Title"
+    name: "RotaryKnob Media Runtime Title"
     update_interval: never
     entity_category: diagnostic
     disabled_by_default: true
 
   - platform: template
     id: media_runtime_artist_text
-    name: "Rotaryknob Media Runtime Artist"
+    name: "RotaryKnob Media Runtime Artist"
     update_interval: never
     entity_category: diagnostic
     disabled_by_default: true
 
   - platform: template
     id: media_runtime_cover_url_text
-    name: "Rotaryknob Media Runtime Cover URL"
+    name: "RotaryKnob Media Runtime Cover URL"
     update_interval: never
     entity_category: diagnostic
     disabled_by_default: true

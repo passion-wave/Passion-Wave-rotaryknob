@@ -230,7 +230,7 @@ def test_connection_schema_exposes_all_customer_assignments():
     hass = SimpleNamespace(
         states=FakeStates(
             {
-                "text.registration": _state("", "Rotaryknob Bridge registration"),
+                "text.registration": _state("", "RotaryKnob Bridge registration"),
                 "media_player.living_room": _state("idle", "Living room"),
             }
         ),
@@ -239,7 +239,7 @@ def test_connection_schema_exposes_all_customer_assignments():
                 SimpleNamespace(
                     entry_id="s3-entry",
                     domain="esphome",
-                    title="PassionWave Rotaryknob",
+                    title="PassionWave RotaryKnob",
                 ),
                 SimpleNamespace(
                     entry_id="ma-entry",

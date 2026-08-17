@@ -103,7 +103,7 @@ Pre-release verification on 2026-08-16:
 - Espressif's idealized ESP32-S3 Wi-Fi measurements show approximately
   38–40 mA for modem sleep without DFS, 19.5–20.7 mA with DFS, and below 3 mA
   with automatic light sleep depending on DTIM. These are silicon/reference
-  conditions and must not be treated as Rotaryknob measurements.
+  conditions and must not be treated as RotaryKnob measurements.
 
 Sources:
 

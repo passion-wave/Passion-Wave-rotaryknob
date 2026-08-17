@@ -509,8 +509,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.unique_id or entry.entry_id)},
         manufacturer="PassionWave",
-        model="Rotaryknob Dual MCU",
-        name="PassionWave Rotaryknob",
+        model="RotaryKnob Dual MCU",
+        name="PassionWave RotaryKnob",
         sw_version=INTEGRATION_VERSION,
     )
     _hide_native_entities(hass, entry)

@@ -1,7 +1,7 @@
 substitutions:
-  project_version: "3.0.0-beta.16"
+  project_version: "3.0.0-beta.17"
   name: "passion-wave-rotary-test-esp32"
-  friendly_name: "Passion Wave Rotaryknob Test ESP32"
+  friendly_name: "Passion Wave RotaryKnob Test ESP32"
   passion_wave_config_entry_id: ""
   light_1_entity: "light.passion_wave_light_1"
   wled_preset_entity: "select.passion_wave_wled_preset"
@@ -17,7 +17,7 @@ substitutions:
   photo_image_url_2: "http://homeassistant.local:8123/local/passion-wave/photo-2.jpg"
   house_floorplan_image_url: "http://homeassistant.local:8123/local/passion-wave/floorplan-render/live.png"
   latency_request_entity: "input_button.passion_wave_latency_request"
-  firmware_update_manifest_url: "https://passion-wave-rotaryknob.thebeater.chatgpt.site/firmware/rotaryknob/esp32/manifest.json"
+  firmware_update_manifest_url: "https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest.json"
   responsive_power_policy_enabled: "false"
   responsive_power_idle_ms: "3000"
 

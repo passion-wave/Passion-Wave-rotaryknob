@@ -71,7 +71,7 @@ logs for completed architecture work; Git preserves that history.
 
 - `VERSION`, firmware project versions, integration version, manifests,
   `README.md` and `RELEASE.md` must describe the same coordinated release.
-- One physical Rotaryknob always means one S3 plus one classic ESP32. Never
+- One physical RotaryKnob always means one S3 plus one classic ESP32. Never
   report a profile or Home Assistant entry as a physically verified endpoint
   without live evidence.
 - Record observed hardware behavior in `docs/known-issues.md`; keep exact test

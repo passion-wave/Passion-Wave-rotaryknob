@@ -4,7 +4,7 @@ packages:
 
 substitutions:
   name: "passion-wave-managed-2-bridge"
-  friendly_name: "PassionWave Rotaryknob Bridge 2"
+  friendly_name: "PassionWave RotaryKnob Bridge 2"
   managed_fallback_ap_ssid: "PW Managed 2 Bridge"
   responsive_power_policy_enabled: "true"
   responsive_power_idle_ms: "3000"
@@ -13,4 +13,4 @@ esphome:
   build_path: build/managed_test_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "3.0.0-beta.16"
+    version: "3.0.0-beta.17"

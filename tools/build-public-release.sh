@@ -69,9 +69,9 @@ for resolved_config in \
   fi
 done
 
-require_line 'friendly_name: PassionWave Rotaryknob$' \
+require_line 'friendly_name: PassionWave RotaryKnob$' \
   "${resolved_dir}/factory-s3.yaml" "S3 friendly name is missing"
-require_line 'friendly_name: PassionWave Rotaryknob Bridge$' \
+require_line 'friendly_name: PassionWave RotaryKnob Bridge$' \
   "${resolved_dir}/factory-esp32.yaml" "ESP32 bridge friendly name is missing"
 require_line 'name_add_mac_suffix: true' \
   "${resolved_dir}/factory-s3.yaml" "S3 MAC suffix is disabled"
@@ -116,7 +116,7 @@ fi
 # true would offer a choice and could preserve stale NVS credentials.
 cat > "${output_dir}/s3/${s3_manifest}" <<EOF
 {
-  "name": "PassionWave Rotaryknob",
+  "name": "PassionWave RotaryKnob",
   "version": "${version}",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 120,
@@ -130,7 +130,7 @@ cat > "${output_dir}/s3/${s3_manifest}" <<EOF
         "md5": "${s3_ota_md5}",
         "path": "${s3_ota_binary}",
         "release_url": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob/releases/tag/v${version}",
-        "summary": "PassionWave Rotaryknob ${version}"
+        "summary": "PassionWave RotaryKnob ${version}"
       }
     }
   ]
@@ -139,7 +139,7 @@ EOF
 
 cat > "${output_dir}/esp32/${esp32_manifest}" <<EOF
 {
-  "name": "PassionWave Rotaryknob Bridge",
+  "name": "PassionWave RotaryKnob Bridge",
   "version": "${version}",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 120,
@@ -153,7 +153,7 @@ cat > "${output_dir}/esp32/${esp32_manifest}" <<EOF
         "md5": "${esp32_ota_md5}",
         "path": "${esp32_ota_binary}",
         "release_url": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob/releases/tag/v${version}",
-        "summary": "PassionWave Rotaryknob Bridge ${version}"
+        "summary": "PassionWave RotaryKnob Bridge ${version}"
       }
     }
   ]

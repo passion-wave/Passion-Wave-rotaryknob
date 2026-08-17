@@ -9,9 +9,9 @@ statically validated. Installation is delivered through the single
 PassionWave firmware entity in Home Assistant; physical beta.15 acceptance and
 the long-duration power measurement remain open.
 
-One physical Rotaryknob contains two separately addressable ESPHome endpoints:
+One physical RotaryKnob contains two separately addressable ESPHome endpoints:
 S3/display and ESP32/bridge. The repository contains entrypoints for two
-physical Rotaryknobs and therefore four endpoints. Only one physical pair is
+physical RotaryKnobs and therefore four endpoints. Only one physical pair is
 confirmed by the current live-test evidence; configured entrypoints must not
 be mistaken for installed firmware. Every device uses the same release sources
 and Managed security policy. Only stable network identity, build directory and
@@ -22,10 +22,10 @@ preserving independent OTA recovery for each processor.
 
 | Physical device / processor | ESPHome configuration | Responsibilities | Home Assistant device |
 | --- | --- | --- | --- |
-| Production / ESP32-S3 | `managed-production-s3.yaml` | Display, EC1, touch, LVGL, haptics and local UI | PassionWave Rotaryknob |
-| Production / ESP32-U4WDH | `managed-production-esp32.yaml` | Home Assistant bridge, weather, network assets and library paging | PassionWave Rotaryknob Bridge |
-| Device 2 / ESP32-S3 | `managed-test-s3.yaml` | Same S3 release with second identity and targets | PassionWave Rotaryknob 2 |
-| Device 2 / ESP32-U4WDH | `managed-test-esp32.yaml` | Same bridge release with second identity and targets | PassionWave Rotaryknob Bridge 2 |
+| Production / ESP32-S3 | `managed-production-s3.yaml` | Display, EC1, touch, LVGL, haptics and local UI | PassionWave RotaryKnob |
+| Production / ESP32-U4WDH | `managed-production-esp32.yaml` | Home Assistant bridge, weather, network assets and library paging | PassionWave RotaryKnob Bridge |
+| Device 2 / ESP32-S3 | `managed-test-s3.yaml` | Same S3 release with second identity and targets | PassionWave RotaryKnob 2 |
+| Device 2 / ESP32-U4WDH | `managed-test-esp32.yaml` | Same bridge release with second identity and targets | PassionWave RotaryKnob Bridge 2 |
 
 For the current installation the stable OTA targets are:
 
@@ -147,13 +147,13 @@ discovers or flashes an ambiguous endpoint.
 ## Register the devices in Home Assistant
 
 After both processors join Wi-Fi, Home Assistant should contain two technical
-ESPHome endpoints for each physical Rotaryknob. With both configured devices
+ESPHome endpoints for each physical RotaryKnob. With both configured devices
 online that means four endpoints in total, but still only two product devices.
 
 1. Open **Settings > Devices & services**.
 2. Confirm that both production endpoints remain available.
-3. Confirm **PassionWave Rotaryknob 2**.
-4. Confirm **PassionWave Rotaryknob Bridge 2**.
+3. Confirm **PassionWave RotaryKnob 2**.
+4. Confirm **PassionWave RotaryKnob Bridge 2**.
 5. If discovery fails, add the ESPHome integration manually for the missing hostname:
    - `passion-wave-managed-2-s3.local`, port `6053`;
    - `passion-wave-managed-2-bridge.local`, port `6053`.
@@ -163,13 +163,13 @@ online that means four endpoints in total, but still only two product devices.
    both endpoints. The PassionWave integration validates bounded command
    states and answers through named ESPHome API actions; neither processor
    requires broad Home Assistant action permission.
-8. Add one PassionWave Config Entry per physical Rotaryknob and bind it to that
+8. Add one PassionWave Config Entry per physical RotaryKnob and bind it to that
    device's Display/S3, Bridge registration entity, Music Assistant instance,
    player and four ordered light positions.
 9. Reopen **Configure** on the PassionWave entry for every later target change;
    no blueprint or manual ESPHome text edit is part of the customer path.
 
-Each physical Rotaryknob and PassionWave Config Entry is isolated by its stable
+Each physical RotaryKnob and PassionWave Config Entry is isolated by its stable
 entry ID. There are no shared MQTT topics or Music Assistant setup automations,
 so additional devices do not change the configuration contract.
 
