@@ -26,7 +26,7 @@ def device_info(entry: PassionWaveConfigEntry) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, entry.unique_id or entry.entry_id)},
         manufacturer="PassionWave",
-        model="Rotaryknob Dual MCU",
+        model="RotaryKnob Dual MCU",
         name=entry.title,
     )
 

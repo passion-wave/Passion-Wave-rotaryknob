@@ -132,7 +132,7 @@ Bridge und S3 bleiben unabhängig aktualisierbar.
    Prüfsummen sowie Release Notes.
 2. Jeder in den ESPHome Device Builder übernommene **Prozessor-Endpunkt**
    verwendet nur einen dünnen lokalen Wrapper. Die beiden Endpunkte gehören
-   gemeinsam zu einem physischen Rotaryknob. Hardware und Logik kommen als
+   gemeinsam zu einem physischen RotaryKnob. Hardware und Logik kommen als
    Remote-Package aus einem festgelegten Release-Tag; lokale WLAN-, API- und
    Zielkonfiguration bleibt im Wrapper.
 3. Home Assistant meldet verfügbare Firmware über je eine `update`-Entität.

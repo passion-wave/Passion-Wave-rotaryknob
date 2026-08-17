@@ -8,7 +8,7 @@ API; MQTT is not part of the device firmware.
 
 - Historical rollback reference: single-profile firmware `1.2.0` (not part of
   the V3 source tree).
-- Current coordinated dual-processor beta: `3.0.0-beta.16`.
+- Current coordinated dual-processor beta: `3.0.0-beta.17`.
 - Public Factory profiles: credential-free first adoption only.
 - Private Managed profiles: encrypted API, authenticated OTA and thin
   per-endpoint entrypoints over two shared processor roles. The repository has
@@ -52,7 +52,7 @@ They are stored persistently on the ESPHome device.
 
 V3 configures the media-library path only through the `passion_wave` Config
 Flow. Install `custom_components/passion_wave`, restart Home Assistant and add
-one integration entry per physical Rotaryknob. The form uses typed selectors
+one integration entry per physical RotaryKnob. The form uses typed selectors
 for the Bridge registration entity, Music Assistant instance and Music
 Assistant player.
 

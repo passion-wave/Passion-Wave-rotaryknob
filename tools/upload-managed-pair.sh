@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 if [[ "${1:-}" != "--devices-awake" ]]; then
-  echo "Abbruch: Beide Rotaryknobs zuerst aufwecken."
+  echo "Abbruch: Beide RotaryKnobs zuerst aufwecken."
   echo "Danach erneut mit --devices-awake starten."
   exit 2
 fi

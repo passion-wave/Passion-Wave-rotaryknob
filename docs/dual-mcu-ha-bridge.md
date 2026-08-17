@@ -1,8 +1,8 @@
 # Dual-MCU Home Assistant bridge
 
-Current coordinated implementation: `3.0.0-beta.16`.
+Current coordinated implementation: `3.0.0-beta.17`.
 
-One physical Passion Wave Rotaryknob contains two processors. They share one
+One physical Passion Wave RotaryKnob contains two processors. They share one
 product generation but keep separate firmware images, native API identities
 and recovery paths.
 
@@ -94,7 +94,7 @@ Fullscreen cover entry requires all of the following:
   input.
 
 Useful diagnostics are `ESP32 Media Cover URL Status`, `ESP32 Media Cover Proxy
-Status`, `Rotaryknob Media Runtime State`, `Rotaryknob Media Runtime Cover URL`
+Status`, `RotaryKnob Media Runtime State`, `RotaryKnob Media Runtime Cover URL`
 and `scrollwheel Media Debug Status`. The runtime diagnostics now prove what
 the S3 actually received. The live beta.12 cover regression and its OTA retest
 are tracked as `PW-UI-003` in `known-issues.md`.
@@ -151,5 +151,5 @@ The primary health signals are:
 
 Execute the current live matrix in [Known issues](known-issues.md) and the
 detailed [responsiveness test catalog](stage1-responsiveness-test-catalog.md)
-for each physical Rotaryknob. A profile or Home Assistant entry alone is not
+for each physical RotaryKnob. A profile or Home Assistant entry alone is not
 evidence that its corresponding processor has passed physical acceptance.

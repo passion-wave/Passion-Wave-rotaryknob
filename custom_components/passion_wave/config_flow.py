@@ -322,7 +322,7 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the two-step flow."""
         self._pending_data: dict[str, Any] = {}
-        self._entry_title = "PassionWave Rotaryknob"
+        self._entry_title = "PassionWave RotaryKnob"
         self._catalogs: dict[str, list[dict[str, str]]] = {}
         self._library_error = False
         self._discovered_endpoints: dict[str, DiscoveredEndpoint] = {}
@@ -332,7 +332,7 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_zeroconf(
         self, discovery_info: ZeroconfServiceInfo
     ) -> ConfigFlowResult:
-        """Expose one PassionWave discovery tile per physical Rotaryknob."""
+        """Expose one PassionWave discovery tile per physical RotaryKnob."""
         mac_address = str(discovery_info.properties.get("mac", ""))
         if not mac_address:
             return self.async_abort(reason="endpoints_not_found")

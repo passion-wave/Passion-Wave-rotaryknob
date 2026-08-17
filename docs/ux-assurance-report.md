@@ -2,7 +2,7 @@
 
 Stand: 2026-07-24
 
-Dieser Bericht bewertet die Bedienbarkeit der Passion Wave Rotaryknob Firmware
+Dieser Bericht bewertet die Bedienbarkeit der Passion Wave RotaryKnob Firmware
 auf dem runden 360 x 360 Display. Grundlage ist eine statische Pruefung der
 LVGL-Definitionen in `esphome/rotaryknob-s3-ui-core.yaml`, der Rotary-Logik
 und der Scroll-/Listenlogik.

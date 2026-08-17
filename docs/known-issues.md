@@ -36,7 +36,7 @@ Manuelle Release-Gates:
 Status: In Integration Beta.16.2 korrigiert und physisch bestanden.
 
 Beim Marco-Lauf am 2026-08-17 installierten Bridge und S3 nachweislich
-Firmware `3.0.0-beta.16`. Der S3-Transport meldete währenddessen jedoch
+Firmware `3.0.0-beta.17`. Der S3-Transport meldete währenddessen jedoch
 `Update installation already in progress`. Beta.16.1 behandelte diese
 Rückmeldung sofort als Fehler, obwohl der bereits angenommene Flash danach
 erfolgreich neu startete. Dadurch zeigte die konsolidierte Entität korrekt
@@ -95,8 +95,8 @@ Submit mit dem gleichzeitigen Marco-Discovery-Flow und brach mit
 
 Beta.16.4 beendet vor dem Setzen der S3-basierten Produkt-ID ausschließlich
 den fremden Discovery-Flow mit derselben ID. Der aktive Benutzerflow und die
-Discovery des anderen Rotaryknobs bleiben unberührt. Die irreführende Meldung
-spricht nun vom bereits konfigurierten Rotaryknob statt von einer Bridge. Ein
+Discovery des anderen RotaryKnobs bleiben unberührt. Die irreführende Meldung
+spricht nun vom bereits konfigurierten RotaryKnob statt von einer Bridge. Ein
 Regressionstest deckt die selektive Flow-Auflösung ab; insgesamt bestehen 56
 Tests plus vier Subtests auf beiden unterstützten HA-Versionen.
 
@@ -223,14 +223,14 @@ abschließenden Home-Assistant-Neustart melden beide logischen Firmwareentities
 ## Live-Verifikation Beta.12
 
 Die folgenden Ergebnisse wurden am 2026-08-01 für den Testaufbau mit zwei in
-der PassionWave Integration gelisteten Rotaryknobs gemeldet. Wo nicht
+der PassionWave Integration gelisteten RotaryKnobs gemeldet. Wo nicht
 ausdrücklich getrennt geprüft, müssen sie noch pro Gerät wiederholt werden.
 „Bestanden“ bedeutet einen erfolgreichen Funktionstest, nicht automatisch
 einen bestandenen Dauer-, Neustart- oder Fehlerfalltest.
 
 | Funktion | Ergebnis | Nachweis / Restpunkt |
 | --- | --- | --- |
-| PassionWave-Gerätezuordnung | Bestanden | Beide logischen Rotaryknobs werden von der Integration gelistet. |
+| PassionWave-Gerätezuordnung | Bestanden | Beide logischen RotaryKnobs werden von der Integration gelistet. |
 | Firmwaregeneration | Vorläufig bestanden | Beide Geräte zeigen Beta.12; die vier technischen Endpoint-Versionen noch exakt gegenprüfen. |
 | Playlist-Aufruf | Teilweise bestanden | Playlist-Katalog und Start funktionieren. Die korrigierte Titelliste liefert im Service-Test Seiten mit 16 Einträgen; physische Popup-Prüfung offen. |
 | Radio-/Podcast-Katalog | Bestanden | Nach dem Bridge-Recovery-Fix melden beide S3 `P 64 · R 3 · O 40`; der Nutzer bestätigte Radio und Podcast anschließend physisch. |
@@ -360,7 +360,7 @@ V03/V06 deshalb getrennt bewertet.
 
 ## Verbleibende Gesamtfunktionsprüfung
 
-Die Blöcke pro physischem Rotaryknob getrennt protokollieren. Bei einem Fehler
+Die Blöcke pro physischem RotaryKnob getrennt protokollieren. Bei einem Fehler
 Gerät, Uhrzeit, aktive Seite und die letzten 30 Sekunden der S3- und
 Bridge-Logs festhalten.
 
@@ -368,9 +368,9 @@ Bridge-Logs festhalten.
 | --- | --- | --- |
 | V01 | In PassionWave und den beiden verborgenen ESPHome-Updatequellen die installierte Version prüfen. | Integration, S3 und Bridge melden je Gerät exakt `3.0.0-beta.15`; kein gemischtes Prozessorpaar. |
 | V02 | Einen Titel mit bekanntem Cover starten und 15 Sekunden weder Touch noch Encoder bedienen. | Runtime-State ist `playing`, Cover-URL ist nicht leer und das Vollbild-Cover erscheint nach mindestens 10 Sekunden Ruhe. |
-| V03 | Während V02 die Diagnosen `ESP32 Media Cover URL Status`, `ESP32 Media Cover Proxy Status`, `Rotaryknob Media Runtime Cover URL` und `scrollwheel Media Debug Status` beobachten. | URL meldet `resolved=... http`, Proxy bestätigt die S3-Übernahme und der S3-Decoder endet ohne Backoff/Fehler. |
+| V03 | Während V02 die Diagnosen `ESP32 Media Cover URL Status`, `ESP32 Media Cover Proxy Status`, `RotaryKnob Media Runtime Cover URL` und `scrollwheel Media Debug Status` beobachten. | URL meldet `resolved=... http`, Proxy bestätigt die S3-Übernahme und der S3-Decoder endet ohne Backoff/Fehler. |
 | V04 | Playlist über mindestens drei Seitengrenzen scrollen, Titel starten und anschließend Vor/Zurück, Pause und Lautstärke testen. | Keine Lücke oder Doppelladung; genau ein Befehl je Eingabe; Lautstärke springt nicht auf einen alten Wert zurück. |
-| V05 | Alle vier Lichtplätze testen, danach dieselben Lichter extern in HA ändern sowie Hue-Szenen/WLED-Presets öffnen. | Rotaryknob folgt externen Änderungen; Detailkataloge passen zum gewählten Slot und enthalten keine alten Einträge. |
+| V05 | Alle vier Lichtplätze testen, danach dieselben Lichter extern in HA ändern sowie Hue-Szenen/WLED-Presets öffnen. | RotaryKnob folgt externen Änderungen; Detailkataloge passen zum gewählten Slot und enthalten keine alten Einträge. |
 | V06 | Temperatur, Wetterzustand und zwei Forecast-Tage direkt mit der konfigurierten `weather.*`-Entity vergleichen; Radar dreimal neu laden. | Werte und Zustände stimmen überein; Radar lädt wiederholt ohne steigende UART-Fehler. |
 | V07 | Floorplan-Quelle ändern bzw. Revision erhöhen und Haus erneut öffnen. | Das neue 360×360-PNG erscheint; kein dauerhaftes Cachebild und kein `Hausbild fehlt`. |
 | V08 | Jeweils nur Bridge, nur S3 und danach Home Assistant neu starten. | Lokale UI bleibt bedienbar; Link, Medien-, Licht-, Wetter- und Assetzustände konvergieren selbstständig. |
@@ -541,7 +541,7 @@ Home-Assistant-Neustart aktiviert. Offen ist die physische D17-Abnahme mit
 schnellen unterschiedlichen sowie identischen Titelauswahlen.
 
 ### PW-LIGHT-004: WLED-Presets reagieren teilweise verzögert
-Am 2026-08-03 lagen acht gemessene Rotaryknob-Rundläufe vom Bridge-Befehl bis
+Am 2026-08-03 lagen acht gemessene RotaryKnob-Rundläufe vom Bridge-Befehl bis
 zum bestätigten WLED-Select-Zustand zwischen 1,250 und 1,314 Sekunden. Direkte
 native `select.select_option`-Kontrollläufe benötigten vor dem Fix 1,725 und
 nach dem Neustart 1,638 beziehungsweise 1,664 Sekunden. Acht direkte WLED-
@@ -635,7 +635,7 @@ Die Bridge wiederholt eine unbeantwortete Forecast-Anfrage alle zehn Sekunden; n
 ### PW-UI-002: Screensaver startete hinter UI Next und ließ die Lichtseite blitzen
 UI Next wird ausgeblendet und Seite 7 atomar gesetzt; Testgerät wechselte nach 30 s genau einmal, ohne 100-%-Wiederholung oder Encodertrigger.
 
-### PW-LIGHT-001: Externe Lichtänderungen erschienen nicht am Rotaryknob
+### PW-LIGHT-001: Externe Lichtänderungen erschienen nicht am RotaryKnob
 Ein autoritativer Snapshot synchronisiert alle vier Slots; externe Änderung und Rücksetzung wurden auf Bridge und S3 identisch live bestätigt.
 
 ### PW-LIGHT-002: Detail-Popup für Hue und WLED blieb leer

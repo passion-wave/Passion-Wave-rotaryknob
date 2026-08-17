@@ -2,16 +2,16 @@
   "config": {
     "step": {
       "pair": {
-        "title": "Securely connect the Rotaryknob",
-        "description": "Select both processors belonging to the same Rotaryknob. PassionWave generates an individual key for each processor and configures ESPHome without manual key entry.",
+        "title": "Securely connect the RotaryKnob",
+        "description": "Select both processors belonging to the same RotaryKnob. PassionWave generates an individual key for each processor and configures ESPHome without manual key entry.",
         "data": {
           "s3_host": "Display / S3",
           "bridge_host": "Bridge / ESP32"
         }
       },
       "connection": {
-        "title": "Set up PassionWave Rotaryknob",
-        "description": "Assign this Rotaryknob display and bridge plus Music Assistant. Every assignment can be changed later from Configure on the PassionWave entry.",
+        "title": "Set up PassionWave RotaryKnob",
+        "description": "Assign this RotaryKnob display and bridge plus Music Assistant. Every assignment can be changed later from Configure on the PassionWave entry.",
         "data": {
           "s3_config_entry_id": "Display / S3",
           "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
@@ -20,7 +20,7 @@
         }
       },
       "lights": {
-        "title": "Arrange lights on the Rotaryknob",
+        "title": "Arrange lights on the RotaryKnob",
         "description": "Choose the four positions in the order shown on the display. “Not assigned” leaves a position empty. Names are copied automatically from Home Assistant.",
         "data": {
           "light_slot_1": "Light position 1",
@@ -42,14 +42,14 @@
     "error": {
       "endpoints_not_found": "S3 and Bridge were not both found on the network. Check Wi-Fi and reopen setup.",
       "endpoint_unavailable": "At least one selected processor is no longer reachable. Reopen setup.",
-      "provisioning_window_closed": "The secure setup window has expired. Power the Rotaryknob off and on, then restart setup within 20 minutes.",
+      "provisioning_window_closed": "The secure setup window has expired. Power the RotaryKnob off and on, then restart setup within 20 minutes.",
       "pairing_failed": "Secure pairing could not be completed. Verify that both processors are online and try again.",
       "invalid_s3_device": "The selected display does not provide the required PassionWave target entities.",
       "invalid_bridge_registration_entity": "The selected entity is not the PassionWave registration entity of an ESPHome bridge.",
       "library_unavailable": "The Music Assistant library could not be loaded. You can continue with “All automatically” and open the selection again later."
     },
     "abort": {
-      "already_configured": "This PassionWave Rotaryknob is already configured.",
+      "already_configured": "This PassionWave RotaryKnob is already configured.",
       "bridge_transport": "The Bridge is configured automatically behind the PassionWave component.",
       "pairing_complete": "S3 and Bridge are now securely connected to ESPHome. Reopen PassionWave after a few seconds to assign Music Assistant."
     }
@@ -63,7 +63,7 @@
     "step": {
       "init": {
         "title": "Configure PassionWave",
-        "description": "Change this Rotaryknob assignment. The next step contains its four light positions, followed by optional media filters.",
+        "description": "Change this RotaryKnob assignment. The next step contains its four light positions, followed by optional media filters.",
         "data": {
           "s3_config_entry_id": "Display / S3",
           "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
@@ -73,7 +73,7 @@
       },
       "lights": {
         "title": "Change light positions",
-        "description": "The order matches this Rotaryknob display. Names are copied from Home Assistant again after saving.",
+        "description": "The order matches this RotaryKnob display. Names are copied from Home Assistant again after saving.",
         "data": {
           "light_slot_1": "Light position 1",
           "light_slot_2": "Light position 2",

@@ -1,15 +1,15 @@
-# Passion Wave Rotaryknob
+# Passion Wave RotaryKnob
 
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current coordinated baseline: device firmware **3.0.0-beta.16** and Home
-Assistant integration **3.0.0-beta.16.5 — `consolidated-update-contract`**.
+Current coordinated baseline: device firmware **3.0.0-beta.17** and Home
+Assistant integration **3.0.0-beta.17 — `consolidated-update-contract`**.
 
 V3 is an intentional breaking architecture release. The obsolete standalone
 Single-MCU entrypoint, MQTT media transport, S3 application-network fallback,
 all setup blueprints and the YAML media helper have been removed.
-Both processors of a physical Rotaryknob must be updated together after the
+Both processors of a physical RotaryKnob must be updated together after the
 Home Assistant integration is installed.
 
 ## Current architecture
@@ -30,11 +30,11 @@ UART. MQTT is not compiled into either role.
 
 ## One device, two chips
 
-The product term **Rotaryknob** always means one physical device. It contains
+The product term **RotaryKnob** always means one physical device. It contains
 two chips and therefore exposes two independently managed ESPHome endpoints:
 
-- the ESP32-S3 display endpoint `PassionWave Rotaryknob`;
-- the classic ESP32 bridge endpoint `PassionWave Rotaryknob Bridge`.
+- the ESP32-S3 display endpoint `PassionWave RotaryKnob`;
+- the classic ESP32 bridge endpoint `PassionWave RotaryKnob Bridge`.
 
 The endpoints need separate chip images, API identities and OTA paths, but they
 are not separate product devices. They share one release generation and are
@@ -42,7 +42,7 @@ operated as one coordinated unit.
 
 ## Multi-device compatibility
 
-Multiple physical Rotaryknobs can run the same source and release version. The
+Multiple physical RotaryKnobs can run the same source and release version. The
 repository does not duplicate complete configurations per installation:
 
 - `managed-s3.yaml` and `managed-esp32.yaml` define the two unavoidable
@@ -50,18 +50,18 @@ repository does not duplicate complete configurations per installation:
 - `devices/production.yaml` and `devices/test.yaml` contain only the
   location-specific Home Assistant targets and private substitutions.
 - `managed-{production,test}-{s3,esp32}.yaml` are thin build and OTA entrypoints
-  for two physical Rotaryknob identities. The current live evidence covers one
+  for two physical RotaryKnob identities. The current live evidence covers one
   complete pair; the second clean-device acceptance remains open.
 
 The S3 and classic ESP32 cannot share one binary because they use different
 chips, flash layouts and responsibilities. They do share the same firmware
-cores, version and security policy. Each additional Rotaryknob receives its own
+cores, version and security policy. Each additional RotaryKnob receives its own
 PassionWave Config Entry and two unique endpoint identities. See
 [Dual-MCU managed deployment](docs/managed-deployment.md).
 
 ## Getting Started
 
-The public browser installer delivers **V3.0.0-beta.16** as an explicitly marked
+The public browser installer delivers **V3.0.0-beta.17** as an explicitly marked
 prerelease. Version 2.1.1 remains the rollback tag. The steps below are for
 maintainers and beta testers; promotion beyond beta requires the coordinated
 hardware acceptance.
@@ -71,7 +71,7 @@ hardware acceptance.
 2. Copy `custom_components/passion_wave` into
    `/config/custom_components/passion_wave`, restart Home Assistant and add
    **PassionWave** under **Settings > Devices & services**.
-3. Prepare and validate the two configurations for one Rotaryknob:
+3. Prepare and validate the two configurations for one RotaryKnob:
 
    ```sh
    ./tools/config.sh esphome/managed-production-s3.yaml
@@ -83,7 +83,7 @@ hardware acceptance.
 4. Install the matching S3 and Bridge images, provision both chips on the same
    WLAN and confirm their two ESPHome endpoints in Home Assistant. Never mix
    V2 and V3 on the two chips of one device.
-5. Add one PassionWave Config Entry for the physical Rotaryknob. Select its
+5. Add one PassionWave Config Entry for the physical RotaryKnob. Select its
    Display/S3, Bridge registration, Music Assistant instance, player and four
    ordered light positions. The complete Music Assistant library is enabled
    automatically; all assignments and optional visibility filters remain
@@ -95,7 +95,7 @@ hardware acceptance.
    and both OTA paths with the acceptance list in
    [Managed deployment](docs/managed-deployment.md).
 
-For a second Rotaryknob, repeat steps 4–7 with a second device overlay and a
+For a second RotaryKnob, repeat steps 4–7 with a second device overlay and a
 second PassionWave Config Entry. Detailed factory and recovery instructions
 are in [Installation](docs/installation.md).
 
@@ -143,8 +143,8 @@ development sessions.
 The repository supplies separate credential-free S3 and ESP32 factory
 profiles, reproducible release artifacts, generated chip-specific manifests
 and independent OTA paths. A clean factory install erases stale device
-identity data and exposes `PassionWave Rotaryknob` plus `PassionWave
-Rotaryknob Bridge`. PassionWave uses ESPHome 2026.7's bounded zero-PSK
+identity data and exposes `PassionWave RotaryKnob` plus `PassionWave
+RotaryKnob Bridge`. PassionWave uses ESPHome 2026.7's bounded zero-PSK
 provisioning path to generate and install an individual API key for each
 processor without showing it to the buyer. Authenticated OTA remains part of
 the subsequent managed commissioning
@@ -159,7 +159,7 @@ should follow
 Copy `custom_components/passion_wave` to Home Assistant's
 `/config/custom_components/`, restart Home Assistant and add **PassionWave**
 under **Settings > Devices & services**. Create one config entry per physical
-Rotaryknob and select:
+RotaryKnob and select:
 
 1. its ESPHome Display/S3 entry;
 2. its Bridge entity **PassionWave Integration Entry ID**;
@@ -199,7 +199,7 @@ and large media-library filters.
 ## Documentation
 
 - [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
-- [Version 3.0.0-beta.16 release](RELEASE.md)
+- [Version 3.0.0-beta.17 release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
 - [Customer product architecture](docs/customer-product-architecture.md)

@@ -48,11 +48,11 @@ RECONNECT_TIMEOUT_SECONDS = 5 * 60
 VERSION_SYNC_ATTEMPTS = 30
 SCAN_INTERVAL = timedelta(hours=6)
 S3_MANIFEST_URL = (
-    "https://passion-wave-rotaryknob.thebeater.chatgpt.site/"
+    "https://www.passion-wave.com/"
     "firmware/rotaryknob/s3/manifest.json"
 )
 BRIDGE_MANIFEST_URL = (
-    "https://passion-wave-rotaryknob.thebeater.chatgpt.site/"
+    "https://www.passion-wave.com/"
     "firmware/rotaryknob/esp32/manifest.json"
 )
 _VERSION_PREFIX = re.compile(r"^(\S+)")
@@ -106,7 +106,7 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_supported_features = UpdateEntityFeature.INSTALL
     _attr_translation_key = "firmware"
-    _attr_title = "PassionWave Rotaryknob"
+    _attr_title = "PassionWave RotaryKnob"
     _attr_should_poll = True
 
     def __init__(self, entry: PassionWaveConfigEntry) -> None:
@@ -343,7 +343,7 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             if bridge_ready and s3_ready:
                 return
             await asyncio.sleep(10)
-        raise HomeAssistantError("Timed out waiting for both Rotaryknob processors")
+        raise HomeAssistantError("Timed out waiting for both RotaryKnob processors")
 
     async def _async_run_job(self) -> None:
         target = self._target_version

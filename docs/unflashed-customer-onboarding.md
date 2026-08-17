@@ -2,7 +2,7 @@
 
 ## Ziel
 
-Der Rotaryknob wird zwingend ungeflasht verkauft. Kunden sollen weder eine
+Der RotaryKnob wird zwingend ungeflasht verkauft. Kunden sollen weder eine
 Entwicklungsumgebung installieren noch YAML-Dateien kopieren müssen. Der
 Standardweg besteht aus einem Browser-Assistenten, zwei chipgebundenen
 Firmware-Images und einer Home-Assistant-App mit typisierten Auswahllisten.
@@ -13,8 +13,8 @@ Die Komponente enthält zwei unabhängig flashbare Prozessoren:
 
 | USB-Ziel | Aufgabe | Öffentliches Profil | Web-Manifest |
 |---|---|---|---|
-| ESP32-S3 | Display, Touch, EC1-Encoder, Haptik, UI | `esphome/factory-s3.yaml` | `firmware/rotaryknob/s3/manifest-3.0.0-beta.16.json` |
-| ESP32 | Home-Assistant-Bridge, EC2, Netzwerk-Offload | `esphome/factory-esp32.yaml` | `firmware/rotaryknob/esp32/manifest-3.0.0-beta.16.json` |
+| ESP32-S3 | Display, Touch, EC1-Encoder, Haptik, UI | `esphome/factory-s3.yaml` | `firmware/rotaryknob/s3/manifest-3.0.0-beta.17.json` |
+| ESP32 | Home-Assistant-Bridge, EC2, Netzwerk-Offload | `esphome/factory-esp32.yaml` | `firmware/rotaryknob/esp32/manifest-3.0.0-beta.17.json` |
 
 Die USB-C-Ausrichtung bestimmt das Ziel. Eine vollautomatische Umschaltung ist
 ohne zusätzliche Hardware im Gerät nicht möglich. Die Website reduziert den
@@ -48,21 +48,21 @@ Factory-Builds.
 
 1. Website in Chrome oder Edge auf einem Desktop öffnen.
 2. USB-Datenkabel anschließen und im Portdialog `ESP32-S3` wählen.
-3. `PassionWave Rotaryknob` installieren, nach 100 Prozent `Next` wählen und
+3. `PassionWave RotaryKnob` installieren, nach 100 Prozent `Next` wählen und
    WLAN per Improv setzen. Der Factory-Assistent erzwingt Clean Erase.
 4. Stecker abziehen, um 180 Grad drehen und erneut einstecken.
-5. Im zweiten Dialog `ESP32` ohne `S3` wählen, `PassionWave Rotaryknob Bridge`
+5. Im zweiten Dialog `ESP32` ohne `S3` wählen, `PassionWave RotaryKnob Bridge`
    installieren und bis `Installation complete` warten.
 6. Den Installationsdialog schließen, USB für zwei Sekunden trennen und in
    derselben ESP32-Ausrichtung wieder verbinden. Danach den separaten
    Bridge-WLAN-Button öffnen, denselben Port wählen, bis zu zehn Sekunden auf
    Improv warten und dasselbe WLAN setzen. Ein zweiter Flash ist nicht nötig.
 7. PassionWave über HACS installieren und Home Assistant neu starten.
-8. Für eine eindeutige Zuordnung nur diesen neuen Rotaryknob einschalten. Im Bereich „Entdeckt“ nur
-   `PassionWave Rotaryknob` öffnen; technische ESPHome-Einrichtungen werden
+8. Für eine eindeutige Zuordnung nur diesen neuen RotaryKnob einschalten. Im Bereich „Entdeckt“ nur
+   `PassionWave RotaryKnob` öffnen; technische ESPHome-Einrichtungen werden
    von PassionWave übernommen und ausgeblendet.
 9. PassionWave innerhalb von 20 Minuten hinzufügen und S3 sowie Bridge
-   desselben Rotaryknob auswählen.
+   desselben RotaryKnob auswählen.
    PassionWave erzeugt je Controller einen individuellen Encryption-Key,
    provisioniert ihn und hält beide ESPHome-Transporte hinter einer logischen
    PassionWave-Komponente. Der Kunde sieht und kopiert keinen Schlüssel.

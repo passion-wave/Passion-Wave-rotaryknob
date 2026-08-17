@@ -12,7 +12,7 @@ packages:
 
 substitutions:
   name: "passionwave-knob-bridge"
-  friendly_name: "PassionWave Rotaryknob Bridge"
+  friendly_name: "PassionWave RotaryKnob Bridge"
   responsive_power_policy_enabled: "true"
   responsive_power_idle_ms: "3000"
   light_1_entity: "light.passion_wave_light_1"
@@ -35,7 +35,7 @@ esphome:
   build_path: build/passion_wave_factory_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "3.0.0-beta.16"
+    version: "3.0.0-beta.17"
 
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main
