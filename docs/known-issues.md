@@ -23,7 +23,7 @@ Manuelle Release-Gates:
 
 | Schritt | Erwartung | Status |
 | --- | --- | --- |
-| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.3 bestanden; Beta.16.4 ausstehend |
+| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.4 bestanden; Beta.16.5 ausstehend |
 | M02 Marco aktualisieren | Eine sichtbare Firmwareaktion; beide MCU Beta.16. | Bestanden |
 | M03 Timo im Schlafzustand anstoßen | Auftrag wartet und setzt nach Aufwecken fort. | Kontrollierter Offline-/Neustarttest bestanden |
 | M04 Settings prüfen | S3, Bridge und HA zeigen Beta.16 lesbar an. | Marco und Timo bestanden |
@@ -101,6 +101,26 @@ Discovery des anderen Rotaryknobs bleiben unberührt. Die irreführende Meldung
 spricht nun vom bereits konfigurierten Rotaryknob statt von einer Bridge. Ein
 Regressionstest deckt die selektive Flow-Auflösung ab; insgesamt bestehen 56
 Tests plus vier Subtests auf beiden unterstützten HA-Versionen.
+
+Der physische Marco-Retest am 2026-08-17 bestand: Das manuelle Onboarding
+erreichte trotz paralleler Discovery die Lichtauswahl und erzeugte den
+geladenen Eintrag mit der korrekten S3-Identität `…a142a4`.
+
+### PW-HA-013: „Nicht belegt“ wurde als fehlendes Pflichtfeld abgewiesen
+
+Status: In Integration Beta.16.5 automatisiert korrigiert; physischer
+Timo-Retest steht aus.
+
+Beim Timo-Onboarding erreichte Beta.16.4 korrekt die Lichtauswahl. Position 4
+sollte mit `Nicht belegt` leer bleiben. Das Schema markierte jedoch alle vier
+Selektoren als Pflichtfelder, während der Wert für `Nicht belegt` die leere
+Zeichenkette ist. Die Home-Assistant-Oberfläche verwarf das Formular deshalb
+vor dem Config Flow mit `Not all required fields are filled in.`
+
+Beta.16.5 kennzeichnet die vier Selektoren als optional und ergänzt fehlende
+Positionen weiterhin deterministisch mit der leeren Zeichenkette. Eine
+Regression prüft sowohl die optionalen Formularmarker als auch alle vier
+normalisierten Ergebniswerte.
 
 ## Beta.15: Responsive Power Runtime
 

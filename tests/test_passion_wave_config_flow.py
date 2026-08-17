@@ -4,6 +4,8 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import voluptuous as vol
+
 from custom_components.passion_wave.config_flow import (
     PassionWaveConfigFlow,
     _abort_matching_discovery_flows,
@@ -287,7 +289,7 @@ def test_connection_form_routes_submit_to_connection_step():
 
 
 def test_light_schema_supports_order_and_empty_positions():
-    """Four ordered positions accept real lights and explicit empty slots."""
+    """Four ordered positions accept real lights and omitted empty slots."""
     light = _entity("light.vitrine", platform="hue")
     registry = SimpleNamespace(entities={light.entity_id: light})
     hass = SimpleNamespace(
@@ -298,17 +300,14 @@ def test_light_schema_supports_order_and_empty_positions():
         "custom_components.passion_wave.config_flow.er.async_get",
         return_value=registry,
     ):
-        result = _lights_schema(hass)(
-            {
-                CONF_LIGHT_SLOT_1: "light.vitrine",
-                CONF_LIGHT_SLOT_2: "",
-                CONF_LIGHT_SLOT_3: "",
-                CONF_LIGHT_SLOT_4: "",
-            }
-        )
+        schema = _lights_schema(hass)
+        result = schema({CONF_LIGHT_SLOT_1: "light.vitrine"})
 
     assert result[CONF_LIGHT_SLOT_1] == "light.vitrine"
     assert result[CONF_LIGHT_SLOT_2] == ""
+    assert result[CONF_LIGHT_SLOT_3] == ""
+    assert result[CONF_LIGHT_SLOT_4] == ""
+    assert all(isinstance(marker, vol.Optional) for marker in schema.schema)
 
 
 def test_existing_s3_light_targets_become_onboarding_defaults():
