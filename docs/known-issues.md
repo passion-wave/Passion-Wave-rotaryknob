@@ -23,10 +23,10 @@ Manuelle Release-Gates:
 
 | Schritt | Erwartung | Status |
 | --- | --- | --- |
-| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.2 bestanden; Beta.16.3 ausstehend |
+| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.3 bestanden; Beta.16.4 ausstehend |
 | M02 Marco aktualisieren | Eine sichtbare Firmwareaktion; beide MCU Beta.16. | Bestanden |
-| M03 Timo im Schlafzustand anstoßen | Auftrag wartet und setzt nach Aufwecken fort. | Offen |
-| M04 Settings prüfen | S3, Bridge und HA zeigen Beta.16 lesbar an. | Marco bestanden; Timo offen |
+| M03 Timo im Schlafzustand anstoßen | Auftrag wartet und setzt nach Aufwecken fort. | Kontrollierter Offline-/Neustarttest bestanden |
+| M04 Settings prüfen | S3, Bridge und HA zeigen Beta.16 lesbar an. | Marco und Timo bestanden |
 | M05 Neu-Onboarding | Marco/Timo erhalten ihre eigene S3-basierte Identität. | Offen |
 | M06 Neustart/Recovery | Wartender Auftrag bleibt nach HA-Neustart erhalten. | Offen |
 
@@ -73,6 +73,34 @@ die realen Prozessorversionen abgesicherte Firmwaresequenz trotzdem weiter.
 Zwei Regressionstests decken erfolgreichen Retry und nicht blockierenden
 Timeout ab; insgesamt bestehen 55 Tests plus vier Subtests auf beiden
 unterstützten Home-Assistant-Versionen.
+
+Der anschließende Timo-Retest bestand vollständig: Ein bei deaktiviertem S3-
+ESPHome-Eintrag gestarteter Auftrag blieb in `waiting_for_devices`, überlebte
+einen Home-Assistant-Neustart und setzte nach Aktivierung automatisch beim
+S3-Schritt fort. Bridge und S3 meldeten danach Beta.16, Phase `complete`, kein
+Ziel und keinen Fehler. Die lokale Settings-Seite zeigte S3 und Bridge
+Beta.16 sowie HA Beta.16.3.
+
+### PW-HA-012: Discovery-Flow blockierte manuelles Neu-Onboarding
+
+Status: In Integration Beta.16.4 automatisiert korrigiert; physischer Retest
+steht aus.
+
+Beim sauberen Neuaufbau wurde die historische Fehlidentität sichtbar: Timos
+Legacy-PassionWave-Eintrag trug Marcos S3-Produkt-ID `…a142a4`. Nach dem
+planmäßigen Löschen beider logischen Einträge waren keine Produkt-Config-
+Entries mehr vorhanden. Home Assistant hielt jedoch weiterhin je einen
+Zeroconf-Discovery-Flow für `a142a4` und `a13c8c` offen. Der explizite
+Benutzerflow erreichte das korrekte Verbindungsformular, kollidierte aber nach
+Submit mit dem gleichzeitigen Marco-Discovery-Flow und brach mit
+`already_in_progress` ab.
+
+Beta.16.4 beendet vor dem Setzen der S3-basierten Produkt-ID ausschließlich
+den fremden Discovery-Flow mit derselben ID. Der aktive Benutzerflow und die
+Discovery des anderen Rotaryknobs bleiben unberührt. Die irreführende Meldung
+spricht nun vom bereits konfigurierten Rotaryknob statt von einer Bridge. Ein
+Regressionstest deckt die selektive Flow-Auflösung ab; insgesamt bestehen 56
+Tests plus vier Subtests auf beiden unterstützten HA-Versionen.
 
 ## Beta.15: Responsive Power Runtime
 
