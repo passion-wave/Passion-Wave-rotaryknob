@@ -10,9 +10,10 @@ Release description: `consolidated-update-contract`
 
 ## Status
 
-Automated release candidate for the Home Assistant integration and both
-Rotaryknob processors. Public artifacts are reproducibly built. Physical
-installation and clean Home Assistant onboarding remain explicit manual gates.
+Released and physically verified candidate for the Home Assistant integration
+and both Rotaryknob processors. Public artifacts are reproducibly built. Marco
+and Timo completed the clean Home Assistant onboarding with distinct S3-based
+identities.
 
 ## Customer-visible changes
 
@@ -47,8 +48,16 @@ internal firmware actions.
 - Factory S3: 52.6% RAM, 71.7% flash.
 - Managed S3: 52.5% RAM, 71.6% flash.
 - Managed Bridge: 40.0% RAM, 62.6% flash.
-- Physical update, Settings rendering, clean onboarding and offline resume are
-  not claimed until the manual gates are completed.
+- Marco and Timo each expose one consolidated update; both report Bridge and
+  S3 `3.0.0-beta.16`, no queued target and no update error.
+- Timo's queued job survived a Home Assistant restart while its S3 endpoint was
+  disabled and continued automatically after the endpoint returned.
+- Clean onboarding produced the distinct product identities `…a1:42:a4` for
+  Marco and `…a1:3c:8c` for Timo.
+- Both local Settings pages report S3 and Bridge `3.0.0-beta.16` plus Home
+  Assistant integration `3.0.0-beta.16.5`.
+- Timo's fourth light position was physically verified as unassigned while
+  positions one through three reached their configured S3 targets.
 
 ## Public artifact checksums
 
