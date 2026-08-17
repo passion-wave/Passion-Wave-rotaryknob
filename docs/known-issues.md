@@ -5,9 +5,10 @@ Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführ
 
 ## Beta.16: Konsolidierter Updatevertrag
 
-Status: Automatisierte Tests und alle sechs Firmware-Builds bestanden. Die
-manuelle Installation, lokale Versionsanzeige, saubere Neuanlage von Marco und
-Timo sowie der wartende Auftrag bei schlafendem S3 sind noch offen.
+Status: Automatisierte Tests, alle sechs Firmware-Builds und sämtliche
+manuellen Beta.16-Vertragsprüfungen bestanden. Marco und Timo wurden sauber
+neu angelegt, zeigen die lokale Versionskombination Beta.16/Beta.16/Beta.16.5
+und besitzen jeweils genau ein konsolidiertes Firmwareupdate.
 
 - Neue Config Entries verwenden ausschließlich `rotaryknob_<S3-MAC>` als
   Produktidentität. Legacy-Einträge werden nicht migriert und dürfen für den
@@ -23,17 +24,16 @@ Manuelle Release-Gates:
 
 | Schritt | Erwartung | Status |
 | --- | --- | --- |
-| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.4 bestanden; Beta.16.5 ausstehend |
+| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.5 bestanden |
 | M02 Marco aktualisieren | Eine sichtbare Firmwareaktion; beide MCU Beta.16. | Bestanden |
 | M03 Timo im Schlafzustand anstoßen | Auftrag wartet und setzt nach Aufwecken fort. | Kontrollierter Offline-/Neustarttest bestanden |
-| M04 Settings prüfen | S3, Bridge und HA zeigen Beta.16 lesbar an. | Marco und Timo bestanden |
-| M05 Neu-Onboarding | Marco/Timo erhalten ihre eigene S3-basierte Identität. | Offen |
-| M06 Neustart/Recovery | Wartender Auftrag bleibt nach HA-Neustart erhalten. | Offen |
+| M04 Settings prüfen | S3/Bridge zeigen Beta.16, HA zeigt Beta.16.5. | Marco und Timo bestanden |
+| M05 Neu-Onboarding | Marco/Timo erhalten ihre eigene S3-basierte Identität. | Bestanden: `…a142a4` / `…a13c8c` |
+| M06 Neustart/Recovery | Wartender Auftrag bleibt nach HA-Neustart erhalten. | Bestanden im kontrollierten Timo-Offlinetest |
 
 ### PW-UPD-006: Erfolgreicher Flash blieb als fehlgeschlagener Auftrag stehen
 
-Status: In Integration Beta.16.2 automatisiert korrigiert; Live-Retest steht
-noch aus.
+Status: In Integration Beta.16.2 korrigiert und physisch bestanden.
 
 Beim Marco-Lauf am 2026-08-17 installierten Bridge und S3 nachweislich
 Firmware `3.0.0-beta.16`. Der S3-Transport meldete währenddessen jedoch
@@ -56,8 +56,7 @@ Beta.16.
 
 ### PW-UPD-007: Bridge-Reconnect brach an Versionsmetadaten ab
 
-Status: In Integration Beta.16.3 automatisiert korrigiert; Fortsetzung des
-physischen Timo-Laufs steht noch aus.
+Status: In Integration Beta.16.3 korrigiert und physisch bestanden.
 
 Timos S3 wachte vor dem geplanten Offline-Klick wieder auf. Der Auftrag
 aktualisierte daraufhin die Bridge erfolgreich von Beta.15 auf Beta.16. Nach
@@ -83,8 +82,7 @@ Beta.16 sowie HA Beta.16.3.
 
 ### PW-HA-012: Discovery-Flow blockierte manuelles Neu-Onboarding
 
-Status: In Integration Beta.16.4 automatisiert korrigiert; physischer Retest
-steht aus.
+Status: In Integration Beta.16.4 korrigiert und physisch bestanden.
 
 Beim sauberen Neuaufbau wurde die historische Fehlidentität sichtbar: Timos
 Legacy-PassionWave-Eintrag trug Marcos S3-Produkt-ID `…a142a4`. Nach dem
@@ -108,8 +106,7 @@ geladenen Eintrag mit der korrekten S3-Identität `…a142a4`.
 
 ### PW-HA-013: „Nicht belegt“ wurde als fehlendes Pflichtfeld abgewiesen
 
-Status: In Integration Beta.16.5 automatisiert korrigiert; physischer
-Timo-Retest steht aus.
+Status: In Integration Beta.16.5 korrigiert und physisch bestanden.
 
 Beim Timo-Onboarding erreichte Beta.16.4 korrekt die Lichtauswahl. Position 4
 sollte mit `Nicht belegt` leer bleiben. Das Schema markierte jedoch alle vier
@@ -121,6 +118,12 @@ Beta.16.5 kennzeichnet die vier Selektoren als optional und ergänzt fehlende
 Positionen weiterhin deterministisch mit der leeren Zeichenkette. Eine
 Regression prüft sowohl die optionalen Formularmarker als auch alle vier
 normalisierten Ergebniswerte.
+
+Der physische Timo-Retest am 2026-08-17 bestand. Das Onboarding erzeugte die
+korrekte Produktidentität `…a13c8c`; Positionen 1 bis 3 wurden auf die
+vorgesehenen Lichter übertragen und Position 4 blieb leer. Marco und Timo
+zeigen jeweils genau eine Firmwareentität mit Bridge/S3 Beta.16, ohne Ziel,
+Warteschlange oder Fehler.
 
 ## Beta.15: Responsive Power Runtime
 
