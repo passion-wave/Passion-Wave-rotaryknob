@@ -1,6 +1,6 @@
 # Known issues
 
-Stand: 2026-08-16. Offene Fehler behalten eine eindeutige Statuszeile;
+Stand: 2026-08-17. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
 
 ## Beta.16: Konsolidierter Updatevertrag
@@ -23,12 +23,31 @@ Manuelle Release-Gates:
 
 | Schritt | Erwartung | Status |
 | --- | --- | --- |
-| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Offen |
-| M02 Marco aktualisieren | Eine sichtbare Firmwareaktion; beide MCU Beta.16. | Offen |
+| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.1 bestanden; Beta.16.2 ausstehend |
+| M02 Marco aktualisieren | Eine sichtbare Firmwareaktion; beide MCU Beta.16. | Beide MCU bestanden; Abschlussstatus mit Beta.16.2 ausstehend |
 | M03 Timo im Schlafzustand anstoßen | Auftrag wartet und setzt nach Aufwecken fort. | Offen |
-| M04 Settings prüfen | S3, Bridge und HA zeigen Beta.16 lesbar an. | Offen |
+| M04 Settings prüfen | S3, Bridge und HA zeigen Beta.16 lesbar an. | Marco bestanden; Timo offen |
 | M05 Neu-Onboarding | Marco/Timo erhalten ihre eigene S3-basierte Identität. | Offen |
 | M06 Neustart/Recovery | Wartender Auftrag bleibt nach HA-Neustart erhalten. | Offen |
+
+### PW-UPD-006: Erfolgreicher Flash blieb als fehlgeschlagener Auftrag stehen
+
+Status: In Integration Beta.16.2 automatisiert korrigiert; Live-Retest steht
+noch aus.
+
+Beim Marco-Lauf am 2026-08-17 installierten Bridge und S3 nachweislich
+Firmware `3.0.0-beta.16`. Der S3-Transport meldete währenddessen jedoch
+`Update installation already in progress`. Beta.16.1 behandelte diese
+Rückmeldung sofort als Fehler, obwohl der bereits angenommene Flash danach
+erfolgreich neu startete. Dadurch zeigte die konsolidierte Entität korrekt
+beide installierten Versionen, behielt aber irrtümlich Phase `failed`, Ziel
+Beta.16 und den Transportfehler.
+
+Beta.16.2 wartet bei genau diesem ESPHome-Zustand weiter auf den verifizierten
+Reconnect. Zusätzlich gleicht sie gespeicherte Aufträge mit den realen
+Geräteversionen ab und entfernt einen überholten Fehler automatisch, sobald
+beide Prozessoren das Ziel ausführen. Die Regression ist auf Home Assistant
+2026.7.4 und 2026.8.2 in insgesamt 53 Tests plus vier Subtests abgedeckt.
 
 ## Beta.15: Responsive Power Runtime
 
