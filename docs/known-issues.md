@@ -23,8 +23,8 @@ Manuelle Release-Gates:
 
 | Schritt | Erwartung | Status |
 | --- | --- | --- |
-| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.1 bestanden; Beta.16.2 ausstehend |
-| M02 Marco aktualisieren | Eine sichtbare Firmwareaktion; beide MCU Beta.16. | Beide MCU bestanden; Abschlussstatus mit Beta.16.2 ausstehend |
+| M01 Integration installieren | PassionWave meldet Beta.16 ohne Setupfehler. | Beta.16.2 bestanden; Beta.16.3 ausstehend |
+| M02 Marco aktualisieren | Eine sichtbare Firmwareaktion; beide MCU Beta.16. | Bestanden |
 | M03 Timo im Schlafzustand anstoßen | Auftrag wartet und setzt nach Aufwecken fort. | Offen |
 | M04 Settings prüfen | S3, Bridge und HA zeigen Beta.16 lesbar an. | Marco bestanden; Timo offen |
 | M05 Neu-Onboarding | Marco/Timo erhalten ihre eigene S3-basierte Identität. | Offen |
@@ -48,6 +48,31 @@ Reconnect. Zusätzlich gleicht sie gespeicherte Aufträge mit den realen
 Geräteversionen ab und entfernt einen überholten Fehler automatisch, sobald
 beide Prozessoren das Ziel ausführen. Die Regression ist auf Home Assistant
 2026.7.4 und 2026.8.2 in insgesamt 53 Tests plus vier Subtests abgedeckt.
+
+Live-Retest am 2026-08-17 nach Installation und Home-Assistant-Neustart:
+Marcos gespeicherter Fehler wurde selbstständig entfernt, die Phase steht auf
+`complete`, Ziel und Fehler sind leer, und Bridge sowie S3 melden weiterhin
+Beta.16.
+
+### PW-UPD-007: Bridge-Reconnect brach an Versionsmetadaten ab
+
+Status: In Integration Beta.16.3 automatisiert korrigiert; Fortsetzung des
+physischen Timo-Laufs steht noch aus.
+
+Timos S3 wachte vor dem geplanten Offline-Klick wieder auf. Der Auftrag
+aktualisierte daraufhin die Bridge erfolgreich von Beta.15 auf Beta.16. Nach
+dem verifizierten Firmware-Reconnect lud die Integration den ESPHome-Eintrag
+neu und rief die Aktion für die lokale HA-Versionsanzeige sofort auf. Obwohl
+die Aktion bereits registriert war, war die API-Verbindung noch nicht wieder
+bereit. Der reine Metadatenfehler beendete den Auftrag fälschlich vor dem
+S3-Schritt; Timo steht deshalb kontrolliert auf Bridge Beta.16 und S3 Beta.15.
+
+Beta.16.3 wiederholt die Metadatenübertragung nach dem Reload bis zu 60
+Sekunden. Bleibt die optionale Anzeigeübertragung unerreichbar, läuft die über
+die realen Prozessorversionen abgesicherte Firmwaresequenz trotzdem weiter.
+Zwei Regressionstests decken erfolgreichen Retry und nicht blockierenden
+Timeout ab; insgesamt bestehen 55 Tests plus vier Subtests auf beiden
+unterstützten Home-Assistant-Versionen.
 
 ## Beta.15: Responsive Power Runtime
 

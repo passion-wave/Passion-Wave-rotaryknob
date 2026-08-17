@@ -281,3 +281,67 @@ def test_legacy_endpoint_verifies_an_install_already_in_progress(monkeypatch):
         ("update", "install", "update.s3_firmware"),
         ("verify", "s3_entry", "3.0.0-beta.16"),
     ]
+
+
+def test_bridge_version_sync_retries_a_disconnected_action(monkeypatch):
+    entity = _entity()
+    calls = []
+
+    class Services:
+        def has_service(self, domain, service):
+            return True
+
+        async def async_call(self, domain, service, data, *, blocking):
+            calls.append((domain, service, data, blocking))
+            if len(calls) == 1:
+                raise HomeAssistantError("Bridge is not connected")
+
+    async def no_wait(seconds):
+        calls.append(("sleep", seconds))
+
+    entity.hass = SimpleNamespace(services=Services())
+    entity._service_name = lambda entry_id, action=None: "bridge_version"
+    monkeypatch.setattr(asyncio, "sleep", no_wait)
+
+    asyncio.run(entity._sync_bridge_integration_version("bridge_entry"))
+
+    assert calls == [
+        (
+            "esphome",
+            "bridge_version",
+            {"version": update_module.INTEGRATION_VERSION},
+            True,
+        ),
+        ("sleep", 2),
+        (
+            "esphome",
+            "bridge_version",
+            {"version": update_module.INTEGRATION_VERSION},
+            True,
+        ),
+    ]
+
+
+def test_bridge_version_sync_timeout_does_not_fail_firmware(monkeypatch):
+    entity = _entity()
+    calls = []
+
+    class Services:
+        def has_service(self, domain, service):
+            return True
+
+        async def async_call(self, domain, service, data, *, blocking):
+            calls.append("call")
+            raise HomeAssistantError("Bridge is not connected")
+
+    async def no_wait(seconds):
+        calls.append(("sleep", seconds))
+
+    entity.hass = SimpleNamespace(services=Services())
+    entity._service_name = lambda entry_id, action=None: "bridge_version"
+    monkeypatch.setattr(update_module, "VERSION_SYNC_ATTEMPTS", 2)
+    monkeypatch.setattr(asyncio, "sleep", no_wait)
+
+    asyncio.run(entity._sync_bridge_integration_version("bridge_entry"))
+
+    assert calls == ["call", ("sleep", 2), "call"]
