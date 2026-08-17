@@ -45,6 +45,7 @@ INSTALL_ACTION = "passion_wave_install_firmware"
 JOB_STORAGE_VERSION = 1
 JOB_WAIT_SECONDS = 24 * 60 * 60
 RECONNECT_TIMEOUT_SECONDS = 5 * 60
+VERSION_SYNC_ATTEMPTS = 30
 SCAN_INTERVAL = timedelta(hours=6)
 S3_MANIFEST_URL = (
     "https://passion-wave-rotaryknob.thebeater.chatgpt.site/"
@@ -402,18 +403,31 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         await self._wait_for_version(entry_ids[index], target)
         if index == 0:
             await self.hass.config_entries.async_reload(entry_ids[index])
-            version_service = self._service_name(
-                entry_ids[index], BRIDGE_RECEIVE_INTEGRATION_VERSION_ACTION
-            )
-            if version_service and self.hass.services.has_service(
-                "esphome", version_service
-            ):
-                await self.hass.services.async_call(
-                    "esphome",
-                    version_service,
-                    {"version": INTEGRATION_VERSION},
-                    blocking=True,
-                )
+            await self._sync_bridge_integration_version(entry_ids[index])
+
+    async def _sync_bridge_integration_version(
+        self, config_entry_id: str | None
+    ) -> None:
+        """Best-effort metadata sync after the Bridge entry reconnects."""
+        service = self._service_name(
+            config_entry_id, BRIDGE_RECEIVE_INTEGRATION_VERSION_ACTION
+        )
+        if not service:
+            return
+        for attempt in range(VERSION_SYNC_ATTEMPTS):
+            if self.hass.services.has_service("esphome", service):
+                try:
+                    await self.hass.services.async_call(
+                        "esphome",
+                        service,
+                        {"version": INTEGRATION_VERSION},
+                        blocking=True,
+                    )
+                    return
+                except HomeAssistantError:
+                    pass
+            if attempt + 1 < VERSION_SYNC_ATTEMPTS:
+                await asyncio.sleep(2)
 
     async def _wait_for_version(
         self, config_entry_id: str | None, target: str
