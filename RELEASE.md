@@ -1,10 +1,10 @@
-# Firmware 3.0.0-beta.16 / integration 3.0.0-beta.16.3
+# Firmware 3.0.0-beta.16 / integration 3.0.0-beta.16.4
 
-Integration hotfix `3.0.0-beta.16.3` retries the non-critical integration
-version metadata action after a Bridge Config Entry reload and no longer lets
-a temporarily disconnected action abort the verified firmware sequence. The
-Beta.16.1 manifest refresh and Beta.16.2 job reconciliation remain in place.
-Firmware artifacts and checksums remain unchanged.
+Integration hotfix `3.0.0-beta.16.4` lets an explicit user onboarding flow
+replace the matching pending Zeroconf discovery flow. This prevents
+`already_in_progress` after submitting the correct S3-based assignment. The
+earlier Beta.16 integration fixes remain in place. Firmware artifacts and
+checksums remain unchanged.
 
 Release description: `consolidated-update-contract`
 
@@ -40,7 +40,7 @@ internal firmware actions.
 
 ## Verification
 
-- Home Assistant 2026.7.4 and 2026.8.2 integration suites: 55 tests and four subtests passed per version.
+- Home Assistant 2026.7.4 and 2026.8.2 integration suites: 56 tests and four subtests passed per version.
 - Factory S3 and Bridge configurations validated and compiled with ESPHome
   2026.7.0.
 - Marco and Timo managed S3 and Bridge profiles validated and compiled.

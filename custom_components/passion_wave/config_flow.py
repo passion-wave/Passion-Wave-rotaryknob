@@ -279,6 +279,23 @@ def _s3_config_entry_is_valid(hass: HomeAssistant, entry_id: str) -> bool:
     )
 
 
+def _abort_matching_discovery_flows(
+    hass: HomeAssistant, current_flow_id: str, unique_id: str
+) -> None:
+    """Let an explicit user flow replace the matching discovery dialog."""
+    flow_manager = hass.config_entries.flow
+    for progress in flow_manager.async_progress_by_handler(
+        DOMAIN, include_uninitialized=True
+    ):
+        context = progress.get("context", {})
+        if (
+            progress["flow_id"] != current_flow_id
+            and context.get("source") != config_entries.SOURCE_USER
+            and context.get("unique_id") == unique_id
+        ):
+            flow_manager.async_abort(progress["flow_id"])
+
+
 def _current_s3_light_defaults(hass: HomeAssistant, entry_id: str) -> dict[str, str]:
     """Adopt existing firmware targets during blueprint-to-flow migration."""
     defaults = dict.fromkeys(LIGHT_SLOT_KEYS, "")
@@ -484,6 +501,9 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         data_schema=_connection_schema(self.hass, user_input),
                         errors=errors,
                     )
+                _abort_matching_discovery_flows(
+                    self.hass, self.flow_id, product_unique_id
+                )
                 await self.async_set_unique_id(product_unique_id)
                 self._abort_if_unique_id_configured()
                 user_input[CONF_BRIDGE_REGISTRATION_UNIQUE_ID] = registration.unique_id

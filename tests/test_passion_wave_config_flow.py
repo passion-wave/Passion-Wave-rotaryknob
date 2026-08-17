@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 from custom_components.passion_wave.config_flow import (
     PassionWaveConfigFlow,
+    _abort_matching_discovery_flows,
     _connection_schema,
     _current_s3_light_defaults,
     _lights_schema,
@@ -159,6 +160,47 @@ def test_delayed_esphome_discovery_is_suppressed():
         asyncio.run(async_suppress_pending_esphome_discovery(hass, mac_address))
 
     assert flow_manager.aborted == ["delayed-esphome-flow"]
+
+
+def test_manual_onboarding_aborts_only_matching_discovery_flow():
+    """A matching Zeroconf dialog must not block an explicit user flow."""
+    progress = [
+        {
+            "flow_id": "manual-flow",
+            "context": {
+                "source": "user",
+                "unique_id": "rotaryknob_20:6e:f1:a1:42:a4",
+            },
+        },
+        {
+            "flow_id": "marco-discovery",
+            "context": {
+                "source": "zeroconf",
+                "unique_id": "rotaryknob_20:6e:f1:a1:42:a4",
+            },
+        },
+        {
+            "flow_id": "timo-discovery",
+            "context": {
+                "source": "zeroconf",
+                "unique_id": "rotaryknob_20:6e:f1:a1:3c:8c",
+            },
+        },
+    ]
+    manager = SimpleNamespace(
+        async_progress_by_handler=lambda handler, include_uninitialized: progress,
+        async_abort=lambda flow_id: aborted.append(flow_id),
+    )
+    aborted = []
+    hass = SimpleNamespace(config_entries=SimpleNamespace(flow=manager))
+
+    _abort_matching_discovery_flows(
+        hass,
+        "manual-flow",
+        "rotaryknob_20:6e:f1:a1:42:a4",
+    )
+
+    assert aborted == ["marco-discovery"]
 
 
 def test_connection_schema_exposes_all_customer_assignments():
