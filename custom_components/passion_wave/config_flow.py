@@ -166,7 +166,7 @@ def _lights_schema(
 
     return vol.Schema(
         {
-            vol.Required(key, default=values.get(key, "")): selector.SelectSelector(
+            vol.Optional(key, default=values.get(key, "")): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=options)
             )
             for key in LIGHT_SLOT_KEYS

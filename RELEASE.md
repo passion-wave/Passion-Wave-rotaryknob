@@ -1,10 +1,10 @@
-# Firmware 3.0.0-beta.16 / integration 3.0.0-beta.16.4
+# Firmware 3.0.0-beta.16 / integration 3.0.0-beta.16.5
 
-Integration hotfix `3.0.0-beta.16.4` lets an explicit user onboarding flow
-replace the matching pending Zeroconf discovery flow. This prevents
-`already_in_progress` after submitting the correct S3-based assignment. The
-earlier Beta.16 integration fixes remain in place. Firmware artifacts and
-checksums remain unchanged.
+Integration hotfix `3.0.0-beta.16.5` lets the light assignment page submit
+explicitly unassigned positions. Home Assistant no longer rejects the empty
+selector value as a missing required field. The Beta.16.4 discovery-flow fix
+and all earlier Beta.16 integration fixes remain in place. Firmware artifacts
+and checksums remain unchanged.
 
 Release description: `consolidated-update-contract`
 
