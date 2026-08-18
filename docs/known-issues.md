@@ -7,7 +7,8 @@ Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführ
 
 ### PW-UPD-008: Updatefenster blitzte nur, der Auftrag scheiterte später
 
-Status: In Firmware Beta.19 und Integration Beta.19.2 korrigiert; automatisierte
+Status: In Firmware Beta.19 und Integration 3.0.1-beta.1 korrigiert;
+automatisierte
 Tests, alle sechs Firmware-Builds und die Live-Abnahme auf Marco bestanden.
 
 Der Marco-Lauf am 2026-08-18 startete im Hintergrund, obwohl Home Assistant
@@ -41,7 +42,7 @@ beide Prozessoren Beta.19 meldeten. Endzustand: `phase=complete`,
 
 ### PW-INT-009: Beta.19-Registry-Casing setzte den Eintrag auf `setup_retry`
 
-Status: In Integration Beta.19.2 vollständig korrigiert und auf Marco live
+Status: In Integration 3.0.1-beta.1 vollständig korrigiert und auf Marco live
 nachgetestet.
 
 Beta.16 registrierte die S3-Vertragstexte als `Rotaryknob …`, Beta.19 meldet
@@ -54,15 +55,27 @@ Assistant keine thread-unsichere `async_write_ha_state`-Warnung mehr erzeugt.
 
 Der Firmwarewechsel hinterließ zusätzlich alte, nicht verfügbare Beta.16-
 Registry-Einträge neben den neuen Beta.19-Entitäten mit demselben
-`original_name`. Beta.19.2 bevorzugt bei dieser Mehrdeutigkeit die verfügbare,
+`original_name`. 3.0.1-beta.1 bevorzugt bei dieser Mehrdeutigkeit die verfügbare,
 aktivierte Entität. Damit werden Zieltexte und der logische S3-Systemstatus
 nicht mehr an einen verwaisten Eintrag gebunden.
+
+### PW-INT-010: HACS kannte das Release, zeigte aber kein Update an
+
+Status: Mit dem Integrations-Versionsschema 3.0.1-beta.1 korrigiert und gegen
+HACS 2.0.5 geprüft.
+
+HACS übernahm `installed_version` und `available_version` korrekt, seine
+`AwesomeVersion`-Prüfung lieferte für die mehrteiligen Prerelease-Suffixe
+`beta.19.1` und `beta.19.2` jedoch weder „größer“ noch „kleiner“. Dadurch blieb
+`pending_update=false` und die Update-Entität trotz verschiedener Versionen
+auf `off`. `v3.0.1-beta.1` ist eindeutig größer als die bisher installierte
+3.0.0-Linie und wird deshalb als normales Home-Assistant-Update angeboten.
 
 ## Beta.18: Start- und Medien-Runtime
 
 ### PW-UI-004: Sichtbarer Titel blieb auf „Keine Wiedergabe“
 
-Status: In Firmware Beta.19 mit Integration Beta.19.2 auf Marco physisch
+Status: In Firmware Beta.19 mit Integration 3.0.1-beta.1 auf Marco physisch
 bestanden.
 
 Die Live-Diagnose am 2026-08-18 zeigte eine eindeutige Trennung zwischen
