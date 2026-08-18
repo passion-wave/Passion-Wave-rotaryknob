@@ -1,10 +1,15 @@
-# Firmware and integration 3.0.0-beta.19
+# Firmware 3.0.0-beta.19 and integration 3.0.0-beta.19.1
 
 Release description: `observable-ota`
 
 Beta.19 repairs the Home Assistant update interaction observed on Marco and
 makes the complete two-processor OTA chain observable. It includes all startup
 and media-title fixes from Beta.18.
+
+Integration hotfix Beta.19.1 accepts both the historical `Rotaryknob …` and
+current `RotaryKnob …` ESPHome registry casing, removes a thread-unsafe state
+callback and reports the manual recovery requirement immediately when a clean
+pre-Beta.19 device has no native recovery update entity.
 
 ## Customer-visible changes
 
@@ -16,16 +21,17 @@ and media-title fixes from Beta.18.
 - Manifest download failure, target mismatch, non-installable image and OTA
   download/flash error code are returned without waiting for the generic
   five-minute reconnect timeout.
-- The upgrade from pre-Beta.19 firmware temporarily uses the hidden native
-  ESPHome update entity, refreshes it explicitly and returns to the single
-  customer-facing PassionWave update after both processors are current.
+- The upgrade from pre-Beta.19 firmware uses and refreshes a hidden native
+  ESPHome update entity when that legacy entity exists. Clean Beta.16 factory
+  devices without it now receive an immediate, actionable one-time ESPHome OTA
+  recovery message instead of another five-minute reconnect timeout.
 - The architecture document contains a protocol-labelled Mermaid sequence for
   Home Assistant service dispatch, encrypted ESPHome Native API, HTTPS
   manifest/binary transfer, MD5 verification and processor reconnect.
 
 ## Verification
 
-- Home Assistant 2026.7.4 and 2026.8.2: 70 tests and four subtests pass per
+- Home Assistant 2026.7.4 and 2026.8.2: 72 tests and four subtests pass per
   version.
 - All six factory and managed ESPHome configurations validate and compile with
   ESPHome 2026.7.0.
@@ -48,7 +54,7 @@ and media-title fixes from Beta.18.
 
 ## Live acceptance
 
-1. Install integration Beta.19 and restart Home Assistant.
+1. Install integration Beta.19.1 and restart Home Assistant.
 2. Start Marco's single PassionWave firmware update from Beta.16.
 3. Confirm the update remains visibly active and Bridge is installed before
    S3.

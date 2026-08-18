@@ -70,6 +70,8 @@ from .const import (
     MAX_TRACK_PAGE_SIZE,
     MEDIA_ENTITY_ORIGINAL_NAME,
     MEDIA_LABEL_ORIGINAL_NAME,
+    canonical_original_name,
+    original_name_matches,
     SERVICE_GET_LIBRARY,
     SERVICE_GET_PLAYLIST_TRACKS,
     SHOW_ALL,
@@ -178,7 +180,8 @@ def _s3_text_entities(
     """Resolve all firmware-owned S3 texts with one registry pass."""
     s3_entry_id = _entry_value(entry, CONF_S3_CONFIG_ENTRY_ID)
     return {
-        registry_entry.original_name: registry_entry.entity_id
+        canonical_original_name(registry_entry.original_name)
+        or registry_entry.original_name: registry_entry.entity_id
         for registry_entry in er.async_get(hass).entities.values()
         if registry_entry.platform == "esphome"
         and registry_entry.config_entry_id == s3_entry_id
@@ -399,7 +402,9 @@ async def async_migrate_entry(
             if (
                 registry_entry.platform == "esphome"
                 and registry_entry.config_entry_id
-                and registry_entry.original_name == MEDIA_ENTITY_ORIGINAL_NAME
+                and original_name_matches(
+                    registry_entry.original_name, MEDIA_ENTITY_ORIGINAL_NAME
+                )
             ):
                 candidates[registry_entry.config_entry_id] = registry_entry.entity_id
 
@@ -425,7 +430,9 @@ async def async_migrate_entry(
                 if (
                     registry_entry.platform == "esphome"
                     and registry_entry.config_entry_id == selected_s3
-                    and registry_entry.original_name == original_name
+                    and original_name_matches(
+                        registry_entry.original_name, original_name
+                    )
                 ):
                     state = hass.states.get(registry_entry.entity_id)
                     if state is not None and state.state.startswith("light."):
@@ -475,7 +482,8 @@ async def async_migrate_entry(
                     and registry_entry.original_name != BRIDGE_COMMAND_ORIGINAL_NAME
                 )
                 hide = (
-                    registry_entry.original_name in contract_names
+                    canonical_original_name(registry_entry.original_name)
+                    in contract_names
                     or registry_entry.original_name
                     in {
                         BRIDGE_REGISTRATION_ORIGINAL_NAME,

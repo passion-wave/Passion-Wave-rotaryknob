@@ -149,6 +149,11 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertIn("media_runtime_title_text).publish_state", S3)
         self.assertIn("media_runtime_artist_text).publish_state", S3)
         self.assertIn("media_runtime_cover_url_text).publish_state", S3)
+        binary_sensor = (
+            ROOT / "custom_components" / "passion_wave" / "binary_sensor.py"
+        ).read_text()
+        self.assertIn("@callback\n        def async_source_changed", binary_sensor)
+        self.assertNotIn("lambda _event: self.async_write_ha_state()", binary_sensor)
 
     def test_s3_removes_all_direct_runtime_subscriptions(self) -> None:
         for legacy_id in (

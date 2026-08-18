@@ -259,10 +259,13 @@ sequenceDiagram
 Das öffentliche Manifest und die Binärdatei werden auf jedem Prozessor direkt
 per HTTPS geladen; der Firmwareinhalt läuft weder durch Home Assistant noch
 durch UART. Home Assistant koordiniert nur Reihenfolge, Zielversion und
-Verifikation. Bei Firmware vor Beta.19 reaktiviert die Integration für genau
-einen Übergang die verborgene native ESPHome-Update-Entität, ruft zuerst
-`homeassistant.update_entity` auf und verwendet danach `update.install`. Damit
-wird auch ein alter sechs-Stunden-Cache vor dem ersten Beta.19-Flash ersetzt.
+Verifikation. Bei Firmware vor Beta.19 reaktiviert die Integration eine
+vorhandene verborgene ESPHome-Update-Entität, ruft zuerst
+`homeassistant.update_entity` auf und verwendet danach `update.install`. Sauber
+provisionierte Beta.16-Geräte besitzen diese Alt-Entität nicht; Beta.19.1
+meldet dafür sofort den einmaligen ESPHome-OTA-Recoveryweg. Ab Beta.19 laufen
+Manifestprüfung, Downloadstatus und alle späteren Updates vollständig über die
+oben gezeigte Kette.
 
 ## Recovery behavior
 

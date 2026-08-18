@@ -497,10 +497,11 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
                     raise
             status_entity = None
         elif service and self.hass.services.has_service("esphome", service):
-            await self.hass.services.async_call(
-                "esphome", service, {}, blocking=True
+            raise HomeAssistantError(
+                "Pre-Beta.19 firmware has no refreshable Home Assistant "
+                "update transport; install Beta.19 once with ESPHome OTA, "
+                "then retry"
             )
-            status_entity = None
         else:
             raise HomeAssistantError("Firmware transport became unavailable")
         await self._wait_for_version(

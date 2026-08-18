@@ -37,6 +37,8 @@ from .const import (
     MEDIA_ENTITY_ORIGINAL_NAME,
     SHOW_ALL,
     S3_PROJECT_NAME,
+    canonical_original_name,
+    original_name_matches,
 )
 from .identity import s3_product_unique_id
 from .media import normalize_library_page
@@ -84,7 +86,9 @@ def _connection_schema(
         entry.config_entry_id
         for entry in registry.entities.values()
         if entry.platform == "esphome"
-        and entry.original_name == MEDIA_ENTITY_ORIGINAL_NAME
+        and original_name_matches(
+            entry.original_name, MEDIA_ENTITY_ORIGINAL_NAME
+        )
         and entry.config_entry_id
     }
     s3_entry_options: list[selector.SelectOptionDict] = [
@@ -274,7 +278,9 @@ def _s3_config_entry_is_valid(hass: HomeAssistant, entry_id: str) -> bool:
     return any(
         entity.platform == "esphome"
         and entity.config_entry_id == entry_id
-        and entity.original_name == MEDIA_ENTITY_ORIGINAL_NAME
+        and original_name_matches(
+            entity.original_name, MEDIA_ENTITY_ORIGINAL_NAME
+        )
         for entity in er.async_get(hass).entities.values()
     )
 
@@ -301,7 +307,7 @@ def _current_s3_light_defaults(hass: HomeAssistant, entry_id: str) -> dict[str, 
     defaults = dict.fromkeys(LIGHT_SLOT_KEYS, "")
     names_to_keys = dict(zip(LIGHT_ENTITY_ORIGINAL_NAMES, LIGHT_SLOT_KEYS, strict=True))
     for entity in er.async_get(hass).entities.values():
-        key = names_to_keys.get(entity.original_name)
+        key = names_to_keys.get(canonical_original_name(entity.original_name))
         if (
             key is None
             or entity.platform != "esphome"

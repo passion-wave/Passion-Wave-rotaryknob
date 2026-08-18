@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "passion_wave"
-INTEGRATION_VERSION = "3.0.0-beta.19"
+INTEGRATION_VERSION = "3.0.0-beta.19.1"
 
 CONF_S3_HOST = "s3_host"
 CONF_BRIDGE_HOST = "bridge_host"
@@ -90,6 +90,18 @@ LIGHT_LABEL_ORIGINAL_NAMES = (
     "Rotaryknob Light Slot 3 Label",
     "Rotaryknob Light Slot 4 Label",
 )
+
+
+def canonical_original_name(original_name: str | None) -> str | None:
+    """Normalize the historical Rotaryknob/RotaryKnob registry contract."""
+    if original_name and original_name.startswith("RotaryKnob "):
+        return f"Rotaryknob {original_name.removeprefix('RotaryKnob ')}"
+    return original_name
+
+
+def original_name_matches(actual: str | None, expected: str) -> bool:
+    """Match one ESPHome original name across the Beta.16/Beta.19 casing."""
+    return canonical_original_name(actual) == canonical_original_name(expected)
 
 ESPHOME_API_PORT = 6053
 S3_PROJECT_NAME = "passion-wave.rotaryknob-s3"
