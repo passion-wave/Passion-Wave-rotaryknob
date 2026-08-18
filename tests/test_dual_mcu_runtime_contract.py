@@ -72,6 +72,51 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
             "if (id(bridge_media_presentation_authoritative))", snapshot
         )
 
+    def test_reconnect_snapshot_delivers_time_before_runtime_data(self) -> None:
+        snapshot = BRIDGE.split("id: send_bridge_snapshot", 1)[1]
+        snapshot = snapshot.split("id: execute_bridge_volume", 1)[0]
+        time_position = snapshot.index("dual_mcu::MessageType::TIME_STATE")
+        status_position = snapshot.index("dual_mcu::MessageType::BRIDGE_STATUS")
+        self.assertLess(time_position, status_position)
+
+    def test_ui_next_renders_and_reports_each_uart_media_title(self) -> None:
+        media_text = S3.split("case dual_mcu::MessageType::MEDIA_TEXT:", 1)[1]
+        media_text = media_text.split(
+            "case dual_mcu::MessageType::MEDIA_COVER_URL_BEGIN:", 1
+        )[0]
+        self.assertIn("id(media_title_cache) = value", media_text)
+        self.assertIn("refresh_ui_next_media_runtime).execute", media_text)
+        renderer = S3_UI.split("id: refresh_ui_next_media_runtime", 1)[1]
+        renderer = renderer.split("id: refresh_media_ui", 1)[0]
+        self.assertIn("ui_next::framework.update_media", renderer)
+        self.assertIn("rendered_media_title", renderer)
+        self.assertIn("ui_next_rendered_media_title_text", renderer)
+
+    def test_same_media_target_cannot_clear_a_newer_runtime_title(self) -> None:
+        target = S3_UI.split('name: "RotaryKnob Media Entity ID"', 1)[1]
+        target = target.split('name: "RotaryKnob Media Label"', 1)[0]
+        guard = target.index("next_target == id(media_effective_entity_id)")
+        clear = target.index("id(media_title_cache).clear()")
+        self.assertLess(guard, clear)
+
+    def test_playing_without_title_requests_authoritative_recovery(self) -> None:
+        self.assertIn("media_snapshot_due", S3)
+        self.assertIn('id(music_state_cache) == "playing"', S3)
+        self.assertIn("id(media_title_cache).empty()", S3)
+        self.assertIn("dual_mcu::MessageType::SNAPSHOT_REQUEST", S3)
+
+    def test_periodic_target_write_is_followed_by_runtime_snapshot(self) -> None:
+        reconcile = INTEGRATION.split("async def reconcile()", 1)[1]
+        reconcile = reconcile.split("hass.async_create_task", 1)[0]
+        target_position = reconcile.index("_async_sync_s3_targets")
+        runtime_position = reconcile.index("_async_push_runtime_snapshot")
+        self.assertLess(target_position, runtime_position)
+
+    def test_ui_and_clock_readiness_are_measurable(self) -> None:
+        self.assertIn("ui_next_ready_time_sensor", S3_UI)
+        self.assertIn("ui_next_clock_ready_time_sensor", S3_UI)
+        self.assertIn("ui_next_startup_status_text", S3_UI)
+
     def test_authoritative_runtime_schedules_cover_screensaver(self) -> None:
         handler = S3.split("case dual_mcu::MessageType::RUNTIME_STATE:", 1)[1]
         handler = handler.split("case dual_mcu::MessageType::MEDIA_STATE:", 1)[0]

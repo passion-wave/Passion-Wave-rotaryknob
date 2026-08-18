@@ -18,7 +18,7 @@ def _entity() -> PassionWaveFirmwareUpdate:
         title="PassionWave RotaryKnob",
     )
     entity = PassionWaveFirmwareUpdate(entry)
-    entity._target_version = "3.0.0-beta.17"
+    entity._target_version = "3.0.0-beta.18"
     entity.async_write_ha_state = lambda: None
 
     async def save_job():
@@ -45,8 +45,8 @@ def test_update_installs_bridge_before_s3():
     asyncio.run(entity._async_run_job())
 
     assert calls == [
-        (0, "3.0.0-beta.17"),
-        (1, "3.0.0-beta.17"),
+        (0, "3.0.0-beta.18"),
+        (1, "3.0.0-beta.18"),
     ]
     assert entity._phase == "complete"
     assert entity._attr_update_percentage == 100
@@ -68,7 +68,7 @@ def test_bridge_failure_stops_before_s3():
     entity._install_endpoint = install_endpoint
     asyncio.run(entity._async_run_job())
 
-    assert calls == [(0, "3.0.0-beta.17")]
+    assert calls == [(0, "3.0.0-beta.18")]
     assert entity._phase == "failed"
     assert entity._last_error == "bridge failed"
 
@@ -76,8 +76,8 @@ def test_bridge_failure_stops_before_s3():
 def test_failed_job_reconciles_when_both_processors_reached_target():
     entity = _entity()
     entity._installed_versions = lambda: (
-        "3.0.0-beta.17",
-        "3.0.0-beta.17",
+        "3.0.0-beta.18",
+        "3.0.0-beta.18",
     )
     entity._both_internal_actions_available = lambda: True
     disabled = []
@@ -95,31 +95,31 @@ def test_failed_job_reconciles_when_both_processors_reached_target():
 def test_failed_job_does_not_reconcile_a_mixed_pair():
     entity = _entity()
     entity._installed_versions = lambda: (
-        "3.0.0-beta.17",
+        "3.0.0-beta.18",
         "3.0.0-beta.15",
     )
 
     assert not entity._reconcile_completed_target()
-    assert entity._target_version == "3.0.0-beta.17"
+    assert entity._target_version == "3.0.0-beta.18"
 
 
 def test_manifest_versions_must_match():
     entity = _entity()
-    entity._manifest_versions = ("3.0.0-beta.17", "3.0.0-beta.15")
+    entity._manifest_versions = ("3.0.0-beta.18", "3.0.0-beta.15")
     assert entity.latest_version is None
 
-    entity._manifest_versions = ("3.0.0-beta.17", "3.0.0-beta.17")
-    assert entity.latest_version == "3.0.0-beta.17"
+    entity._manifest_versions = ("3.0.0-beta.18", "3.0.0-beta.18")
+    assert entity.latest_version == "3.0.0-beta.18"
 
 
 def test_mixed_pair_can_upgrade_but_not_downgrade_newer_processor():
     entity = _entity()
     entity._installed_versions = lambda: (
         "3.0.0-beta.15",
-        "3.0.0-beta.17",
+        "3.0.0-beta.18",
     )
 
-    assert entity.version_is_newer("3.0.0-beta.17", "mixed")
+    assert entity.version_is_newer("3.0.0-beta.18", "mixed")
     assert not entity.version_is_newer("3.0.0-beta.15", "mixed")
 
 
@@ -133,7 +133,7 @@ def test_legacy_transport_is_refreshed_before_install():
     class Services:
         async def async_call(self, domain, service, data, *, blocking):
             calls.append((domain, service, data, blocking))
-            state.attributes["latest_version"] = "3.0.0-beta.17"
+            state.attributes["latest_version"] = "3.0.0-beta.18"
 
     entity.hass = SimpleNamespace(
         services=Services(), states=SimpleNamespace(get=lambda entity_id: state)
@@ -141,7 +141,7 @@ def test_legacy_transport_is_refreshed_before_install():
 
     asyncio.run(
         entity._refresh_legacy_source(
-            "update.bridge_firmware", "3.0.0-beta.17"
+            "update.bridge_firmware", "3.0.0-beta.18"
         )
     )
 
@@ -177,12 +177,12 @@ def test_legacy_transport_rejects_stale_manifest(monkeypatch):
         HomeAssistantError,
         match=(
             "update.bridge_firmware advertises 3.0.0-beta.15 "
-            "instead of 3.0.0-beta.17"
+            "instead of 3.0.0-beta.18"
         ),
     ):
         asyncio.run(
             entity._refresh_legacy_source(
-                "update.bridge_firmware", "3.0.0-beta.17"
+                "update.bridge_firmware", "3.0.0-beta.18"
             )
         )
 
@@ -227,12 +227,12 @@ def test_legacy_endpoint_refreshes_before_install(monkeypatch):
         lambda hass, entry: ("update.bridge_firmware", "update.s3_firmware"),
     )
 
-    asyncio.run(entity._install_endpoint(0, "3.0.0-beta.17"))
+    asyncio.run(entity._install_endpoint(0, "3.0.0-beta.18"))
 
     assert calls == [
-        ("refresh", "update.bridge_firmware", "3.0.0-beta.17"),
+        ("refresh", "update.bridge_firmware", "3.0.0-beta.18"),
         ("update", "install", "update.bridge_firmware"),
-        ("verify", "bridge_entry", "3.0.0-beta.17"),
+        ("verify", "bridge_entry", "3.0.0-beta.18"),
         ("reload", "bridge_entry"),
     ]
 
@@ -274,12 +274,12 @@ def test_legacy_endpoint_verifies_an_install_already_in_progress(monkeypatch):
         lambda hass, entry: ("update.bridge_firmware", "update.s3_firmware"),
     )
 
-    asyncio.run(entity._install_endpoint(1, "3.0.0-beta.17"))
+    asyncio.run(entity._install_endpoint(1, "3.0.0-beta.18"))
 
     assert calls == [
-        ("refresh", "update.s3_firmware", "3.0.0-beta.17"),
+        ("refresh", "update.s3_firmware", "3.0.0-beta.18"),
         ("update", "install", "update.s3_firmware"),
-        ("verify", "s3_entry", "3.0.0-beta.17"),
+        ("verify", "s3_entry", "3.0.0-beta.18"),
     ]
 
 

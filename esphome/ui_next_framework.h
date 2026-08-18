@@ -143,6 +143,9 @@ class Framework {
   bool built() const { return built_; }
   bool legacy_visible() const { return legacy_visible_; }
   View view() const { return current_view_; }
+  const char *rendered_media_title() const {
+    return media_title_ == nullptr ? "" : lv_label_get_text(media_title_);
+  }
   bool light_popup_is_preset() const { return light_popup_preset_mode_; }
   bool light_popup_visible() const { return light_popup_visible_; }
   LightDetailKind light_detail_kind() const { return light_detail_kind_; }
