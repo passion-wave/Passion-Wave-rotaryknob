@@ -1,4 +1,10 @@
-# Firmware and integration 3.0.0-beta.18
+# Firmware 3.0.0-beta.18 and integration 3.0.0-beta.18.1
+
+Integration hotfix `3.0.0-beta.18.1` restores the case-sensitive ESPHome
+`original_name` contract (`Rotaryknob ...`). The initial `3.0.0-beta.18`
+integration used `RotaryKnob ...`, so existing displays could remain in
+`setup_retry` after a Home Assistant restart. The firmware images and hashes
+below are unchanged.
 
 Beta.18 repairs the startup and media-presentation chain observed on the live
 RotaryKnobs. It also documents the complete playlist-selection, Music
