@@ -11,6 +11,23 @@ ota:
     password: "${managed_ota_password}"
   - platform: http_request
     id: ota_http_request
+    on_begin:
+      - text_sensor.template.publish:
+          id: firmware_update_status
+          state: "ota_started"
+    on_progress:
+      - lambda: |-
+          id(firmware_update_status).publish_state(
+              std::string("ota_progress:") +
+              std::to_string(static_cast<int>(x + 0.5f)));
+    on_end:
+      - text_sensor.template.publish:
+          id: firmware_update_status
+          state: "ota_complete"
+    on_error:
+      - lambda: |-
+          id(firmware_update_status).publish_state(
+              std::string("ota_error:") + std::to_string(x));
 
 wifi:
   ssid: "${managed_wifi_ssid}"

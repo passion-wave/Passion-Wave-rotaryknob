@@ -1,5 +1,5 @@
 substitutions:
-  project_version: "3.0.0-beta.18"
+  project_version: "3.0.0-beta.19"
   name: "passion-wave-rotary-test-esp32"
   friendly_name: "Passion Wave RotaryKnob Test ESP32"
   passion_wave_config_entry_id: ""
@@ -42,6 +42,7 @@ esphome:
           dual_mcu::radar_server.setup();
           const bool encoder_ready = dual_mcu::encoder.setup(GPIO_NUM_22, GPIO_NUM_19);
           id(coprocessor_status).publish_state(encoder_ready ? "Warte auf S3" : "Encoder-Setup fehlgeschlagen");
+          id(firmware_update_status).publish_state("idle");
           id(bridge_action_count_sensor).publish_state(0);
           id(bridge_last_action_text).publish_state("keine");
           const uint8_t role[] = {'E', '3', '2'};
@@ -71,8 +72,47 @@ api:
   batch_delay: 0ms
   actions:
     - action: passion_wave_install_firmware
+      variables:
+        target_version: string
       then:
-        - update.perform: passion_wave_firmware_update
+        - lambda: |-
+            id(passion_wave_firmware_update).status_clear_error();
+            id(firmware_update_status).publish_state(
+                std::string("checking:") + target_version);
+        - update.check: passion_wave_firmware_update
+        - wait_until:
+            condition:
+              lambda: |-
+                return id(passion_wave_firmware_update).status_has_error() ||
+                       id(passion_wave_firmware_update).update_info.latest_version ==
+                           target_version;
+            timeout: 20s
+        - if:
+            condition:
+              lambda: |-
+                return !id(passion_wave_firmware_update).status_has_error() &&
+                       id(passion_wave_firmware_update).state ==
+                           update::UPDATE_STATE_AVAILABLE &&
+                       id(passion_wave_firmware_update).update_info.latest_version ==
+                           target_version;
+            then:
+              - lambda: |-
+                  id(firmware_update_status).publish_state(
+                      std::string("manifest_ready:") + target_version);
+              - update.perform: passion_wave_firmware_update
+            else:
+              - lambda: |-
+                  if (id(passion_wave_firmware_update).status_has_error()) {
+                    id(firmware_update_status).publish_state("manifest_error");
+                  } else if (id(passion_wave_firmware_update).update_info.latest_version !=
+                             target_version) {
+                    id(firmware_update_status).publish_state(
+                        std::string("manifest_mismatch:") +
+                        id(passion_wave_firmware_update).update_info.latest_version);
+                  } else {
+                    id(firmware_update_status).publish_state(
+                        "manifest_not_installable");
+                  }
     - action: passion_wave_receive_integration_version
       variables:
         version: string
@@ -1097,6 +1137,14 @@ text:
             - script.execute: refresh_bridge_library_native
 
 text_sensor:
+  - platform: template
+    id: firmware_update_status
+    name: "Firmware Update Status"
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: false
+    icon: mdi:update
+
   - platform: template
     id: bridge_runtime_status
     name: "Authoritative Runtime State"

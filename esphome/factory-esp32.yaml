@@ -35,7 +35,7 @@ esphome:
   build_path: build/passion_wave_factory_esp32
   project:
     name: "passion-wave.rotaryknob-bridge"
-    version: "3.0.0-beta.18"
+    version: "3.0.0-beta.19"
 
 dashboard_import:
   package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main
@@ -57,6 +57,23 @@ ota:
     id: ota_esphome
   - platform: http_request
     id: ota_http_request
+    on_begin:
+      - text_sensor.template.publish:
+          id: firmware_update_status
+          state: "ota_started"
+    on_progress:
+      - lambda: |-
+          id(firmware_update_status).publish_state(
+              std::string("ota_progress:") +
+              std::to_string(static_cast<int>(x + 0.5f)));
+    on_end:
+      - text_sensor.template.publish:
+          id: firmware_update_status
+          state: "ota_complete"
+    on_error:
+      - lambda: |-
+          id(firmware_update_status).publish_state(
+              std::string("ota_error:") + std::to_string(x));
 
 wifi:
   ssid: !remove
