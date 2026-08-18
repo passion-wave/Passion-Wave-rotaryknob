@@ -603,8 +603,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
 
         async def reconcile() -> None:
             try:
-                await _async_push_runtime_snapshot(hass, entry)
+                # Reasserting a changed S3 media target intentionally clears
+                # its old presentation cache. Always follow the target write
+                # with the authoritative runtime snapshot so the visible title
+                # cannot remain on the firmware fallback.
                 await _async_sync_s3_targets(hass, entry)
+                await _async_push_runtime_snapshot(hass, entry)
             except HomeAssistantError as err:
                 _LOGGER.debug("PassionWave periodic reconciliation deferred: %s", err)
 

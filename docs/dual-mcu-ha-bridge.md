@@ -1,6 +1,6 @@
 # Dual-MCU Home Assistant bridge
 
-Current coordinated implementation: `3.0.0-beta.17`.
+Current coordinated implementation: `3.0.0-beta.18`.
 
 One physical Passion Wave RotaryKnob contains two processors. They share one
 product generation but keep separate firmware images, native API identities
@@ -18,19 +18,116 @@ The S3 retains Wi-Fi only for provisioning, encrypted ESPHome Native API, OTA
 and diagnostics. Managed V3 compiles neither MQTT nor an S3 application-network
 rescue path.
 
-## Runtime paths
+## Komponenten und Protokolle
 
-State and command flow:
+Das Diagramm trennt Bedienung und Zustandsrückmeldung vom eigentlichen
+Audiostrom. Der RotaryKnob empfängt und decodiert zu keinem Zeitpunkt Audio.
 
-```text
-Home Assistant / Music Assistant
-  ↕ validated local calls
-PassionWave integration
-  ↕ encrypted ESPHome Native API
-classic ESP32 Bridge
-  ↕ 2 Mbit/s framed UART (COBS, CRC, priorities, acknowledgements)
-ESP32-S3 display, encoder and touch
+```mermaid
+flowchart LR
+    U[Benutzer] -->|Drehen / Drücken| EC1[EC1 Encoder]
+    EC1 -->|GPIO + PCNT| S3[ESP32-S3\nLVGL, Display, Touch, Haptik]
+    S3 <-->|UART 2.000.000 Baud\nPW-Protokoll v3, COBS, CRC16\nPrioritäten + ACK| B[Classic ESP32\nBridge]
+    B <-->|TCP 6053\nESPHome Native API\nProtobuf + Noise NNpsk0| HA[Home Assistant]
+    HA <-->|interne Python-API\nEvents + Service Calls| PW[PassionWave\nIntegration]
+    PW -->|HA-Service\nmusic_assistant.play_media\nmedia_id, media_type, enqueue=replace| MAI[Music Assistant\nHA-Integration]
+    MAI <-->|JSON WebSocket /ws\nCommands + Events| MAS[Music Assistant\nServer]
+    MAS -.->|mDNS / DNS-SD\n_airplay._tcp, _raop._tcp| AP[AirPlay-Gerät]
+    MAS ==>|RTSP-Steuerung + RTP/UDP-Audio\nRAOP: ALAC, NTP, optional RSA/AES\nAirPlay 2: verschlüsseltes RTSP/RTP, PTP oder NTP| AP
+    MAS -.->|Playerzustand + Metadaten| MAI
+    MAI -.->|media_player State Event\nmedia_title, media_artist, entity_picture| HA
+    HA -.->|Runtime-JSON über ESPHome Action| B
+    B -.->|RUNTIME_STATE + MEDIA_TEXT\nPW v3 / COBS / CRC16| S3
+    S3 -.->|LVGL Label + Cover| D[Anzeige]
 ```
+
+Die verwendete ESPHome Native API läuft als Protobuf-basierter Binärstrom über
+TCP 6053; die konfigurierte Noise-Variante authentifiziert und verschlüsselt
+die Verbindung. Zwischen den beiden Mikrocontrollern läuft ein eigenes,
+gebundenes Protokoll v3: ein Nullbyte terminiert jeden COBS-Frame, CRC16 schützt
+Header und Nutzlast, die maximale Nutzlast beträgt 192 Byte. Steuer- und
+Zustandsframes erhalten Vorrang vor Bilddaten. Coverbilder werden mit
+Begin/Chunk/End, ACK und zusätzlicher CRC32 übertragen.
+
+Der Music-Assistant-Server stellt seine lokale, bidirektionale JSON-API über
+WebSocket `/ws` bereit. AirPlay-Endpunkte werden über mDNS/DNS-SD gefunden. Je
+nach Eigenschaften und Konfiguration des Empfängers wählt Music Assistant RAOP,
+den AirPlay-2-Kompatibilitätsweg oder natives AirPlay 2; RTSP kontrolliert die
+Sitzung, während RTP den Audioinhalt transportiert. Der genaue Codec,
+Zeitdienst und die Verschlüsselung sind deshalb eine Eigenschaft der
+ausgehandelten AirPlay-Route und nicht des RotaryKnobs.
+
+## Wirkkette: Playlist auswählen und Titel anzeigen
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Benutzer
+    participant S3 as ESP32-S3 / UI
+    participant Bridge as ESP32 Bridge
+    participant PW as PassionWave Integration
+    participant HA as Home Assistant
+    participant MA as Music Assistant
+    participant AP as AirPlay-Gerät
+
+    User->>S3: Playlist auf dem Display auswählen
+    S3->>Bridge: MEDIA_LIBRARY_PLAY (UART v3 / COBS / CRC16)
+    Bridge->>HA: sequenzierter Command-State (Native API / Protobuf / Noise)
+    HA->>PW: State-Changed-Event
+    PW->>PW: Version, Gerät, Typ, Index und URI validieren
+    PW->>HA: music_assistant.play_media(enqueue=replace)
+    HA->>MA: Service über MA-Integration (JSON WebSocket /ws)
+    MA->>AP: RTSP Setup / Pairing / Timing
+    MA->>AP: RTP-Audio über RAOP oder AirPlay 2
+    MA-->>HA: Player-Event mit Wiedergabestatus und Metadaten
+    HA-->>PW: media_player State-Changed-Event
+    PW-->>Bridge: geordnetes Runtime-JSON (Native API Action / Noise)
+    Bridge-->>S3: RUNTIME_STATE + MEDIA_TEXT (UART v3 / COBS / CRC16)
+    S3->>S3: Cache setzen und LVGL sofort neu rendern
+    S3-->>User: aktueller Titel, Interpret und Cover
+```
+
+Die Auswahl ist erst dann fachlich abgeschlossen, wenn der konfigurierte
+Home-Assistant-`media_player` die gewählte `media_content_id` stabil
+zurückmeldet. Die Integration verwendet dafür eine
+Latest-Command-Wins-Warteschlange, `enqueue=replace`, eine begrenzte
+Bestätigungsschleife und höchstens einen Wiederholungsversuch. Dadurch kann ein
+langsamer älterer Playlist-Start keine neuere Benutzerauswahl überschreiben.
+
+Für die Anzeige ist ausschließlich der im PassionWave Config Entry gewählte
+`media_player` maßgeblich. Bei jedem State Event liest die Integration dessen
+`media_title`, `media_artist`, `entity_picture`, Position, Dauer und
+Wiedergabestatus. Sie sendet daraus einen geordneten Snapshot an die Bridge.
+Der S3 rendert `MEDIA_TEXT` sofort; ein zusätzlicher Snapshot-Request repariert
+den Zustand, falls bei laufender Wiedergabe zehn Sekunden lang kein Titel
+vorliegt.
+
+## Wirkkette beim Start
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S3 as ESP32-S3
+    participant Bridge as ESP32 Bridge
+    participant HA as Home Assistant / PassionWave
+
+    S3->>Bridge: HELLO (UART v3)
+    Bridge-->>S3: TIME_STATE zuerst (UART v3)
+    Bridge-->>S3: BRIDGE_STATUS + VERSION_STATE
+    Bridge-->>S3: RUNTIME_STATE + MEDIA_TEXT
+    Bridge-->>S3: Wetter, Lichter und verfügbare Kataloge
+    S3->>S3: Uhr und Medienseite rendern
+    S3-->>HA: UI Ready Time + Clock Ready Time (Native API)
+    S3->>Bridge: SNAPSHOT_REQUEST bei unvollständigem Zustand
+    Bridge->>HA: Bedarfssynchronisation (Native API)
+    HA-->>Bridge: autoritativer Runtime-Snapshot
+    Bridge-->>S3: fehlende Zustandsdaten (UART v3)
+```
+
+Seit Beta.18 steht `TIME_STATE` am Anfang jedes HELLO-Snapshots; die Uhr muss
+nicht mehr auf das zehnsekündige Wartungsintervall der Bridge warten. Die
+neuen Diagnosewerte `RotaryKnob UI Ready Time`, `RotaryKnob Clock Ready Time`
+und `RotaryKnob UI Startup Status` machen die Startzeit ab Boot messbar.
 
 Commands originate as bounded kind/index/value records on the S3. The Bridge
 publishes a sequenced command state; the PassionWave integration validates the
@@ -144,6 +241,13 @@ The primary health signals are:
 
 - `S3 Link Connected` and `ESP32 Coprocessor Link` on;
 - `EC1 Encoder Ready` on;
+- `RotaryKnob UI Ready Time` shows when LVGL first became operational;
+- `RotaryKnob Clock Ready Time` shows when the first valid time reached the UI;
+- `RotaryKnob UI Startup Status` distinguishes UI readiness, clock readiness
+  and incomplete startup data;
+- `RotaryKnob Rendered Media Title` is the actual text read back from the LVGL
+  title label, while `RotaryKnob Media Runtime Title` is the title received
+  from the Bridge. Equal non-empty values prove transport and rendering;
 - `EC1 Encoder Read Errors`, `UART Protocol Errors` and `Inter-MCU Protocol
   Errors` unchanged at zero after startup;
 - finite link ping and bounded `S3 UI Scheduler Gap` during active input;
@@ -153,3 +257,8 @@ Execute the current live matrix in [Known issues](known-issues.md) and the
 detailed [responsiveness test catalog](stage1-responsiveness-test-catalog.md)
 for each physical RotaryKnob. A profile or Home Assistant entry alone is not
 evidence that its corresponding processor has passed physical acceptance.
+
+Protocol references: the ESPHome developer documentation describes the
+[Native API wire format and Noise framing](https://developers.esphome.io/architecture/api/protocol_details/).
+Music Assistant documents its [WebSocket `/ws` API endpoint](https://github.com/music-assistant/server/blob/dev/music_assistant/controllers/webserver/README.md)
+and the current [AirPlay provider, discovery and timing behavior](https://github.com/music-assistant/server/blob/dev/music_assistant/providers/airplay/README.md).

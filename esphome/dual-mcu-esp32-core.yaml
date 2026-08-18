@@ -1,5 +1,5 @@
 substitutions:
-  project_version: "3.0.0-beta.17"
+  project_version: "3.0.0-beta.18"
   name: "passion-wave-rotary-test-esp32"
   friendly_name: "Passion Wave RotaryKnob Test ESP32"
   passion_wave_config_entry_id: ""
@@ -2350,6 +2350,18 @@ script:
             - script.execute: send_bridge_snapshot
             - script.stop: send_bridge_snapshot
       - lambda: |-
+          // A freshly booted S3 must not wait for the 10-second maintenance
+          // interval before it can render a valid clock. Every requested
+          // snapshot therefore begins with the Bridge's current HA time.
+          const auto snapshot_now = id(bridge_time).now();
+          if (snapshot_now.is_valid()) {
+            id(bridge_last_time_epoch) =
+              static_cast<uint32_t>(snapshot_now.timestamp);
+            dual_mcu::link.send_u32(
+              dual_mcu::MessageType::TIME_STATE,
+              id(bridge_last_time_epoch));
+            id(bridge_last_time_sent_ms) = millis();
+          }
           const uint8_t status[] = {
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
             static_cast<uint8_t>(

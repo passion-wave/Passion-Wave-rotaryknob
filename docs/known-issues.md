@@ -1,7 +1,61 @@
 # Known issues
 
-Stand: 2026-08-17. Offene Fehler behalten eine eindeutige Statuszeile;
+Stand: 2026-08-18. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
+
+## Beta.18: Start- und Medien-Runtime
+
+### PW-UI-004: Sichtbarer Titel blieb auf „Keine Wiedergabe“
+
+Status: In Beta.18 im Quellcode korrigiert; automatisierte Vertrags- und
+Konfigurationsprüfung bestanden, physische Anzeigeabnahme nach OTA ausstehend.
+
+Die Live-Diagnose am 2026-08-18 zeigte eine eindeutige Trennung zwischen
+Transport und Darstellung. Der in Home Assistant ausgewählte Player spielte
+und meldete aktuelle Titel. PassionWave, Bridge und S3 führten denselben
+autoritativen Zustand einschließlich richtigem Titel und Interpreten. Das
+sichtbare LVGL-Titellabel blieb dennoch beim Fallback `Keine Wiedergabe`.
+
+Zwei Bedingungen konnten den Fehler stabil halten:
+
+- eine idempotente Wiederholung des bereits ausgewählten Player-Ziels leerte
+  den Titelcache nach einem gültigen Runtime-Snapshot;
+- ein über UART eingetroffener `MEDIA_TEXT`-Frame aktualisierte zwar Cache und
+  Diagnoseentität, erzwang aber kein sofortiges LVGL-Rendering.
+
+Beta.18 ignoriert identische Zielschreibvorgänge, ordnet die periodische
+Ziel-/Runtime-Synchronisation deterministisch und rendert nach
+`RUNTIME_STATE` sowie `MEDIA_TEXT` sofort neu. `RotaryKnob Rendered Media
+Title` liest den tatsächlich sichtbaren LVGL-Text zurück. Bei Zustand
+`playing` ohne Titel fordert der S3 nach zehn Sekunden erneut einen kompletten
+Snapshot an.
+
+Physisches Abnahmekriterium: Während auf dem ausgewählten Home-Assistant-
+Player mehrere Titel wechseln, müssen `Media Runtime Title`, `Rendered Media
+Title` und die sichtbare Anzeige ohne dauerhaften Fallback übereinstimmen.
+
+### PW-BOOT-001: Uhrzeit und Startdaten erschienen erst nach über 30 Sekunden
+
+Status: In Beta.18 im Quellcode korrigiert; messbare physische Kaltstartabnahme
+nach OTA ausstehend.
+
+Die Bridge sendete ihren vollständigen HELLO-Snapshot sofort, die aktuelle
+Home-Assistant-Zeit jedoch nur über ein separates zehnsekündiges
+Wartungsintervall. Bei asynchronen API- und UART-Reconnects konnte sich die
+sichtbare Bereitschaft deshalb über mehrere Intervalle ziehen; der
+Screensaver erhielt die Daten häufig erst später und verdeckte damit die
+eigentliche Startverzögerung.
+
+Beta.18 stellt `TIME_STATE` an den Anfang jedes Bridge-Snapshots und ergänzt
+`RotaryKnob UI Ready Time`, `RotaryKnob Clock Ready Time` und `RotaryKnob UI
+Startup Status`. Damit sind LVGL-Bereitschaft und erste gültige Uhrzeit
+getrennt messbar. Ein unvollständiger Runtime-Titel besitzt zusätzlich einen
+eigenen Snapshot-Recovery-Pfad.
+
+Physisches Abnahmekriterium: Kaltstart von Bridge und S3, anschließend die
+beiden Ready-Zeiten protokollieren. Uhrzeit und vorhandener aktueller Titel
+müssen auf der normalen UI vor Ablauf des 30-Sekunden-Screensaver-Timeouts
+sichtbar sein.
 
 ## Beta.16: Konsolidierter Updatevertrag
 
