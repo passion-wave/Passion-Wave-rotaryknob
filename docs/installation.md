@@ -85,8 +85,11 @@ combined percentage. Beta.19 processors refresh their HTTP manifest before
 installation and return `checking`, `manifest_ready`, `ota_started`, download
 progress and concrete manifest/download/flash errors over the encrypted
 ESPHome Native API. For the one-time upgrade from older firmware, the
-integration temporarily activates the hidden native update entity, refreshes
-it explicitly and disables it again after both processors run Beta.19.
+integration activates and refreshes the hidden native update entity when that
+legacy entity exists. A clean Beta.16 factory device does not have that entity;
+Beta.19.1 therefore returns an immediate recovery instruction. Install the
+matching Beta.19 image once with ESPHome OTA, then use only the single
+PassionWave update for later releases.
 
 The HACS integration update remains separate. Install a newly offered
 PassionWave HACS update first; afterwards install the single device update.

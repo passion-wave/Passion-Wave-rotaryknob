@@ -7,8 +7,8 @@ Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführ
 
 ### PW-UPD-008: Updatefenster blitzte nur, der Auftrag scheiterte später
 
-Status: In Beta.19 korrigiert; automatisierte Tests und alle sechs
-Firmware-Builds bestanden, Live-Abnahme auf Marco läuft im Releaseprozess.
+Status: In Firmware Beta.19 und Integration Beta.19.1 korrigiert; automatisierte
+Tests, alle sechs Firmware-Builds und die Live-Abnahme auf Marco bestanden.
 
 Der Marco-Lauf am 2026-08-18 startete im Hintergrund, obwohl Home Assistant
 `in_progress` sofort wieder auf `false` setzte. Nach fünf Minuten endete er mit
@@ -26,9 +26,30 @@ Fortschritt. Jeder Prozessor erhält die Zielversion, führt zuerst
 `update.check` aus und veröffentlicht Manifest-, OTA-Start-, Download- und
 Fehlerzustände über die verschlüsselte Native API. Ein Manifestfehler,
 abweichender Zielstand oder OTA-Fehlercode beendet den Auftrag unmittelbar mit
-dieser Ursache. Für den Übergang von Beta.16 reaktiviert die Integration die
-verborgene native ESPHome-Update-Entität, aktualisiert deren Manifest und
-deaktiviert sie nach dem erfolgreichen Beta.19-Paar wieder.
+dieser Ursache. Eine vorhandene verborgene Alt-Update-Entität wird für den
+Übergang reaktiviert und aktualisiert. Marcos sauberes Beta.16-Onboarding hatte
+diese Entität nicht; Bridge und S3 wurden deshalb einmalig per ESPHome OTA auf
+Beta.19 gehoben. Beta.19.1 meldet diesen Fall künftig sofort mit dem konkreten
+Recoveryweg statt nach einem weiteren generischen Reconnect-Timeout.
+
+Live-Abnahme am 2026-08-18: Der Home-Assistant-Service blieb sichtbar aktiv,
+meldete `updating_bridge` bei 10 Prozent und wechselte nach dem Bridge-Reconnect
+zu `updating_s3` bei 50 Prozent. Der ursprüngliche Service schloss erst, nachdem
+beide Prozessoren Beta.19 meldeten. Endzustand: `phase=complete`,
+`in_progress=false`, kein Ziel, kein Fehler und beide Transportdiagnosen
+`idle`.
+
+### PW-INT-009: Beta.19-Registry-Casing setzte den Eintrag auf `setup_retry`
+
+Status: In Integration Beta.19.1 korrigiert und auf Marco live nachgetestet.
+
+Beta.16 registrierte die S3-Vertragstexte als `Rotaryknob …`, Beta.19 meldet
+`RotaryKnob …`. Home Assistant behandelt `original_name` case-sensitiv; ein
+Reload nach dem Firmwarewechsel fand die Zieltexte deshalb nicht. Beta.19.1
+normalisiert ausschließlich diese beiden historischen Präfixvarianten in
+Config Flow, Migration und Laufzeitauflösung. Zusätzlich ist der
+Systemstatus-Callback jetzt als Event-Loop-Callback markiert, sodass Home
+Assistant keine thread-unsichere `async_write_ha_state`-Warnung mehr erzeugt.
 
 ## Beta.18: Start- und Medien-Runtime
 

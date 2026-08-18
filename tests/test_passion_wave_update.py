@@ -354,6 +354,36 @@ def test_legacy_endpoint_verifies_an_install_already_in_progress(monkeypatch):
     ]
 
 
+def test_clean_pre_beta19_device_returns_actionable_recovery(monkeypatch):
+    entity = _entity()
+
+    class Services:
+        def has_service(self, domain, service):
+            return (domain, service) == ("esphome", "bridge_install")
+
+    async def prepare(index):
+        del index
+        return None
+
+    entity.hass = SimpleNamespace(services=Services())
+    entity._device_version = lambda entry_id: "3.0.0-beta.16"
+    entity._service_name = lambda entry_id, action=None: "bridge_install"
+    entity._prepare_legacy_source = prepare
+    monkeypatch.setattr(
+        update_module,
+        "_endpoint_entry_ids",
+        lambda hass, entry: ("bridge_entry", "s3_entry"),
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_firmware_status_entities",
+        lambda hass, entry: (None, None),
+    )
+
+    with pytest.raises(HomeAssistantError, match="install Beta.19 once"):
+        asyncio.run(entity._install_endpoint(0, "3.0.0-beta.19"))
+
+
 def test_bridge_version_sync_retries_a_disconnected_action(monkeypatch):
     entity = _entity()
     calls = []

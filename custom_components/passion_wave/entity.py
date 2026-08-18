@@ -11,7 +11,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from .const import DOMAIN
+from .const import DOMAIN, original_name_matches
 
 type PassionWaveConfigEntry = config_entries.ConfigEntry[dict[str, Any]]
 
@@ -43,7 +43,9 @@ def entity_by_original_name(
             for registry_entry in er.async_get(hass).entities.values()
             if registry_entry.platform == "esphome"
             and registry_entry.config_entry_id == config_entry_id
-            and registry_entry.original_name == original_name
+            and original_name_matches(
+                registry_entry.original_name, original_name
+            )
         ),
         None,
     )

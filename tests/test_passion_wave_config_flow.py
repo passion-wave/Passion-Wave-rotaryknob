@@ -211,7 +211,9 @@ def test_connection_schema_exposes_all_customer_assignments():
         "text.media": _entity(
             "text.media",
             platform="esphome",
-            original_name=MEDIA_ENTITY_ORIGINAL_NAME,
+            original_name=MEDIA_ENTITY_ORIGINAL_NAME.replace(
+                "Rotaryknob", "RotaryKnob"
+            ),
             config_entry_id="s3-entry",
         ),
         "text.registration": _entity(
@@ -319,7 +321,7 @@ def test_existing_s3_light_targets_become_onboarding_defaults():
         entities[entity_id] = _entity(
             entity_id,
             platform="esphome",
-            original_name=original_name,
+            original_name=original_name.replace("Rotaryknob", "RotaryKnob"),
             config_entry_id="s3-entry",
         )
         states[entity_id] = _state(f"light.customer_{index}")

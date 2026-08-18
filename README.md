@@ -3,8 +3,8 @@
 Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
-Current coordinated baseline: device firmware and Home Assistant integration
-**3.0.0-beta.19 — `observable-ota`**.
+Current coordinated baseline: device firmware **3.0.0-beta.19** and Home
+Assistant integration **3.0.0-beta.19.1 — `observable-ota`**.
 
 Beta.18 sends time in the first Bridge snapshot, renders incoming media text
 immediately and prevents an unchanged player-target write from erasing the
