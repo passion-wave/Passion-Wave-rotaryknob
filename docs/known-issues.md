@@ -7,7 +7,7 @@ Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführ
 
 ### PW-UPD-008: Updatefenster blitzte nur, der Auftrag scheiterte später
 
-Status: In Firmware Beta.19 und Integration Beta.19.1 korrigiert; automatisierte
+Status: In Firmware Beta.19 und Integration Beta.19.2 korrigiert; automatisierte
 Tests, alle sechs Firmware-Builds und die Live-Abnahme auf Marco bestanden.
 
 Der Marco-Lauf am 2026-08-18 startete im Hintergrund, obwohl Home Assistant
@@ -41,7 +41,8 @@ beide Prozessoren Beta.19 meldeten. Endzustand: `phase=complete`,
 
 ### PW-INT-009: Beta.19-Registry-Casing setzte den Eintrag auf `setup_retry`
 
-Status: In Integration Beta.19.1 korrigiert und auf Marco live nachgetestet.
+Status: In Integration Beta.19.2 vollständig korrigiert und auf Marco live
+nachgetestet.
 
 Beta.16 registrierte die S3-Vertragstexte als `Rotaryknob …`, Beta.19 meldet
 `RotaryKnob …`. Home Assistant behandelt `original_name` case-sensitiv; ein
@@ -51,12 +52,18 @@ Config Flow, Migration und Laufzeitauflösung. Zusätzlich ist der
 Systemstatus-Callback jetzt als Event-Loop-Callback markiert, sodass Home
 Assistant keine thread-unsichere `async_write_ha_state`-Warnung mehr erzeugt.
 
+Der Firmwarewechsel hinterließ zusätzlich alte, nicht verfügbare Beta.16-
+Registry-Einträge neben den neuen Beta.19-Entitäten mit demselben
+`original_name`. Beta.19.2 bevorzugt bei dieser Mehrdeutigkeit die verfügbare,
+aktivierte Entität. Damit werden Zieltexte und der logische S3-Systemstatus
+nicht mehr an einen verwaisten Eintrag gebunden.
+
 ## Beta.18: Start- und Medien-Runtime
 
 ### PW-UI-004: Sichtbarer Titel blieb auf „Keine Wiedergabe“
 
-Status: In Beta.18 im Quellcode korrigiert; automatisierte Vertrags- und
-Konfigurationsprüfung bestanden, physische Anzeigeabnahme nach OTA ausstehend.
+Status: In Firmware Beta.19 mit Integration Beta.19.2 auf Marco physisch
+bestanden.
 
 Die Live-Diagnose am 2026-08-18 zeigte eine eindeutige Trennung zwischen
 Transport und Darstellung. Der in Home Assistant ausgewählte Player spielte
@@ -82,10 +89,13 @@ Physisches Abnahmekriterium: Während auf dem ausgewählten Home-Assistant-
 Player mehrere Titel wechseln, müssen `Media Runtime Title`, `Rendered Media
 Title` und die sichtbare Anzeige ohne dauerhaften Fallback übereinstimmen.
 
+Live-Nachweis am 2026-08-18: Der ausgewählte Player stand auf `idle` und meldete
+`Kapitel 12: SOS im Bike-Park - Folge 103`; `RotaryKnob Rendered Media Title`
+meldete exakt denselben sichtbaren LVGL-Text statt `Keine Wiedergabe`.
+
 ### PW-BOOT-001: Uhrzeit und Startdaten erschienen erst nach über 30 Sekunden
 
-Status: In Beta.18 im Quellcode korrigiert; messbare physische Kaltstartabnahme
-nach OTA ausstehend.
+Status: In Firmware Beta.19 auf Marco physisch bestanden.
 
 Die Bridge sendete ihren vollständigen HELLO-Snapshot sofort, die aktuelle
 Home-Assistant-Zeit jedoch nur über ein separates zehnsekündiges
@@ -104,6 +114,10 @@ Physisches Abnahmekriterium: Kaltstart von Bridge und S3, anschließend die
 beiden Ready-Zeiten protokollieren. Uhrzeit und vorhandener aktueller Titel
 müssen auf der normalen UI vor Ablauf des 30-Sekunden-Screensaver-Timeouts
 sichtbar sein.
+
+Live-Nachweis am 2026-08-18 nach S3-Neuverbindung: `UI Ready Time` = 1,909 s,
+`Clock Ready Time` = 1,910 s und Status `UI + Uhrzeit bereit`. Beide Werte
+liegen deutlich vor dem 30-Sekunden-Screensaver-Timeout.
 
 ## Beta.16: Konsolidierter Updatevertrag
 

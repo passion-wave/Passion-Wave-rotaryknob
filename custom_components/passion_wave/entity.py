@@ -6,6 +6,7 @@ from collections import Counter
 from typing import Any
 
 from homeassistant import config_entries
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -37,17 +38,35 @@ def entity_by_original_name(
     original_name: str,
 ) -> str | None:
     """Resolve one ESPHome entity by its stable firmware contract."""
-    return next(
-        (
-            registry_entry.entity_id
-            for registry_entry in er.async_get(hass).entities.values()
-            if registry_entry.platform == "esphome"
-            and registry_entry.config_entry_id == config_entry_id
-            and original_name_matches(
-                registry_entry.original_name, original_name
-            )
-        ),
-        None,
+    candidates = (
+        registry_entry
+        for registry_entry in er.async_get(hass).entities.values()
+        if registry_entry.platform == "esphome"
+        and registry_entry.config_entry_id == config_entry_id
+        and original_name_matches(registry_entry.original_name, original_name)
+    )
+    resolved = max(
+        candidates,
+        key=lambda registry_entry: _entity_resolution_rank(hass, registry_entry),
+        default=None,
+    )
+    return resolved.entity_id if resolved else None
+
+
+def _entity_resolution_rank(
+    hass: HomeAssistant,
+    registry_entry: er.RegistryEntry,
+) -> tuple[bool, bool, bool]:
+    """Prefer the live entity when an OTA leaves a stale registry duplicate."""
+    state = hass.states.get(registry_entry.entity_id)
+    available = state is not None and state.state not in (
+        STATE_UNAVAILABLE,
+        STATE_UNKNOWN,
+    )
+    return (
+        available,
+        registry_entry.disabled_by is None,
+        state is not None,
     )
 
 

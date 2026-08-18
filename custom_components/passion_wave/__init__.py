@@ -77,6 +77,7 @@ from .const import (
     SHOW_ALL,
     SUPPORTED_LIBRARY_TYPES,
 )
+from .entity import entity_by_original_name
 from .media import (
     bounded_page,
     filter_library_page,
@@ -177,15 +178,24 @@ def _s3_text_entities(
     hass: HomeAssistant,
     entry: PassionWaveConfigEntry,
 ) -> dict[str, str]:
-    """Resolve all firmware-owned S3 texts with one registry pass."""
+    """Resolve every firmware-owned S3 target to its live registry entity."""
     s3_entry_id = _entry_value(entry, CONF_S3_CONFIG_ENTRY_ID)
+    names = {
+        MEDIA_ENTITY_ORIGINAL_NAME,
+        MEDIA_LABEL_ORIGINAL_NAME,
+        *LIGHT_ENTITY_ORIGINAL_NAMES,
+        *LIGHT_LABEL_ORIGINAL_NAMES,
+    }
     return {
-        canonical_original_name(registry_entry.original_name)
-        or registry_entry.original_name: registry_entry.entity_id
-        for registry_entry in er.async_get(hass).entities.values()
-        if registry_entry.platform == "esphome"
-        and registry_entry.config_entry_id == s3_entry_id
-        and registry_entry.original_name
+        original_name: entity_id
+        for original_name in names
+        if (
+            entity_id := entity_by_original_name(
+                hass,
+                s3_entry_id,
+                original_name,
+            )
+        )
     }
 
 
