@@ -16,7 +16,7 @@ from homeassistant.components.update import (
     UpdateEntityFeature,
 )
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -30,6 +30,7 @@ from .const import (
     BRIDGE_RECEIVE_INTEGRATION_VERSION_ACTION,
     CONF_S3_CONFIG_ENTRY_ID,
     FIRMWARE_UPDATE_ORIGINAL_NAME,
+    FIRMWARE_UPDATE_STATUS_ORIGINAL_NAME,
     INTEGRATION_VERSION,
 )
 from .entity import (
@@ -44,7 +45,9 @@ ATTR_LATEST_VERSION = "latest_version"
 INSTALL_ACTION = "passion_wave_install_firmware"
 JOB_STORAGE_VERSION = 1
 JOB_WAIT_SECONDS = 24 * 60 * 60
+LEGACY_ACTIVATION_TIMEOUT_SECONDS = 30
 RECONNECT_TIMEOUT_SECONDS = 5 * 60
+TRANSPORT_START_TIMEOUT_SECONDS = 30
 VERSION_SYNC_ATTEMPTS = 30
 SCAN_INTERVAL = timedelta(hours=6)
 S3_MANIFEST_URL = (
@@ -90,6 +93,28 @@ def _legacy_update_entities(
     return bridge, s3
 
 
+def _firmware_status_entities(
+    hass: HomeAssistant, entry: PassionWaveConfigEntry
+) -> tuple[str | None, str | None]:
+    """Resolve the per-processor OTA diagnostic entities."""
+    bridge_entry_id, s3_entry_id = _endpoint_entry_ids(hass, entry)
+    bridge = (
+        entity_by_original_name(
+            hass, bridge_entry_id, FIRMWARE_UPDATE_STATUS_ORIGINAL_NAME
+        )
+        if bridge_entry_id
+        else None
+    )
+    s3 = (
+        entity_by_original_name(
+            hass, s3_entry_id, FIRMWARE_UPDATE_STATUS_ORIGINAL_NAME
+        )
+        if s3_entry_id
+        else None
+    )
+    return bridge, s3
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: PassionWaveConfigEntry,
@@ -104,7 +129,9 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
 
     _attr_device_class = UpdateDeviceClass.FIRMWARE
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_supported_features = UpdateEntityFeature.INSTALL
+    _attr_supported_features = (
+        UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS
+    )
     _attr_translation_key = "firmware"
     _attr_title = "PassionWave RotaryKnob"
     _attr_should_poll = True
@@ -169,6 +196,10 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         installed = self._installed_versions()
+        transport_status = tuple(
+            self._transport_status(entity_id)
+            for entity_id in _firmware_status_entities(self.hass, self._entry)
+        )
         return {
             "phase": self._phase,
             "target_version": self._target_version,
@@ -176,9 +207,17 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             "s3_installed_version": installed[1],
             "bridge_latest_version": self._manifest_versions[0],
             "s3_latest_version": self._manifest_versions[1],
+            "bridge_transport_status": transport_status[0],
+            "s3_transport_status": transport_status[1],
             "queued": self._phase == "waiting_for_devices",
             "last_error": self._last_error,
         }
+
+    def _transport_status(self, entity_id: str | None) -> str | None:
+        state = self.hass.states.get(entity_id) if entity_id else None
+        if not state or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return None
+        return state.state
 
     def version_is_newer(self, latest_version: str, installed_version: str) -> bool:
         del installed_version
@@ -211,7 +250,7 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
                 version(BRIDGE_MANIFEST_URL), version(S3_MANIFEST_URL)
             )
         )
-        if self._both_internal_actions_available():
+        if self._both_diagnostic_transports_available():
             self._disable_legacy_sources()
         if self._reconcile_completed_target():
             await self._save_job()
@@ -255,6 +294,12 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             for config_entry_id in _endpoint_entry_ids(self.hass, self._entry)
         )
 
+    def _both_diagnostic_transports_available(self) -> bool:
+        return self._both_internal_actions_available() and all(
+            self._transport_status(entity_id) is not None
+            for entity_id in _firmware_status_entities(self.hass, self._entry)
+        )
+
     def _disable_legacy_sources(self) -> None:
         registry = er.async_get(self.hass)
         for entity_id in _legacy_update_entities(self.hass, self._entry):
@@ -292,6 +337,32 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             f"{advertised or 'no release'} instead of {target}"
         )
 
+    async def _prepare_legacy_source(self, index: int) -> str | None:
+        """Temporarily activate a hidden pre-Beta.19 update transport."""
+        entity_id = _legacy_update_entities(self.hass, self._entry)[index]
+        if not entity_id or self._legacy_source_available(entity_id):
+            return entity_id
+        registry = er.async_get(self.hass)
+        registry_entry = registry.async_get(entity_id)
+        if (
+            registry_entry is None
+            or registry_entry.disabled_by
+            != er.RegistryEntryDisabler.INTEGRATION
+        ):
+            return None
+        registry.async_update_entity(entity_id, disabled_by=None)
+        config_entry_id = _endpoint_entry_ids(self.hass, self._entry)[index]
+        if config_entry_id:
+            await self.hass.config_entries.async_reload(config_entry_id)
+        deadline = self.hass.loop.time() + LEGACY_ACTIVATION_TIMEOUT_SECONDS
+        while self.hass.loop.time() < deadline:
+            if self._legacy_source_available(entity_id):
+                return entity_id
+            await asyncio.sleep(1)
+        raise HomeAssistantError(
+            f"Firmware recovery transport {entity_id} did not become available"
+        )
+
     async def _save_job(self) -> None:
         if self._store is None:
             return
@@ -311,7 +382,9 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         target = version or self.latest_version
         if not target or target != self.latest_version:
             raise HomeAssistantError("S3 and Bridge do not advertise the same release")
-        if self._job_task and not self._job_task.done():
+        if self._attr_in_progress or (
+            self._job_task and not self._job_task.done()
+        ):
             raise HomeAssistantError("A PassionWave firmware update is already queued")
         self._target_version = target
         self._last_error = None
@@ -320,7 +393,7 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         self._attr_update_percentage = 0
         await self._save_job()
         self.async_write_ha_state()
-        self._start_job()
+        await self._async_run_job(raise_on_failure=True)
 
     def _start_job(self) -> None:
         if self._job_task and not self._job_task.done():
@@ -345,10 +418,11 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             await asyncio.sleep(10)
         raise HomeAssistantError("Timed out waiting for both RotaryKnob processors")
 
-    async def _async_run_job(self) -> None:
+    async def _async_run_job(self, *, raise_on_failure: bool = False) -> None:
         target = self._target_version
         if not target:
             return
+        failure: Exception | None = None
         try:
             await self._wait_for_transports()
             self._phase = "updating_bridge"
@@ -371,6 +445,7 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             if not self._reconcile_completed_target():
                 self._phase = "failed"
                 self._last_error = str(err)
+                failure = err
         finally:
             if self._phase in {"complete", "failed"}:
                 self._attr_in_progress = False
@@ -378,20 +453,40 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
                 self._target_version = None
             await self._save_job()
             self.async_write_ha_state()
+        if failure is not None and raise_on_failure:
+            raise HomeAssistantError(str(failure)) from failure
 
     async def _install_endpoint(self, index: int, target: str) -> None:
         entry_ids = _endpoint_entry_ids(self.hass, self._entry)
         if self._device_version(entry_ids[index]) == target:
             return
         service = self._service_name(entry_ids[index])
-        if service and self.hass.services.has_service("esphome", service):
-            await self.hass.services.async_call(
-                "esphome", service, {}, blocking=True
+        status_entity = _firmware_status_entities(self.hass, self._entry)[index]
+        diagnostic_service = (
+            service
+            if (
+                service
+                and self.hass.services.has_service("esphome", service)
+                and status_entity
+                and self._transport_status(status_entity) is not None
             )
-        else:
-            legacy = _legacy_update_entities(self.hass, self._entry)[index]
-            if not self._legacy_source_available(legacy):
-                raise HomeAssistantError("Firmware transport became unavailable")
+            else None
+        )
+        legacy = None
+        if not diagnostic_service:
+            legacy = await self._prepare_legacy_source(index)
+        if diagnostic_service and status_entity:
+            status_state = self.hass.states.get(status_entity)
+            await self.hass.services.async_call(
+                "esphome",
+                diagnostic_service,
+                {"target_version": target},
+                blocking=True,
+            )
+            await self._wait_for_transport_start(
+                index, target, status_entity, status_state
+            )
+        elif legacy and self._legacy_source_available(legacy):
             await self._refresh_legacy_source(legacy, target)
             try:
                 await self.hass.services.async_call(
@@ -400,7 +495,17 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             except HomeAssistantError as err:
                 if "already in progress" not in str(err).lower():
                     raise
-        await self._wait_for_version(entry_ids[index], target)
+            status_entity = None
+        elif service and self.hass.services.has_service("esphome", service):
+            await self.hass.services.async_call(
+                "esphome", service, {}, blocking=True
+            )
+            status_entity = None
+        else:
+            raise HomeAssistantError("Firmware transport became unavailable")
+        await self._wait_for_version(
+            entry_ids[index], target, index=index, status_entity=status_entity
+        )
         if index == 0:
             await self.hass.config_entries.async_reload(entry_ids[index])
             await self._sync_bridge_integration_version(entry_ids[index])
@@ -429,13 +534,83 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             if attempt + 1 < VERSION_SYNC_ATTEMPTS:
                 await asyncio.sleep(2)
 
+    def _transport_error(self, status: str, target: str) -> str | None:
+        if status == "manifest_error":
+            return f"Device could not download the firmware manifest for {target}"
+        if status.startswith("manifest_mismatch:"):
+            advertised = status.partition(":")[2] or "no release"
+            return f"Device manifest advertises {advertised} instead of {target}"
+        if status == "manifest_not_installable":
+            return f"Device manifest does not offer an installable {target} image"
+        if status.startswith("ota_error:"):
+            code = status.partition(":")[2] or "unknown"
+            return f"Device reported OTA download/flash error {code} for {target}"
+        return None
+
+    def _apply_transport_progress(self, index: int, status: str) -> None:
+        if not status.startswith("ota_progress:"):
+            return
+        try:
+            progress = min(100.0, max(0.0, float(status.partition(":")[2])))
+        except ValueError:
+            return
+        start, span = ((10.0, 40.0) if index == 0 else (50.0, 50.0))
+        self._attr_update_percentage = round(start + span * progress / 100.0)
+        self.async_write_ha_state()
+
+    async def _wait_for_transport_start(
+        self,
+        index: int,
+        target: str,
+        status_entity: str,
+        previous_state: Any,
+    ) -> None:
+        """Require a fresh manifest result or OTA start from new firmware."""
+        previous_updated = (
+            previous_state.last_updated if previous_state is not None else None
+        )
+        deadline = self.hass.loop.time() + TRANSPORT_START_TIMEOUT_SECONDS
+        while self.hass.loop.time() < deadline:
+            state = self.hass.states.get(status_entity)
+            if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                await asyncio.sleep(1)
+                continue
+            status = state.state
+            is_fresh = (
+                previous_updated is None or state.last_updated != previous_updated
+            )
+            if is_fresh:
+                error = self._transport_error(status, target)
+                if error:
+                    raise HomeAssistantError(error)
+                self._apply_transport_progress(index, status)
+                if status in {"ota_started", "ota_complete"} or status.startswith(
+                    (f"manifest_ready:{target}", "ota_progress:")
+                ):
+                    return
+            await asyncio.sleep(1)
+        raise HomeAssistantError(
+            f"Device did not confirm a fresh manifest or OTA start for {target}"
+        )
+
     async def _wait_for_version(
-        self, config_entry_id: str | None, target: str
+        self,
+        config_entry_id: str | None,
+        target: str,
+        *,
+        index: int,
+        status_entity: str | None,
     ) -> None:
         deadline = self.hass.loop.time() + RECONNECT_TIMEOUT_SECONDS
         while self.hass.loop.time() < deadline:
             if self._device_version(config_entry_id) == target:
                 return
+            status = self._transport_status(status_entity)
+            if status:
+                error = self._transport_error(status, target)
+                if error:
+                    raise HomeAssistantError(error)
+                self._apply_transport_progress(index, status)
             await asyncio.sleep(2)
         raise HomeAssistantError(
             f"Processor did not reconnect with firmware {target}"

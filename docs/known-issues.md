@@ -3,6 +3,33 @@
 Stand: 2026-08-18. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
 
+## Beta.19: Beobachtbarer Firmware-Updatepfad
+
+### PW-UPD-008: Updatefenster blitzte nur, der Auftrag scheiterte später
+
+Status: In Beta.19 korrigiert; automatisierte Tests und alle sechs
+Firmware-Builds bestanden, Live-Abnahme auf Marco läuft im Releaseprozess.
+
+Der Marco-Lauf am 2026-08-18 startete im Hintergrund, obwohl Home Assistant
+`in_progress` sofort wieder auf `false` setzte. Nach fünf Minuten endete er mit
+`Processor did not reconnect with firmware 3.0.0-beta.18`; Bridge und S3
+blieben auf Beta.16. Zwei unabhängige Ursachen wurden nachgewiesen:
+
+- `async_install` erzeugte einen losgelösten Task und kehrte sofort zurück;
+  Home Assistant beendete deshalb seinen sichtbaren Installationszustand.
+- Die interne ESPHome-Aktion rief nur `update.perform` auf. Dieses startet
+  ausschließlich bei einem bereits als verfügbar bekannten Update; das
+  HTTP-Manifest durfte jedoch bis zu sechs Stunden alt sein.
+
+Beta.19 hält den HA-Service bis zum Abschluss offen und meldet kombinierten
+Fortschritt. Jeder Prozessor erhält die Zielversion, führt zuerst
+`update.check` aus und veröffentlicht Manifest-, OTA-Start-, Download- und
+Fehlerzustände über die verschlüsselte Native API. Ein Manifestfehler,
+abweichender Zielstand oder OTA-Fehlercode beendet den Auftrag unmittelbar mit
+dieser Ursache. Für den Übergang von Beta.16 reaktiviert die Integration die
+verborgene native ESPHome-Update-Entität, aktualisiert deren Manifest und
+deaktiviert sie nach dem erfolgreichen Beta.19-Paar wieder.
+
 ## Beta.18: Start- und Medien-Runtime
 
 ### PW-UI-004: Sichtbarer Titel blieb auf „Keine Wiedergabe“

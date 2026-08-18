@@ -187,6 +187,57 @@ def test_legacy_transport_rejects_stale_manifest(monkeypatch):
         )
 
 
+def test_disabled_legacy_transport_is_reactivated_for_beta19(monkeypatch):
+    entity = _entity()
+    calls = []
+    states = {}
+    registry_entry = SimpleNamespace(
+        disabled_by=update_module.er.RegistryEntryDisabler.INTEGRATION
+    )
+
+    class Registry:
+        def async_get(self, entity_id):
+            return registry_entry
+
+        def async_update_entity(self, entity_id, **changes):
+            calls.append(("enable", entity_id, changes))
+
+    class ConfigEntries:
+        async def async_reload(self, entry_id):
+            calls.append(("reload", entry_id))
+            states["update.bridge_firmware"] = SimpleNamespace(state="off")
+
+    entity.hass = SimpleNamespace(
+        config_entries=ConfigEntries(),
+        loop=SimpleNamespace(time=lambda: 0),
+        states=SimpleNamespace(get=states.get),
+    )
+    monkeypatch.setattr(update_module.er, "async_get", lambda hass: Registry())
+    monkeypatch.setattr(
+        update_module,
+        "_legacy_update_entities",
+        lambda hass, entry: ("update.bridge_firmware", "update.s3_firmware"),
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_firmware_status_entities",
+        lambda hass, entry: (None, None),
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_endpoint_entry_ids",
+        lambda hass, entry: ("bridge_entry", "s3_entry"),
+    )
+
+    result = asyncio.run(entity._prepare_legacy_source(0))
+
+    assert result == "update.bridge_firmware"
+    assert calls == [
+        ("enable", "update.bridge_firmware", {"disabled_by": None}),
+        ("reload", "bridge_entry"),
+    ]
+
+
 def test_legacy_endpoint_refreshes_before_install(monkeypatch):
     entity = _entity()
     calls = []
@@ -205,7 +256,11 @@ def test_legacy_endpoint_refreshes_before_install(monkeypatch):
     async def refresh(entity_id, target):
         calls.append(("refresh", entity_id, target))
 
-    async def wait_for_version(entry_id, target):
+    async def prepare(index):
+        return ("update.bridge_firmware", "update.s3_firmware")[index]
+
+    async def wait_for_version(entry_id, target, **kwargs):
+        del kwargs
         calls.append(("verify", entry_id, target))
 
     entity.hass = SimpleNamespace(
@@ -215,6 +270,7 @@ def test_legacy_endpoint_refreshes_before_install(monkeypatch):
     entity._service_name = lambda entry_id, action=None: None
     entity._legacy_source_available = lambda entity_id: True
     entity._refresh_legacy_source = refresh
+    entity._prepare_legacy_source = prepare
     entity._wait_for_version = wait_for_version
     monkeypatch.setattr(
         update_module,
@@ -225,6 +281,11 @@ def test_legacy_endpoint_refreshes_before_install(monkeypatch):
         update_module,
         "_legacy_update_entities",
         lambda hass, entry: ("update.bridge_firmware", "update.s3_firmware"),
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_firmware_status_entities",
+        lambda hass, entry: (None, None),
     )
 
     asyncio.run(entity._install_endpoint(0, "3.0.0-beta.18"))
@@ -254,7 +315,11 @@ def test_legacy_endpoint_verifies_an_install_already_in_progress(monkeypatch):
     async def refresh(entity_id, target):
         calls.append(("refresh", entity_id, target))
 
-    async def wait_for_version(entry_id, target):
+    async def prepare(index):
+        return ("update.bridge_firmware", "update.s3_firmware")[index]
+
+    async def wait_for_version(entry_id, target, **kwargs):
+        del kwargs
         calls.append(("verify", entry_id, target))
 
     entity.hass = SimpleNamespace(services=Services())
@@ -262,6 +327,7 @@ def test_legacy_endpoint_verifies_an_install_already_in_progress(monkeypatch):
     entity._service_name = lambda entry_id, action=None: None
     entity._legacy_source_available = lambda entity_id: True
     entity._refresh_legacy_source = refresh
+    entity._prepare_legacy_source = prepare
     entity._wait_for_version = wait_for_version
     monkeypatch.setattr(
         update_module,
@@ -272,6 +338,11 @@ def test_legacy_endpoint_verifies_an_install_already_in_progress(monkeypatch):
         update_module,
         "_legacy_update_entities",
         lambda hass, entry: ("update.bridge_firmware", "update.s3_firmware"),
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_firmware_status_entities",
+        lambda hass, entry: (None, None),
     )
 
     asyncio.run(entity._install_endpoint(1, "3.0.0-beta.18"))
@@ -345,3 +416,134 @@ def test_bridge_version_sync_timeout_does_not_fail_firmware(monkeypatch):
     asyncio.run(entity._sync_bridge_integration_version("bridge_entry"))
 
     assert calls == ["call", ("sleep", 2), "call"]
+
+
+def test_install_awaits_the_job_instead_of_detaching_it():
+    entity = _entity()
+    entity._manifest_versions = ("3.0.0-beta.18", "3.0.0-beta.18")
+    calls = []
+
+    async def run_job(*, raise_on_failure=False):
+        calls.append((raise_on_failure, entity._attr_in_progress))
+        entity._attr_in_progress = False
+
+    entity._async_run_job = run_job
+
+    asyncio.run(entity.async_install(None, False))
+
+    assert calls == [(True, True)]
+
+
+def test_install_failure_is_returned_to_home_assistant():
+    entity = _entity()
+    entity._installed_versions = lambda: (
+        "3.0.0-beta.15",
+        "3.0.0-beta.15",
+    )
+
+    async def install_endpoint(index, target):
+        del index, target
+        raise RuntimeError("manifest request failed")
+
+    entity._install_endpoint = install_endpoint
+
+    with pytest.raises(HomeAssistantError, match="manifest request failed"):
+        asyncio.run(entity._async_run_job(raise_on_failure=True))
+
+    assert entity._phase == "failed"
+    assert not entity._attr_in_progress
+
+
+def test_internal_transport_receives_target_and_is_verified(monkeypatch):
+    entity = _entity()
+    calls = []
+    status_state = SimpleNamespace(
+        state="idle", last_updated=1, attributes={}
+    )
+
+    class Services:
+        def has_service(self, domain, service):
+            return (domain, service) == ("esphome", "s3_install")
+
+        async def async_call(self, domain, service, data, *, blocking):
+            calls.append((domain, service, data, blocking))
+
+    async def wait_for_start(index, target, entity_id, previous_state):
+        calls.append(("start", index, target, entity_id, previous_state.state))
+
+    async def wait_for_version(entry_id, target, **kwargs):
+        calls.append(("verify", entry_id, target, kwargs))
+
+    entity.hass = SimpleNamespace(
+        services=Services(),
+        states=SimpleNamespace(get=lambda entity_id: status_state),
+    )
+    entity._device_version = lambda entry_id: "3.0.0-beta.15"
+    entity._service_name = lambda entry_id, action=None: "s3_install"
+    entity._wait_for_transport_start = wait_for_start
+    entity._wait_for_version = wait_for_version
+    monkeypatch.setattr(
+        update_module,
+        "_endpoint_entry_ids",
+        lambda hass, entry: ("bridge_entry", "s3_entry"),
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_firmware_status_entities",
+        lambda hass, entry: ("sensor.bridge_status", "sensor.s3_status"),
+    )
+
+    asyncio.run(entity._install_endpoint(1, "3.0.0-beta.18"))
+
+    assert calls == [
+        (
+            "esphome",
+            "s3_install",
+            {"target_version": "3.0.0-beta.18"},
+            True,
+        ),
+        (
+            "start",
+            1,
+            "3.0.0-beta.18",
+            "sensor.s3_status",
+            "idle",
+        ),
+        (
+            "verify",
+            "s3_entry",
+            "3.0.0-beta.18",
+            {"index": 1, "status_entity": "sensor.s3_status"},
+        ),
+    ]
+
+
+def test_fresh_manifest_error_is_reported_immediately():
+    entity = _entity()
+    current_state = SimpleNamespace(
+        state="manifest_error", last_updated=2, attributes={}
+    )
+    entity.hass = SimpleNamespace(
+        loop=SimpleNamespace(time=lambda: 0),
+        states=SimpleNamespace(get=lambda entity_id: current_state),
+    )
+
+    with pytest.raises(HomeAssistantError, match="could not download"):
+        asyncio.run(
+            entity._wait_for_transport_start(
+                0,
+                "3.0.0-beta.18",
+                "sensor.bridge_status",
+                SimpleNamespace(last_updated=1),
+            )
+        )
+
+
+def test_transport_progress_is_mapped_across_both_processors():
+    entity = _entity()
+
+    entity._apply_transport_progress(0, "ota_progress:50")
+    assert entity._attr_update_percentage == 30
+
+    entity._apply_transport_progress(1, "ota_progress:50")
+    assert entity._attr_update_percentage == 75

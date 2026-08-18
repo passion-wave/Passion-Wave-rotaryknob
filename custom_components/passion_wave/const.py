@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "passion_wave"
-INTEGRATION_VERSION = "3.0.0-beta.18.1"
+INTEGRATION_VERSION = "3.0.0-beta.19"
 
 CONF_S3_HOST = "s3_host"
 CONF_BRIDGE_HOST = "bridge_host"
@@ -75,6 +75,7 @@ def is_configured_light_entity(value: object) -> bool:
 
 BRIDGE_REGISTRATION_ORIGINAL_NAME = "PassionWave Integration Entry ID"
 FIRMWARE_UPDATE_ORIGINAL_NAME = "Firmware"
+FIRMWARE_UPDATE_STATUS_ORIGINAL_NAME = "Firmware Update Status"
 MEDIA_ENTITY_ORIGINAL_NAME = "Rotaryknob Media Entity ID"
 MEDIA_LABEL_ORIGINAL_NAME = "Rotaryknob Media Label"
 LIGHT_ENTITY_ORIGINAL_NAMES = (

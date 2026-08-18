@@ -27,6 +27,7 @@ TIMO_S3 = (ROOT / "esphome" / "managed-test-s3.yaml").read_text()
 TIMO_BRIDGE = (ROOT / "esphome" / "managed-test-esp32.yaml").read_text()
 FACTORY_S3 = (ROOT / "esphome" / "factory-s3.yaml").read_text()
 FACTORY_BRIDGE = (ROOT / "esphome" / "factory-esp32.yaml").read_text()
+MANAGED_COMMON = (ROOT / "esphome" / "managed-common.yaml").read_text()
 
 
 class DualMcuRuntimeContractTests(unittest.TestCase):
@@ -303,6 +304,25 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertIn("VERSION_STATE = 57", link)
         self.assertIn('"Versionen"', ui)
         self.assertIn('value = "S3 ${project_version}"', ui)
+
+    def test_beta19_update_transport_is_observable_and_target_checked(self) -> None:
+        update = (
+            ROOT / "custom_components" / "passion_wave" / "update.py"
+        ).read_text()
+
+        for processor in (S3_UI, BRIDGE):
+            self.assertIn("target_version: string", processor)
+            self.assertIn("update.check: passion_wave_firmware_update", processor)
+            self.assertIn("manifest_mismatch:", processor)
+
+        for processor in (S3, BRIDGE):
+            self.assertIn('name: "Firmware Update Status"', processor)
+
+        self.assertIn("ota_progress:", MANAGED_COMMON)
+
+        self.assertIn("UpdateEntityFeature.PROGRESS", update)
+        self.assertIn("await self._async_run_job(raise_on_failure=True)", update)
+        self.assertIn("LEGACY_ACTIVATION_TIMEOUT_SECONDS", update)
 
 
 if __name__ == "__main__":

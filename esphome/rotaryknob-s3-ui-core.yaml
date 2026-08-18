@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave RotaryKnob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.0-beta.18"
+  project_version: "3.0.0-beta.19"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -93,6 +93,7 @@ esphome:
         - lambda: |-
             const bool encoder_ready = ec1_pcnt::encoder.setup(7, 8);
             id(ec1_encoder_ready).publish_state(encoder_ready);
+            id(firmware_update_status).publish_state("idle");
             ESP_LOGI("ec1_encoder", "PCNT encoder %s on GPIO7/GPIO8",
                      encoder_ready ? "ready" : "setup failed");
 
@@ -203,8 +204,47 @@ api:
           - script.execute: refresh_all_light_detail_catalogs
   services:
     - service: passion_wave_install_firmware
+      variables:
+        target_version: string
       then:
-        - update.perform: passion_wave_firmware_update
+        - lambda: |-
+            id(passion_wave_firmware_update).status_clear_error();
+            id(firmware_update_status).publish_state(
+                std::string("checking:") + target_version);
+        - update.check: passion_wave_firmware_update
+        - wait_until:
+            condition:
+              lambda: |-
+                return id(passion_wave_firmware_update).status_has_error() ||
+                       id(passion_wave_firmware_update).update_info.latest_version ==
+                           target_version;
+            timeout: 20s
+        - if:
+            condition:
+              lambda: |-
+                return !id(passion_wave_firmware_update).status_has_error() &&
+                       id(passion_wave_firmware_update).state ==
+                           update::UPDATE_STATE_AVAILABLE &&
+                       id(passion_wave_firmware_update).update_info.latest_version ==
+                           target_version;
+            then:
+              - lambda: |-
+                  id(firmware_update_status).publish_state(
+                      std::string("manifest_ready:") + target_version);
+              - update.perform: passion_wave_firmware_update
+            else:
+              - lambda: |-
+                  if (id(passion_wave_firmware_update).status_has_error()) {
+                    id(firmware_update_status).publish_state("manifest_error");
+                  } else if (id(passion_wave_firmware_update).update_info.latest_version !=
+                             target_version) {
+                    id(firmware_update_status).publish_state(
+                        std::string("manifest_mismatch:") +
+                        id(passion_wave_firmware_update).update_info.latest_version);
+                  } else {
+                    id(firmware_update_status).publish_state(
+                        "manifest_not_installable");
+                  }
     - service: support_diagnostics_on
       then:
         - lambda: 'id(support_diagnostics_enabled) = true;'

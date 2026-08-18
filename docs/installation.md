@@ -5,7 +5,7 @@ to Home Assistant.
 
 The current public no-expert path is
 `https://www.passion-wave.com/install/`. It delivers
-V3.0.0-beta.18 as an explicitly marked prerelease; V2.1.1 remains the rollback
+V3.0.0-beta.19 as an explicitly marked prerelease; V2.1.1 remains the rollback
 tag until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web
@@ -19,7 +19,7 @@ This is the intended after-purchase flow:
 1. Connect the RotaryKnob to the browser device with USB in the orientation
    that exposes the ESP32-S3.
 2. Open
-   `https://www.passion-wave.com/install/?v=3.0.0-beta.18`.
+   `https://www.passion-wave.com/install/?v=3.0.0-beta.19`.
 3. Press `Install RotaryKnob`.
 4. Let the installer perform a clean erase, verify the ESP32-S3 and flash
    `PassionWave RotaryKnob`.
@@ -44,8 +44,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.18.json
-https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.18.json
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.0-beta.19.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.0-beta.19.json
 ```
 
 Both published binaries are built from sanitized public factory
@@ -79,6 +79,14 @@ Home Assistant exposes one customer-facing device update:
 until it has reconnected with the target version, then installs the S3 and
 verifies its reconnect. If the Bridge fails, the S3 is not touched. The two
 native ESPHome update entities remain available as hidden recovery transports.
+
+The service call remains active for the complete transaction and reports a
+combined percentage. Beta.19 processors refresh their HTTP manifest before
+installation and return `checking`, `manifest_ready`, `ota_started`, download
+progress and concrete manifest/download/flash errors over the encrypted
+ESPHome Native API. For the one-time upgrade from older firmware, the
+integration temporarily activates the hidden native update entity, refreshes
+it explicitly and disables it again after both processors run Beta.19.
 
 The HACS integration update remains separate. Install a newly offered
 PassionWave HACS update first; afterwards install the single device update.

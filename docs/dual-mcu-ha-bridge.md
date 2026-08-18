@@ -1,6 +1,6 @@
 # Dual-MCU Home Assistant bridge
 
-Current coordinated implementation: `3.0.0-beta.18`.
+Current coordinated implementation: `3.0.0-beta.19`.
 
 One physical Passion Wave RotaryKnob contains two processors. They share one
 product generation but keep separate firmware images, native API identities
@@ -221,6 +221,48 @@ subscriptions and replaces the standalone media, weather and light fetchers
 before ESPHome code generation. Consequently the managed S3 binary contains
 no Home Assistant service-call objects; only the Bridge publishes bounded
 command envelopes for the PassionWave integration.
+
+## Wirkkette Firmware-Update
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Benutzer
+    participant UI as Home-Assistant-Frontend
+    participant PW as PassionWave-Integration
+    participant ESP as ESPHome-Integration
+    participant B as ESP32 Bridge
+    participant Web as passion-wave.com
+    participant S3 as ESP32-S3
+
+    User->>UI: Aktualisieren
+    UI->>PW: update.install (HA Service API)
+    Note over UI,PW: Service bleibt bis Abschluss aktiv<br/>in_progress + Prozent
+    PW->>ESP: passion_wave_install_firmware(target_version)<br/>HA Service Dispatch
+    ESP->>B: User-defined Action<br/>Native API / Protobuf / Noise / TCP 6053
+    B->>Web: GET manifest.json<br/>HTTPS/TLS
+    Web-->>B: Version, OTA-URL, MD5<br/>JSON über HTTPS
+    B-->>ESP: checking / manifest_ready<br/>Native API TextSensor
+    B->>Web: GET firmware.ota.bin<br/>HTTPS/TLS
+    B-->>ESP: ota_started / ota_progress / ota_error<br/>Native API
+    B->>B: MD5 prüfen, OTA-Partition schreiben, Neustart
+    ESP-->>PW: Reconnect + project version<br/>Native API
+    PW->>ESP: gleicher Auftrag für S3
+    ESP->>S3: User-defined Action<br/>Native API / Protobuf / Noise / TCP 6053
+    S3->>Web: GET manifest.json + firmware.ota.bin<br/>HTTPS/TLS
+    S3-->>ESP: Manifest-/OTA-Status<br/>Native API
+    S3->>S3: MD5 prüfen, OTA-Partition schreiben, Neustart
+    ESP-->>PW: Reconnect + project version<br/>Native API
+    PW-->>UI: complete oder konkrete Fehlerursache<br/>HA Entity State
+```
+
+Das öffentliche Manifest und die Binärdatei werden auf jedem Prozessor direkt
+per HTTPS geladen; der Firmwareinhalt läuft weder durch Home Assistant noch
+durch UART. Home Assistant koordiniert nur Reihenfolge, Zielversion und
+Verifikation. Bei Firmware vor Beta.19 reaktiviert die Integration für genau
+einen Übergang die verborgene native ESPHome-Update-Entität, ruft zuerst
+`homeassistant.update_entity` auf und verwendet danach `update.install`. Damit
+wird auch ein alter sechs-Stunden-Cache vor dem ersten Beta.19-Flash ersetzt.
 
 ## Recovery behavior
 
