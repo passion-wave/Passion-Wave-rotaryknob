@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "passion_wave"
-INTEGRATION_VERSION = "3.0.0-beta.18"
+INTEGRATION_VERSION = "3.0.0-beta.18.1"
 
 CONF_S3_HOST = "s3_host"
 CONF_BRIDGE_HOST = "bridge_host"
@@ -75,19 +75,19 @@ def is_configured_light_entity(value: object) -> bool:
 
 BRIDGE_REGISTRATION_ORIGINAL_NAME = "PassionWave Integration Entry ID"
 FIRMWARE_UPDATE_ORIGINAL_NAME = "Firmware"
-MEDIA_ENTITY_ORIGINAL_NAME = "RotaryKnob Media Entity ID"
-MEDIA_LABEL_ORIGINAL_NAME = "RotaryKnob Media Label"
+MEDIA_ENTITY_ORIGINAL_NAME = "Rotaryknob Media Entity ID"
+MEDIA_LABEL_ORIGINAL_NAME = "Rotaryknob Media Label"
 LIGHT_ENTITY_ORIGINAL_NAMES = (
-    "RotaryKnob Light Slot 1 Entity ID",
-    "RotaryKnob Light Slot 2 Entity ID",
-    "RotaryKnob Light Slot 3 Entity ID",
-    "RotaryKnob Light Slot 4 Entity ID",
+    "Rotaryknob Light Slot 1 Entity ID",
+    "Rotaryknob Light Slot 2 Entity ID",
+    "Rotaryknob Light Slot 3 Entity ID",
+    "Rotaryknob Light Slot 4 Entity ID",
 )
 LIGHT_LABEL_ORIGINAL_NAMES = (
-    "RotaryKnob Light Slot 1 Label",
-    "RotaryKnob Light Slot 2 Label",
-    "RotaryKnob Light Slot 3 Label",
-    "RotaryKnob Light Slot 4 Label",
+    "Rotaryknob Light Slot 1 Label",
+    "Rotaryknob Light Slot 2 Label",
+    "Rotaryknob Light Slot 3 Label",
+    "Rotaryknob Light Slot 4 Label",
 )
 
 ESPHOME_API_PORT = 6053

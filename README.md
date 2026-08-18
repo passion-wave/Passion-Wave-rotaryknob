@@ -4,7 +4,7 @@ Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
 Current coordinated baseline: device firmware **3.0.0-beta.18** and Home
-Assistant integration **3.0.0-beta.18 — `startup-media-runtime`**.
+Assistant integration **3.0.0-beta.18.1 — `startup-media-runtime`**.
 
 Beta.18 sends time in the first Bridge snapshot, renders incoming media text
 immediately and prevents an unchanged player-target write from erasing the
