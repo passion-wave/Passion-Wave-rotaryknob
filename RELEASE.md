@@ -1,4 +1,4 @@
-# Firmware 3.0.0-beta.19 and integration 3.0.0-beta.19.1
+# Firmware 3.0.0-beta.19 and integration 3.0.0-beta.19.2
 
 Release description: `observable-ota`
 
@@ -10,6 +10,11 @@ Integration hotfix Beta.19.1 accepts both the historical `Rotaryknob …` and
 current `RotaryKnob …` ESPHome registry casing, removes a thread-unsafe state
 callback and reports the manual recovery requirement immediately when a clean
 pre-Beta.19 device has no native recovery update entity.
+
+Integration hotfix Beta.19.2 additionally prefers the live, enabled ESPHome
+entity when an OTA has left an unavailable registry duplicate with the same
+firmware contract name. This removes the false S3 problem state observed after
+Marco's Beta.16 to Beta.19 transition.
 
 ## Customer-visible changes
 
@@ -31,7 +36,7 @@ pre-Beta.19 device has no native recovery update entity.
 
 ## Verification
 
-- Home Assistant 2026.7.4 and 2026.8.2: 72 tests and four subtests pass per
+- Home Assistant 2026.7.4 and 2026.8.2: 74 tests and four subtests pass per
   version.
 - All six factory and managed ESPHome configurations validate and compile with
   ESPHome 2026.7.0.
@@ -54,7 +59,7 @@ pre-Beta.19 device has no native recovery update entity.
 
 ## Live acceptance
 
-1. Install integration Beta.19.1 and restart Home Assistant.
+1. Install integration Beta.19.2 and restart Home Assistant.
 2. Start Marco's single PassionWave firmware update from Beta.16.
 3. Confirm the update remains visibly active and Bridge is installed before
    S3.
