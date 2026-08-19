@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave RotaryKnob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.1-beta.2"
+  project_version: "3.0.1-beta.3"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -216,9 +216,11 @@ api:
             condition:
               lambda: |-
                 return id(passion_wave_firmware_update).status_has_error() ||
-                       id(passion_wave_firmware_update).update_info.latest_version ==
-                           target_version;
-            timeout: 20s
+                       (id(passion_wave_firmware_update).state ==
+                            update::UPDATE_STATE_AVAILABLE &&
+                        id(passion_wave_firmware_update).update_info.latest_version ==
+                            target_version);
+            timeout: 60s
         - if:
             condition:
               lambda: |-

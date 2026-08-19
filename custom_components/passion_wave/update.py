@@ -47,7 +47,10 @@ JOB_STORAGE_VERSION = 1
 JOB_WAIT_SECONDS = 24 * 60 * 60
 LEGACY_ACTIVATION_TIMEOUT_SECONDS = 30
 RECONNECT_TIMEOUT_SECONDS = 5 * 60
-TRANSPORT_START_TIMEOUT_SECONDS = 30
+TRANSPORT_START_TIMEOUT_SECONDS = 90
+VERSION_METADATA_REFRESH_SECONDS = 10
+VERSION_METADATA_REFRESH_RETRY_SECONDS = 30
+VERSION_METADATA_REFRESH_ATTEMPTS = 2
 VERSION_SYNC_ATTEMPTS = 30
 SCAN_INTERVAL = timedelta(hours=6)
 S3_MANIFEST_URL = (
@@ -567,11 +570,15 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         previous_state: Any,
     ) -> None:
         """Require a fresh manifest result or OTA start from new firmware."""
+        config_entry_id = _endpoint_entry_ids(self.hass, self._entry)[index]
         previous_updated = (
             previous_state.last_updated if previous_state is not None else None
         )
+        reconciled_fresh_idle = False
         deadline = self.hass.loop.time() + TRANSPORT_START_TIMEOUT_SECONDS
         while self.hass.loop.time() < deadline:
+            if self._device_version(config_entry_id) == target:
+                return
             state = self.hass.states.get(status_entity)
             if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                 await asyncio.sleep(1)
@@ -583,13 +590,37 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             if is_fresh:
                 error = self._transport_error(status, target)
                 if error:
+                    if status == "manifest_not_installable" and config_entry_id:
+                        await self.hass.config_entries.async_reload(config_entry_id)
+                        if self._device_version(config_entry_id) == target:
+                            return
                     raise HomeAssistantError(error)
                 self._apply_transport_progress(index, status)
                 if status in {"ota_started", "ota_complete"} or status.startswith(
-                    (f"manifest_ready:{target}", "ota_progress:")
+                    (
+                        f"checking:{target}",
+                        f"manifest_ready:{target}",
+                        "ota_progress:",
+                    )
                 ):
                     return
+                # A completed OTA can reboot between the blocking service call
+                # and this observer. A fresh idle state is then the only status
+                # left, while ESPHome's registry can still hold the old version.
+                if (
+                    status == "idle"
+                    and config_entry_id
+                    and not reconciled_fresh_idle
+                ):
+                    reconciled_fresh_idle = True
+                    await self.hass.config_entries.async_reload(config_entry_id)
+                    if self._device_version(config_entry_id) == target:
+                        return
             await asyncio.sleep(1)
+        if config_entry_id:
+            await self.hass.config_entries.async_reload(config_entry_id)
+            if self._device_version(config_entry_id) == target:
+                return
         raise HomeAssistantError(
             f"Device did not confirm a fresh manifest or OTA start for {target}"
         )
@@ -602,7 +633,10 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         index: int,
         status_entity: str | None,
     ) -> None:
-        deadline = self.hass.loop.time() + RECONNECT_TIMEOUT_SECONDS
+        started = self.hass.loop.time()
+        deadline = started + RECONNECT_TIMEOUT_SECONDS
+        next_metadata_refresh = started + VERSION_METADATA_REFRESH_SECONDS
+        metadata_refreshes = 0
         while self.hass.loop.time() < deadline:
             if self._device_version(config_entry_id) == target:
                 return
@@ -610,8 +644,35 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
             if status:
                 error = self._transport_error(status, target)
                 if error:
+                    if status == "manifest_not_installable" and config_entry_id:
+                        await self.hass.config_entries.async_reload(config_entry_id)
+                        if self._device_version(config_entry_id) == target:
+                            return
                     raise HomeAssistantError(error)
                 self._apply_transport_progress(index, status)
+            transport_active = bool(
+                status
+                and (
+                    status == "ota_started"
+                    or status.startswith(
+                        ("checking:", "manifest_ready:", "ota_progress:")
+                    )
+                )
+            )
+            if (
+                config_entry_id
+                and status is not None
+                and not transport_active
+                and metadata_refreshes < VERSION_METADATA_REFRESH_ATTEMPTS
+                and self.hass.loop.time() >= next_metadata_refresh
+            ):
+                await self.hass.config_entries.async_reload(config_entry_id)
+                metadata_refreshes += 1
+                if self._device_version(config_entry_id) == target:
+                    return
+                next_metadata_refresh = (
+                    self.hass.loop.time() + VERSION_METADATA_REFRESH_RETRY_SECONDS
+                )
             await asyncio.sleep(2)
         raise HomeAssistantError(
             f"Processor did not reconnect with firmware {target}"

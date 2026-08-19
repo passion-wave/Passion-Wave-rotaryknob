@@ -1,5 +1,5 @@
 substitutions:
-  project_version: "3.0.1-beta.2"
+  project_version: "3.0.1-beta.3"
   name: "passion-wave-rotary-test-esp32"
   friendly_name: "Passion Wave RotaryKnob Test ESP32"
   passion_wave_config_entry_id: ""
@@ -84,9 +84,11 @@ api:
             condition:
               lambda: |-
                 return id(passion_wave_firmware_update).status_has_error() ||
-                       id(passion_wave_firmware_update).update_info.latest_version ==
-                           target_version;
-            timeout: 20s
+                       (id(passion_wave_firmware_update).state ==
+                            update::UPDATE_STATE_AVAILABLE &&
+                        id(passion_wave_firmware_update).update_info.latest_version ==
+                            target_version);
+            timeout: 60s
         - if:
             condition:
               lambda: |-
