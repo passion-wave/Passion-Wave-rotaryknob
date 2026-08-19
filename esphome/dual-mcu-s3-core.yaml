@@ -7,7 +7,7 @@ substitutions:
   name: "passion-wave-rotary-test-s3"
   friendly_name: "Passion Wave RotaryKnob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "3.0.0-beta.19"
+  project_version: "3.0.1-beta.2"
   firmware_update_manifest_url: "https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"
@@ -128,6 +128,43 @@ globals:
     initial_value: '0'
   - id: dual_mcu_runtime_sequence
     type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_ha_bridge_atomic_media
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_media_presentation_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: dual_mcu_media_presentation_session
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_media_presentation_sequence
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_media_presentation_last_session
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_media_presentation_last_sequence
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: dual_mcu_media_presentation_title
+    type: std::string
+    restore_value: false
+  - id: dual_mcu_media_presentation_artist
+    type: std::string
+    restore_value: false
+  - id: dual_mcu_media_presentation_cover
+    type: std::string
+    restore_value: false
+  - id: dual_mcu_media_presentation_fields
+    type: uint8_t
     restore_value: false
     initial_value: '0'
   - id: dual_mcu_last_forecast_ms
@@ -1313,6 +1350,14 @@ interval:
                   id(dual_mcu_ha_bridge_light_details) =
                     ready && frame.length >= 2 &&
                     (frame.payload[1] & 0x02) != 0;
+                  const bool atomic_media =
+                    ready && frame.length >= 2 &&
+                    (frame.payload[1] & 0x04) != 0;
+                  if (id(dual_mcu_ha_bridge_atomic_media) != atomic_media) {
+                    id(dual_mcu_media_presentation_pending) = false;
+                    id(dual_mcu_media_presentation_fields) = 0;
+                  }
+                  id(dual_mcu_ha_bridge_atomic_media) = atomic_media;
                   if (!id(dual_mcu_ha_bridge_light_details))
                     id(dual_mcu_light_detail_complete_slots) = 0;
                   if (!ready || (frame.payload[0] & 0x08) == 0) {
@@ -1355,6 +1400,20 @@ interval:
                   id(house_floorplan_error) = false;
                   id(refresh_house_ui).execute();
                   id(refresh_house_image_after_change).execute();
+                }
+                break;
+              case dual_mcu::MessageType::MEDIA_PRESENTATION_BEGIN:
+                if (id(dual_mcu_ha_bridge_atomic_media) &&
+                    frame.length >= 8) {
+                  id(dual_mcu_media_presentation_session) =
+                    dual_mcu::Link::read_u32(&frame.payload[0]);
+                  id(dual_mcu_media_presentation_sequence) =
+                    dual_mcu::Link::read_u32(&frame.payload[4]);
+                  id(dual_mcu_media_presentation_title).clear();
+                  id(dual_mcu_media_presentation_artist).clear();
+                  id(dual_mcu_media_presentation_cover).clear();
+                  id(dual_mcu_media_presentation_fields) = 0;
+                  id(dual_mcu_media_presentation_pending) = true;
                 }
                 break;
               case dual_mcu::MessageType::RUNTIME_STATE:
@@ -1528,14 +1587,26 @@ interval:
                   const std::string value = dual_mcu::Link::read_string(
                     &frame.payload[1], frame.length - 1);
                   if (frame.payload[0] == static_cast<uint8_t>(dual_mcu::MediaTextField::TITLE)) {
-                    id(media_title_cache) = value;
-                    if (id(media_runtime_title_text).state != value)
-                      id(media_runtime_title_text).publish_state(value);
-                    if (!value.empty()) id(current_media_label) = value;
+                    if (id(dual_mcu_ha_bridge_atomic_media) &&
+                        id(dual_mcu_media_presentation_pending)) {
+                      id(dual_mcu_media_presentation_title) = value;
+                      id(dual_mcu_media_presentation_fields) |= 0x01;
+                    } else {
+                      id(media_title_cache) = value;
+                      if (id(media_runtime_title_text).state != value)
+                        id(media_runtime_title_text).publish_state(value);
+                      if (!value.empty()) id(current_media_label) = value;
+                    }
                   } else if (frame.payload[0] == static_cast<uint8_t>(dual_mcu::MediaTextField::ARTIST)) {
-                    id(media_artist_cache) = value;
-                    if (id(media_runtime_artist_text).state != value)
-                      id(media_runtime_artist_text).publish_state(value);
+                    if (id(dual_mcu_ha_bridge_atomic_media) &&
+                        id(dual_mcu_media_presentation_pending)) {
+                      id(dual_mcu_media_presentation_artist) = value;
+                      id(dual_mcu_media_presentation_fields) |= 0x02;
+                    } else {
+                      id(media_artist_cache) = value;
+                      if (id(media_runtime_artist_text).state != value)
+                        id(media_runtime_artist_text).publish_state(value);
+                    }
                   } else if (frame.payload[0] == static_cast<uint8_t>(
                                dual_mcu::MediaTextField::FRIENDLY_NAME)) {
                     const std::string configured_label =
@@ -1550,9 +1621,14 @@ interval:
                       id(media_artist_cache) = value;
                   }
                   id(dual_mcu_ha_bridge_last_state_ms) = millis();
-                  id(media_ui_dirty) = true;
-                  id(refresh_media_ui_if_needed).execute();
-                  id(refresh_ui_next_media_runtime).execute();
+                  if (!id(dual_mcu_ha_bridge_atomic_media) ||
+                      !id(dual_mcu_media_presentation_pending) ||
+                      frame.payload[0] == static_cast<uint8_t>(
+                        dual_mcu::MediaTextField::FRIENDLY_NAME)) {
+                    id(media_ui_dirty) = true;
+                    id(refresh_media_ui_if_needed).execute();
+                    id(refresh_ui_next_media_runtime).execute();
+                  }
                 }
                 break;
               case dual_mcu::MessageType::MEDIA_COVER_URL_BEGIN:
@@ -1564,21 +1640,110 @@ interval:
               case dual_mcu::MessageType::MEDIA_COVER_URL_END: {
                 std::string resolved_cover_url;
                 if (dual_mcu::cover_url_receiver.finish(
-                      frame, &resolved_cover_url, dual_mcu::link)) {
-                  // Source selection and URL normalization now belong to the
-                  // ESP32. Reuse the proven S3 image-pipeline state machine
-                  // with the already resolved absolute URL.
-                  id(media_entity_picture_cache) = resolved_cover_url;
-                  if (id(media_runtime_cover_url_text).state !=
-                      resolved_cover_url)
-                    id(media_runtime_cover_url_text).publish_state(
-                      resolved_cover_url);
-                  id(media_entity_picture_local_cache).clear();
-                  id(media_image_url_cache).clear();
-                  id(refresh_media_cover_url).execute();
+                    frame, &resolved_cover_url, dual_mcu::link)) {
+                  if (id(dual_mcu_ha_bridge_atomic_media) &&
+                      id(dual_mcu_media_presentation_pending)) {
+                    id(dual_mcu_media_presentation_cover) =
+                      resolved_cover_url;
+                    id(dual_mcu_media_presentation_fields) |= 0x04;
+                  } else {
+                    // Source selection and URL normalization belong to the
+                    // ESP32 on a staged/legacy pair.
+                    id(media_entity_picture_cache) = resolved_cover_url;
+                    if (id(media_runtime_cover_url_text).state !=
+                        resolved_cover_url)
+                      id(media_runtime_cover_url_text).publish_state(
+                        resolved_cover_url);
+                    id(media_entity_picture_local_cache).clear();
+                    id(media_image_url_cache).clear();
+                    id(refresh_media_cover_url).execute();
+                  }
                 }
                 break;
               }
+              case dual_mcu::MessageType::MEDIA_PRESENTATION_COMMIT:
+                if (id(dual_mcu_ha_bridge_atomic_media) &&
+                    id(dual_mcu_media_presentation_pending) &&
+                    frame.length >= 8) {
+                  const uint32_t session =
+                    dual_mcu::Link::read_u32(&frame.payload[0]);
+                  const uint32_t sequence =
+                    dual_mcu::Link::read_u32(&frame.payload[4]);
+                  const bool matches =
+                    session == id(dual_mcu_media_presentation_session) &&
+                    sequence == id(dual_mcu_media_presentation_sequence);
+                  const bool complete =
+                    id(dual_mcu_media_presentation_fields) == 0x07;
+                  const bool new_session =
+                    session != id(dual_mcu_media_presentation_last_session);
+                  const bool newer =
+                    new_session ||
+                    static_cast<int32_t>(
+                      sequence -
+                      id(dual_mcu_media_presentation_last_sequence)) > 0;
+                  if (!matches || !complete || !newer) break;
+
+                  const bool title_changed =
+                    id(dual_mcu_media_presentation_title) !=
+                      id(media_title_cache) ||
+                    id(dual_mcu_media_presentation_artist) !=
+                      id(media_artist_cache);
+                  const bool cover_changed =
+                    id(dual_mcu_media_presentation_cover) !=
+                      id(media_entity_picture_cache);
+                  if (title_changed || cover_changed) {
+                    // A decoded descriptor may still point at the previous
+                    // track. Hide and invalidate both artwork sizes before
+                    // publishing the new title/artist, then let the existing
+                    // bounded asset pipeline fetch only the committed URL.
+                    lv_image_cache_drop(
+                      id(media_cover_image).get_lv_image_dsc());
+                    lv_image_cache_drop(
+                      id(media_page_cover_image).get_lv_image_dsc());
+                    id(media_cover_ready) = false;
+                    id(media_page_cover_ready) = false;
+                    id(media_page_cover_loaded_url).clear();
+                    id(media_full_cover_loaded_url).clear();
+                    id(media_cover_update_pending) = false;
+                    id(media_cover_pipeline_state) = 0;
+                    id(media_cover_active_target) = 0;
+                    id(media_cover_active_url).clear();
+                    id(media_cover_backoff_until_ms) = 0;
+                    id(media_cover_failure_count) = 0;
+                  }
+
+                  id(media_title_cache) =
+                    id(dual_mcu_media_presentation_title);
+                  id(media_artist_cache) =
+                    id(dual_mcu_media_presentation_artist);
+                  id(media_entity_picture_cache) =
+                    id(dual_mcu_media_presentation_cover);
+                  id(media_entity_picture_local_cache).clear();
+                  id(media_image_url_cache).clear();
+                  if (!id(media_title_cache).empty())
+                    id(current_media_label) = id(media_title_cache);
+                  if (id(media_runtime_title_text).state !=
+                      id(media_title_cache))
+                    id(media_runtime_title_text).publish_state(
+                      id(media_title_cache));
+                  if (id(media_runtime_artist_text).state !=
+                      id(media_artist_cache))
+                    id(media_runtime_artist_text).publish_state(
+                      id(media_artist_cache));
+                  if (id(media_runtime_cover_url_text).state !=
+                      id(media_entity_picture_cache))
+                    id(media_runtime_cover_url_text).publish_state(
+                      id(media_entity_picture_cache));
+                  id(dual_mcu_media_presentation_last_session) = session;
+                  id(dual_mcu_media_presentation_last_sequence) = sequence;
+                  id(dual_mcu_media_presentation_pending) = false;
+                  id(dual_mcu_media_presentation_fields) = 0;
+                  id(media_ui_dirty) = true;
+                  id(refresh_media_cover_url).execute();
+                  id(refresh_media_ui_if_needed).execute();
+                  id(refresh_ui_next_media_runtime).execute();
+                }
+                break;
               case dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT:
                 if (frame.length == 4) {
                   const uint8_t kind = frame.payload[0];
@@ -2666,6 +2831,9 @@ interval:
             id(dual_mcu_ha_bridge_radar) = false;
             id(dual_mcu_ha_bridge_library) = false;
             id(dual_mcu_ha_bridge_light_details) = false;
+            id(dual_mcu_ha_bridge_atomic_media) = false;
+            id(dual_mcu_media_presentation_pending) = false;
+            id(dual_mcu_media_presentation_fields) = 0;
             id(dual_mcu_light_detail_complete_slots) = 0;
             id(dual_mcu_library_bridge_mask) = 0;
             id(dual_mcu_library_desired_mask) = 0x0E;

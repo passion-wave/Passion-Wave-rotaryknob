@@ -113,6 +113,14 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         runtime_position = reconcile.index("_async_push_runtime_snapshot")
         self.assertLess(target_position, runtime_position)
 
+    def test_media_events_are_settled_before_snapshot_transport(self) -> None:
+        self.assertIn("MEDIA_PRESENTATION_SETTLE_SECONDS = 0.25", INTEGRATION)
+        callback = INTEGRATION.split("def async_media_state_changed", 1)[1]
+        callback = callback.split("entry.async_on_unload", 1)[0]
+        self.assertIn("cancel_media_sync", callback)
+        self.assertIn("async_call_later", callback)
+        self.assertIn("Sync settled PassionWave media presentation", callback)
+
     def test_ui_and_clock_readiness_are_measurable(self) -> None:
         self.assertIn("ui_next_ready_time_sensor", S3_UI)
         self.assertIn("ui_next_clock_ready_time_sensor", S3_UI)
@@ -123,6 +131,53 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         handler = handler.split("case dual_mcu::MessageType::MEDIA_STATE:", 1)[0]
         self.assertIn("media_cover_fullscreen_due_ms", handler)
         self.assertIn("millis() + 10000", handler)
+
+    def test_media_presentation_is_committed_atomically(self) -> None:
+        protocol = (ROOT / "esphome" / "dual_mcu_link.h").read_text()
+        self.assertIn("MEDIA_PRESENTATION_BEGIN", protocol)
+        self.assertIn("MEDIA_PRESENTATION_COMMIT", protocol)
+        self.assertIn("id: queue_bridge_media_presentation", BRIDGE)
+        self.assertIn("id(bridge_api_connected) ? 0x07 : 0x00", BRIDGE)
+
+        commit = S3.split(
+            "case dual_mcu::MessageType::MEDIA_PRESENTATION_COMMIT:", 1
+        )[1].split(
+            "case dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT:", 1
+        )[0]
+        self.assertIn("dual_mcu_media_presentation_fields) == 0x07", commit)
+        self.assertIn("id(media_title_cache) =", commit)
+        self.assertIn("id(media_artist_cache) =", commit)
+        self.assertIn("id(media_entity_picture_cache) =", commit)
+        self.assertIn("id(media_cover_ready) = false", commit)
+        self.assertIn("id(media_page_cover_ready) = false", commit)
+
+    def test_media_page_and_cover_use_the_same_authoritative_metadata(self) -> None:
+        media = S3_UI.split("- id: refresh_media_ui", 1)[1].split(
+            "- id: refresh_media_cover_ui", 1
+        )[0]
+        cover = S3_UI.split("- id: refresh_media_cover_ui", 1)[1].split(
+            "# UI Next wrappers", 1
+        )[0]
+        self.assertIn("title = id(media_title_cache)", media)
+        self.assertIn("std::string subtitle = id(media_artist_cache)", media)
+        self.assertIn("cover_title = id(media_title_cache)", cover)
+        self.assertIn("cover_subtitle = id(media_artist_cache)", cover)
+        self.assertNotIn("current_media_label", media)
+        self.assertNotIn("current_media_label", cover)
+
+    def test_track_selection_does_not_replace_runtime_metadata(self) -> None:
+        selection = S3_UI.split("- id: start_selected_track", 1)[1].split(
+            "- id: media_selection_accept_settle", 1
+        )[0]
+        before_demo = selection.split("if (id(demo_mode_active))", 1)[0]
+        self.assertNotIn("id(media_title_cache) =", before_demo)
+        self.assertNotIn("id(media_artist_cache) =", before_demo)
+
+    def test_weather_screensaver_artwork_overscans_the_panel(self) -> None:
+        page = S3_UI.split("id: screensaver_weather_image_widget", 1)[1]
+        page = page.split("id: screensaver_bg", 1)[0]
+        self.assertIn("align: center", page)
+        self.assertIn("scale: 1.02", page)
 
     def test_runtime_cover_replacement_invalidates_lvgl_cache(self) -> None:
         self.assertGreaterEqual(

@@ -13,8 +13,8 @@ Die Komponente enthält zwei unabhängig flashbare Prozessoren:
 
 | USB-Ziel | Aufgabe | Öffentliches Profil | Web-Manifest |
 |---|---|---|---|
-| ESP32-S3 | Display, Touch, EC1-Encoder, Haptik, UI | `esphome/factory-s3.yaml` | `firmware/rotaryknob/s3/manifest-3.0.0-beta.19.json` |
-| ESP32 | Home-Assistant-Bridge, EC2, Netzwerk-Offload | `esphome/factory-esp32.yaml` | `firmware/rotaryknob/esp32/manifest-3.0.0-beta.19.json` |
+| ESP32-S3 | Display, Touch, EC1-Encoder, Haptik, UI | `esphome/factory-s3.yaml` | `firmware/rotaryknob/s3/manifest-3.0.1-beta.2.json` |
+| ESP32 | Home-Assistant-Bridge, EC2, Netzwerk-Offload | `esphome/factory-esp32.yaml` | `firmware/rotaryknob/esp32/manifest-3.0.1-beta.2.json` |
 
 Die USB-C-Ausrichtung bestimmt das Ziel. Eine vollautomatische Umschaltung ist
 ohne zusätzliche Hardware im Gerät nicht möglich. Die Website reduziert den

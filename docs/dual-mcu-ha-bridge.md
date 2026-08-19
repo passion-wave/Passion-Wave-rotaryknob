@@ -1,6 +1,6 @@
 # Dual-MCU Home Assistant bridge
 
-Current coordinated implementation: `3.0.0-beta.19`.
+Current coordinated implementation: `3.0.1-beta.2`.
 
 One physical Passion Wave RotaryKnob contains two processors. They share one
 product generation but keep separate firmware images, native API identities
@@ -37,7 +37,7 @@ flowchart LR
     MAS -.->|Playerzustand + Metadaten| MAI
     MAI -.->|media_player State Event\nmedia_title, media_artist, entity_picture| HA
     HA -.->|Runtime-JSON über ESPHome Action| B
-    B -.->|RUNTIME_STATE + MEDIA_TEXT\nPW v3 / COBS / CRC16| S3
+    B -.->|RUNTIME_STATE + MEDIA_PRESENTATION_BEGIN\nMEDIA_TEXT + COVER_URL + COMMIT\nPW v3 / COBS / CRC16| S3
     S3 -.->|LVGL Label + Cover| D[Anzeige]
 ```
 
@@ -81,9 +81,15 @@ sequenceDiagram
     MA->>AP: RTP-Audio über RAOP oder AirPlay 2
     MA-->>HA: Player-Event mit Wiedergabestatus und Metadaten
     HA-->>PW: media_player State-Changed-Event
+    PW->>PW: 250 ms Latest-Wins-Settle für vollständige Metadaten
     PW-->>Bridge: geordnetes Runtime-JSON (Native API Action / Noise)
-    Bridge-->>S3: RUNTIME_STATE + MEDIA_TEXT (UART v3 / COBS / CRC16)
-    S3->>S3: Cache setzen und LVGL sofort neu rendern
+    Bridge-->>S3: RUNTIME_STATE (UART v3 / COBS / CRC16)
+    Bridge-->>S3: MEDIA_PRESENTATION_BEGIN(session, sequence)
+    Bridge-->>S3: MEDIA_TEXT(title) + MEDIA_TEXT(artist)
+    Bridge-->>S3: MEDIA_COVER_URL_BEGIN/CHUNK/END + ACK
+    Bridge-->>S3: MEDIA_PRESENTATION_COMMIT(session, sequence)
+    S3->>S3: Titel, Interpret und Cover atomar übernehmen
+    S3->>S3: altes Cover invalidieren und LVGL einmal neu rendern
     S3-->>User: aktueller Titel, Interpret und Cover
 ```
 
@@ -95,12 +101,15 @@ Bestätigungsschleife und höchstens einen Wiederholungsversuch. Dadurch kann ei
 langsamer älterer Playlist-Start keine neuere Benutzerauswahl überschreiben.
 
 Für die Anzeige ist ausschließlich der im PassionWave Config Entry gewählte
-`media_player` maßgeblich. Bei jedem State Event liest die Integration dessen
-`media_title`, `media_artist`, `entity_picture`, Position, Dauer und
-Wiedergabestatus. Sie sendet daraus einen geordneten Snapshot an die Bridge.
-Der S3 rendert `MEDIA_TEXT` sofort; ein zusätzlicher Snapshot-Request repariert
-den Zustand, falls bei laufender Wiedergabe zehn Sekunden lang kein Titel
-vorliegt.
+`media_player` maßgeblich. Nach einer Latest-Wins-Beruhigungszeit von 250 ms
+liest die Integration dessen `media_title`, `media_artist`, `entity_picture`,
+Position, Dauer und Wiedergabestatus. Diese kurze Zeit fasst die typischen,
+getrennten Music-Assistant-Events für Zustand, Metadaten und Bild zu einem
+vollständigen Snapshot zusammen. Der S3 stellt die zugehörigen `MEDIA_TEXT`-
+und Cover-URL-Frames zunächst unsichtbar bereit und rendert sie erst mit dem
+passenden `MEDIA_PRESENTATION_COMMIT`. Ein zusätzlicher Snapshot-Request
+repariert den Zustand, falls bei laufender Wiedergabe zehn Sekunden lang kein
+Titel vorliegt.
 
 ## Wirkkette beim Start
 
@@ -114,7 +123,7 @@ sequenceDiagram
     S3->>Bridge: HELLO (UART v3)
     Bridge-->>S3: TIME_STATE zuerst (UART v3)
     Bridge-->>S3: BRIDGE_STATUS + VERSION_STATE
-    Bridge-->>S3: RUNTIME_STATE + MEDIA_TEXT
+    Bridge-->>S3: RUNTIME_STATE + atomare Medienpräsentation
     Bridge-->>S3: Wetter, Lichter und verfügbare Kataloge
     S3->>S3: Uhr und Medienseite rendern
     S3-->>HA: UI Ready Time + Clock Ready Time (Native API)
@@ -149,6 +158,16 @@ subscription and executes no direct Home Assistant or Music Assistant action.
 The S3 runtime diagnostics are read-only observations published after UART
 receipt, not a second writable desired-state path.
 
+Protocol capability bit 2 in the second `BRIDGE_STATUS` byte advertises atomic
+media presentations. A capable S3 stages the legacy `MEDIA_TEXT` and
+`MEDIA_COVER_URL_*` payloads between `MEDIA_PRESENTATION_BEGIN` (type 58) and
+`MEDIA_PRESENTATION_COMMIT` (type 59). Both boundary frames contain the same
+32-bit runtime session and 32-bit sequence. The S3 accepts a commit only when
+title, artist and cover are complete, the boundary identifiers match and the
+sequence is newer. Older firmware ignores the new boundary types and continues
+to consume the unchanged payload frames, which keeps a Bridge-first rolling
+update possible.
+
 ## Media and library
 
 The Config Entry owns the selected Music Assistant instance and player.
@@ -176,9 +195,13 @@ queue.
 
 The integration sends the selected player's state, title, artist and resolved
 cover URL to the Bridge. The Bridge normalizes Music Assistant image-proxy URLs
-and transfers the URL to the S3. Compressed cover bytes are downloaded by the
-Bridge and sent through the acknowledged UART asset stream; the S3 decodes them
-after active input has been quiet.
+and transfers the URL to the S3 inside the same sequence-bound presentation as
+title and artist. On commit, the S3 invalidates both decoded descriptors of the
+previous track before exposing the new strings. Compressed cover bytes are
+downloaded by the Bridge and sent through the acknowledged UART asset stream;
+the S3 decodes them after active input has been quiet. The media page and cover
+screensaver read exactly `media_title_cache` and `media_artist_cache`; neither
+keeps a separate fallback title source.
 
 Fullscreen cover entry requires all of the following:
 
@@ -215,6 +238,8 @@ navigation.
 
 The weather photographs are compiled into the S3 and selected locally from the
 Bridge condition, so the normal weather screensaver needs no image download.
+They are center-aligned at 102% scale without antialias interpolation, extending
+past the 360×360 canvas so a one-pixel white seam cannot remain at either side.
 
 The managed S3 configuration removes inherited direct Home Assistant state
 subscriptions and replaces the standalone media, weather and light fetchers
