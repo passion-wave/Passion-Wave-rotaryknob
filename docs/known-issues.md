@@ -3,11 +3,11 @@
 Stand: 2026-08-19. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
 
-## 3.0.1-beta.3: Atomare Medienpräsentation und vollflächiges Wetterbild
+## 3.0.1-beta.4: Atomare Medienpräsentation und vollflächiges Wetterbild
 
 ### PW-UI-005: Cover-Screensaver zeigte beim Titelwechsel den Vorgängertitel
 
-Status: In Firmware und Integration 3.0.1-beta.3 implementiert; automatisierte
+Status: In Firmware und Integration 3.0.1-beta.4 implementiert; automatisierte
 Integrations- und Protokolltests sowie alle Firmwareprofile bestanden. Die
 physische Abnahme auf Timo folgt mit der Installation dieses Releases.
 
@@ -19,7 +19,7 @@ die Medienseite und der Cover-Screensaver für einen Übergang alte und neue
 Felder mischen. Der Startdialog schrieb außerdem den ausgewählten Bibliothekstitel
 optimistisch in einen anderen UI-Pfad.
 
-3.0.1-beta.3 bündelt Player-Events mit einer 250-ms-Latest-Wins-Beruhigungszeit.
+3.0.1-beta.4 bündelt Player-Events mit einer 250-ms-Latest-Wins-Beruhigungszeit.
 Die Bridge rahmt Titel, Interpret und Cover mit Session und Runtime-Sequenz ein;
 der S3 übernimmt alle drei Werte erst nach vollständigem, passendem Commit. Bei
 einer Änderung werden die Deskriptoren des alten Covers vor dem neuen Titel
@@ -34,7 +34,7 @@ gemeinsam mit dem neuen Cover erscheinen.
 
 ### PW-UI-006: Weißer vertikaler Rand im Wetter-Screensaver
 
-Status: In Firmware 3.0.1-beta.3 implementiert und in allen S3-Profilen
+Status: In Firmware 3.0.1-beta.4 implementiert und in allen S3-Profilen
 kompiliert; die visuelle Abnahme auf Timo folgt mit der Installation.
 
 Die 360×360-Wettergrafik lag exakt auf dem 360×360-Canvas. Rundung und

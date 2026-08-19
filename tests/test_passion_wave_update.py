@@ -263,6 +263,11 @@ def test_legacy_endpoint_refreshes_before_install(monkeypatch):
         del kwargs
         calls.append(("verify", entry_id, target))
 
+    async def rehydrate(hass, entry):
+        del hass, entry
+        calls.append(("rehydrate",))
+        return True
+
     entity.hass = SimpleNamespace(
         services=Services(), config_entries=ConfigEntries()
     )
@@ -272,6 +277,9 @@ def test_legacy_endpoint_refreshes_before_install(monkeypatch):
     entity._refresh_legacy_source = refresh
     entity._prepare_legacy_source = prepare
     entity._wait_for_version = wait_for_version
+    monkeypatch.setattr(
+        update_module, "async_rehydrate_runtime_snapshot", rehydrate
+    )
     monkeypatch.setattr(
         update_module,
         "_endpoint_entry_ids",
@@ -295,6 +303,7 @@ def test_legacy_endpoint_refreshes_before_install(monkeypatch):
         ("update", "install", "update.bridge_firmware"),
         ("verify", "bridge_entry", "3.0.0-beta.18"),
         ("reload", "bridge_entry"),
+        ("rehydrate",),
     ]
 
 

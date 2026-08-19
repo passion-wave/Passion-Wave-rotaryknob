@@ -15,7 +15,7 @@ substitutions:
   name: "passionwave-rotaryknob"
   friendly_name: "PassionWave RotaryKnob"
   project_name: "passion-wave.rotaryknob-s3"
-  project_version: "3.0.1-beta.3"
+  project_version: "3.0.1-beta.4"
   factory_onboarding_guard: "true"
   responsive_power_policy_enabled: "true"
   responsive_power_idle_ms: "3000"

@@ -113,6 +113,15 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         runtime_position = reconcile.index("_async_push_runtime_snapshot")
         self.assertLess(target_position, runtime_position)
 
+    def test_bridge_reconnect_rehydrates_authoritative_runtime(self) -> None:
+        callback = INTEGRATION.split("def async_bridge_command_changed", 1)[1]
+        callback = callback.split("entry.async_on_unload", 1)[0]
+        self.assertIn("bridge_reconnected", callback)
+        self.assertIn("async_rehydrate_runtime_snapshot", callback)
+        self.assertIn(
+            '"Rehydrate PassionWave runtime after Bridge reconnect"', callback
+        )
+
     def test_media_events_are_settled_before_snapshot_transport(self) -> None:
         self.assertIn("MEDIA_PRESENTATION_SETTLE_SECONDS = 0.25", INTEGRATION)
         callback = INTEGRATION.split("def async_media_state_changed", 1)[1]
