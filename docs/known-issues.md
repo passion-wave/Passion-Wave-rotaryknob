@@ -8,8 +8,9 @@ Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführ
 ### PW-UI-005: Cover-Screensaver zeigte beim Titelwechsel den Vorgängertitel
 
 Status: In Firmware und Integration 3.0.1-beta.4 implementiert; automatisierte
-Integrations- und Protokolltests sowie alle Firmwareprofile bestanden. Die
-physische Abnahme auf Timo folgt mit der Installation dieses Releases.
+Integrations- und Protokolltests sowie alle Firmwareprofile bestanden. Timos
+Live-Update und die automatische Medienwiederherstellung nach dem Neustart
+sind bestanden. Die visuelle Fünf-Titel-Abnahme am Display bleibt offen.
 
 Music Assistant aktualisiert Playerzustand, Titel, Interpret und Bild häufig in
 mehreren kurz aufeinanderfolgenden `state_changed`-Events. Die Integration
@@ -32,10 +33,21 @@ Medienseite und Cover-Screensaver immer denselben Titel und Interpreten melden.
 Kein altes Cover darf gemeinsam mit dem neuen Titel und kein alter Titel
 gemeinsam mit dem neuen Cover erscheinen.
 
+Live-Nachweis am 2026-08-19: Die gemeinsame Home-Assistant-Update-Entität
+installierte Bridge und S3 nacheinander von 3.0.1-beta.3 auf 3.0.1-beta.4 und
+endete mit `phase=complete` ohne Fehler. Nach beiden ECU-Neustarts und ohne
+manuellen Integration-Reload oder neues Player-Ereignis stimmten der auf
+`idle` stehende Player, `Media Runtime Title` und `Rendered Media Title` wieder
+auf `Photograph` überein; `Media Runtime Artist` meldete `Ed Sheeran` und die
+Cover-URL gehörte zum selben Music-Assistant-Bild. Beide Prozessoren waren
+verbunden. Damit ist insbesondere der in Beta.3 gefundene Verlust des
+flüchtigen Bridge-Mediencaches nach Update-Reboots behoben.
+
 ### PW-UI-006: Weißer vertikaler Rand im Wetter-Screensaver
 
-Status: In Firmware 3.0.1-beta.4 implementiert und in allen S3-Profilen
-kompiliert; die visuelle Abnahme auf Timo folgt mit der Installation.
+Status: In Firmware 3.0.1-beta.4 implementiert, in allen S3-Profilen kompiliert
+und auf Timos S3 installiert. Die visuelle Abnahme der beiden Displayränder
+bleibt offen, da sie nicht über Home-Assistant-Diagnosewerte messbar ist.
 
 Die 360×360-Wettergrafik lag exakt auf dem 360×360-Canvas. Rundung und
 Bildsampling ließen am linken und rechten Rand jeweils eine sehr schmale helle
