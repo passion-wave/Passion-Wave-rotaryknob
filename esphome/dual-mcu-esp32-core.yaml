@@ -1,5 +1,5 @@
 substitutions:
-  project_version: "3.0.0-beta.19"
+  project_version: "3.0.1-beta.2"
   name: "passion-wave-rotary-test-esp32"
   friendly_name: "Passion Wave RotaryKnob Test ESP32"
   passion_wave_config_entry_id: ""
@@ -274,18 +274,27 @@ api:
             const char *friendly_name =
               root["friendly_name"].is<const char *>()
                 ? root["friendly_name"].as<const char *>() : nullptr;
+            const char *cover_url = root["cover_url"] | "";
+            const std::string next_title = title == nullptr
+              ? id(bridge_media_title) : std::string(title);
+            const std::string next_artist = artist == nullptr
+              ? id(bridge_media_artist) : std::string(artist);
+            const std::string next_cover =
+              cover_url == nullptr ? "" : cover_url;
+            const bool presentation_changed =
+              !id(bridge_media_presentation_authoritative) ||
+              next_title != id(bridge_media_title) ||
+              next_artist != id(bridge_media_artist) ||
+              next_cover != id(bridge_media_entity_picture);
             if (title != nullptr || artist != nullptr ||
-                friendly_name != nullptr)
+                friendly_name != nullptr) {
               id(bridge_media_presentation_authoritative) = true;
+            }
             if (title != nullptr) {
-              id(bridge_media_title) = title;
-              dual_mcu::link.send_media_text(
-                dual_mcu::MediaTextField::TITLE, id(bridge_media_title));
+              id(bridge_media_title) = next_title;
             }
             if (artist != nullptr) {
-              id(bridge_media_artist) = artist;
-              dual_mcu::link.send_media_text(
-                dual_mcu::MediaTextField::ARTIST, id(bridge_media_artist));
+              id(bridge_media_artist) = next_artist;
             }
             if (friendly_name != nullptr) {
               id(bridge_media_friendly_name) = friendly_name;
@@ -293,8 +302,10 @@ api:
                 dual_mcu::MediaTextField::FRIENDLY_NAME,
                 id(bridge_media_friendly_name));
             }
-            const char *cover_url = root["cover_url"] | "";
-            id(bridge_media_entity_picture) = cover_url == nullptr ? "" : cover_url;
+            id(bridge_media_entity_picture) = next_cover;
+            if (presentation_changed) {
+              id(bridge_media_presentation_dirty) = true;
+            }
             id(bridge_media_cover_url_status).publish_state(
               std::string("raw=") +
               std::to_string(id(bridge_media_entity_picture).size()) +
@@ -524,6 +535,18 @@ globals:
   - id: bridge_media_cover_url
     type: std::string
     restore_value: false
+  - id: bridge_media_presentation_dirty
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: bridge_media_presentation_session
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: bridge_media_presentation_sequence
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
   - id: bridge_pending_track_request_id
     type: std::string
     restore_value: false
@@ -2041,6 +2064,36 @@ script:
           dual_mcu::link.send(dual_mcu::MessageType::LIBRARY_CHANGED,
                               changed, sizeof(changed));
 
+  - id: queue_bridge_media_presentation
+    mode: restart
+    then:
+      - lambda: |-
+          if (!id(bridge_media_presentation_authoritative) ||
+              !id(bridge_runtime_authoritative)) return;
+          // New S3 firmware stages the legacy text/URL frames and exposes
+          // them only after the matching sequence commit. Older S3 firmware
+          // ignores BEGIN/COMMIT and keeps consuming the legacy frames, so a
+          // Bridge-first rolling update remains safe.
+          id(bridge_media_presentation_session) = id(bridge_runtime_session);
+          id(bridge_media_presentation_sequence) = id(bridge_runtime_sequence);
+          dual_mcu::link.send_pair_u32(
+            dual_mcu::MessageType::MEDIA_PRESENTATION_BEGIN,
+            id(bridge_media_presentation_session),
+            id(bridge_media_presentation_sequence));
+          dual_mcu::link.send_media_text(
+            dual_mcu::MediaTextField::TITLE, id(bridge_media_title));
+          dual_mcu::link.send_media_text(
+            dual_mcu::MediaTextField::ARTIST, id(bridge_media_artist));
+          if (dual_mcu::cover_url_sender.queue(id(bridge_media_cover_url))) {
+            id(bridge_media_cover_proxy_status).publish_state(
+              id(bridge_media_cover_url).empty()
+                ? "Sende atomare Präsentation ohne Cover"
+                : "Atomare Präsentation wird übertragen");
+          } else {
+            id(bridge_media_cover_proxy_status).publish_state("URL zu lang");
+          }
+          id(bridge_media_presentation_dirty) = false;
+
   - id: resolve_bridge_media_cover_url
     mode: restart
     then:
@@ -2090,14 +2143,12 @@ script:
           id(bridge_media_cover_url_status).publish_state(
             std::string("resolved=") + std::to_string(resolved.size()) +
             (resolved.rfind("http", 0) == 0 ? " http" : " invalid"));
-          if (resolved == id(bridge_media_cover_url)) return;
+          const bool presentation_due =
+            id(bridge_media_presentation_dirty) ||
+            resolved != id(bridge_media_cover_url);
           id(bridge_media_cover_url) = resolved;
-          if (dual_mcu::cover_url_sender.queue(resolved)) {
-            id(bridge_media_cover_proxy_status).publish_state(
-              resolved.empty() ? "Sende leeres Cover" : "Übertragung läuft");
-          } else {
-            id(bridge_media_cover_proxy_status).publish_state("URL zu lang");
-          }
+          if (presentation_due)
+            id(queue_bridge_media_presentation).execute();
 
   - id: cache_bridge_daily_forecast
     mode: restart
@@ -2413,8 +2464,9 @@ script:
           const uint8_t status[] = {
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
             static_cast<uint8_t>(
-              // bit 0: paged library requests, bit 1: light details
-              id(bridge_api_connected) ? 0x03 : 0x00),
+              // bit 0: paged library requests, bit 1: light details,
+              // bit 2: sequence-bound atomic media presentation
+              id(bridge_api_connected) ? 0x07 : 0x00),
           };
           dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS, status, sizeof(status));
           dual_mcu::MediaState media;
@@ -2443,23 +2495,13 @@ script:
             }
             dual_mcu::link.send_runtime_state(runtime);
           }
-          if (id(bridge_media_presentation_authoritative)) {
-            dual_mcu::link.send_media_text(
-              dual_mcu::MediaTextField::TITLE, id(bridge_media_title));
-            dual_mcu::link.send_media_text(
-              dual_mcu::MediaTextField::ARTIST, id(bridge_media_artist));
-          }
+      - script.execute: queue_bridge_media_presentation
       - delay: 8ms
       - lambda: |-
-          if (id(bridge_media_presentation_authoritative)) {
+          if (id(bridge_media_presentation_authoritative))
             dual_mcu::link.send_media_text(
               dual_mcu::MediaTextField::FRIENDLY_NAME,
               id(bridge_media_friendly_name));
-          }
-          dual_mcu::cover_url_sender.queue(id(bridge_media_cover_url));
-          id(bridge_media_cover_proxy_status).publish_state(
-            id(bridge_media_cover_url).empty()
-              ? "Snapshot ohne Cover" : "Snapshot-Übertragung");
       - delay: 8ms
       - lambda: |-
           dual_mcu::WeatherState weather;
@@ -3132,6 +3174,12 @@ interval:
                   id(bridge_media_cover_proxy_status).publish_state(
                     result == 0 ? "S3 hat Cover-URL übernommen"
                                 : "S3 meldet URL-Fehler");
+                  if (result == 0) {
+                    dual_mcu::link.send_pair_u32(
+                      dual_mcu::MessageType::MEDIA_PRESENTATION_COMMIT,
+                      id(bridge_media_presentation_session),
+                      id(bridge_media_presentation_sequence));
+                  }
                 }
                 break;
               }
@@ -3280,8 +3328,9 @@ interval:
           const uint8_t status[] = {
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
             static_cast<uint8_t>(
-              // bit 0: paged library requests, bit 1: light details
-              id(bridge_api_connected) ? 0x03 : 0x00),
+              // bit 0: paged library requests, bit 1: light details,
+              // bit 2: sequence-bound atomic media presentation
+              id(bridge_api_connected) ? 0x07 : 0x00),
           };
           dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS,
                               status, sizeof(status));

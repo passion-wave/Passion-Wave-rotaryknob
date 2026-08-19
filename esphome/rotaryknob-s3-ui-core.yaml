@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave RotaryKnob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.0-beta.19"
+  project_version: "3.0.1-beta.2"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -6590,7 +6590,6 @@ script:
             }
           } else {
             title = id(media_title_cache);
-            if (title.empty()) title = id(current_media_label);
             if (title.empty()) title = "Bereit";
             if (subtitle.empty()) subtitle = id(music_state_cache);
             if (subtitle.empty()) subtitle = "Home Assistant";
@@ -6703,7 +6702,6 @@ script:
             }
           }
           std::string cover_title = id(media_title_cache);
-          if (cover_title.empty()) cover_title = id(current_media_label);
           if (cover_title.empty()) cover_title = "Bereit";
           std::string cover_subtitle = id(media_artist_cache);
           if (cover_subtitle.empty()) cover_subtitle = id(music_state_cache);
@@ -7489,17 +7487,23 @@ script:
             id(media_ui_dirty) = true;
             return;
           }
-          id(media_title_cache) = idx < static_cast<int>(id(ma_track_titles_cache).size()) ? id(ma_track_titles_cache)[idx] : "Titel";
-          id(media_artist_cache) = idx < static_cast<int>(id(ma_track_artists_cache).size()) ? id(ma_track_artists_cache)[idx] : "";
-          id(current_media_label) = id(media_title_cache);
+          const std::string selected_title =
+            idx < static_cast<int>(id(ma_track_titles_cache).size())
+              ? id(ma_track_titles_cache)[idx] : "Titel";
+          const std::string selected_artist =
+            idx < static_cast<int>(id(ma_track_artists_cache).size())
+              ? id(ma_track_artists_cache)[idx] : "";
           id(chosen_media_type) = "music";
           if (id(media_selection_loading)) {
             id(media_selection_started_ms) = millis();
             id(media_selection_pending_kind) = 5;
             id(media_selection_pending_index) = idx;
-            id(media_selection_loading_text) = id(media_title_cache);
+            id(media_selection_loading_text) = selected_title;
           }
           if (id(demo_mode_active)) {
+            id(media_title_cache) = selected_title;
+            id(media_artist_cache) = selected_artist;
+            id(current_media_label) = selected_title;
             id(music_state_cache) = "playing";
             id(media_is_playing) = true;
           }
@@ -7508,7 +7512,7 @@ script:
           id(media_ui_dirty) = true;
           id(publish_media_debug).execute(
             "esp_track_selected",
-            id(media_title_cache),
+            selected_title,
             id(chosen_media_type),
             id(chosen_track_uri));
       - script.execute: refresh_media_ui_if_needed
@@ -7531,7 +7535,12 @@ script:
                 }
                 id(publish_media_debug).execute(
                   sent ? "esp_track_bridge_play_sent" : "esp_track_bridge_play_failed",
-                  id(media_title_cache), id(chosen_media_type), id(chosen_track_uri));
+                  id(selected_track_index) >= 0 &&
+                      id(selected_track_index) < static_cast<int>(
+                        id(ma_track_titles_cache).size())
+                    ? id(ma_track_titles_cache)[id(selected_track_index)]
+                    : std::string("-"),
+                  id(chosen_media_type), id(chosen_track_uri));
 
   - id: media_selection_accept_settle
     mode: restart
@@ -14131,8 +14140,9 @@ lvgl:
       widgets:
         - image:
             id: screensaver_weather_image_widget
-            x: 0
-            y: 0
+            align: center
+            scale: 1.02
+            antialias: false
             src: screensaver_weather_partlycloudy_image
         - obj:
             id: screensaver_bg

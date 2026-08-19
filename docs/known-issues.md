@@ -1,7 +1,47 @@
 # Known issues
 
-Stand: 2026-08-18. Offene Fehler behalten eine eindeutige Statuszeile;
+Stand: 2026-08-19. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
+
+## 3.0.1-beta.2: Atomare Medienpräsentation und vollflächiges Wetterbild
+
+### PW-UI-005: Cover-Screensaver zeigte beim Titelwechsel den Vorgängertitel
+
+Status: In Firmware und Integration 3.0.1-beta.2 implementiert; automatisierte
+Integrations- und Protokolltests sowie alle Firmwareprofile bestanden. Die
+physische Abnahme auf Timo folgt mit der Installation dieses Releases.
+
+Music Assistant aktualisiert Playerzustand, Titel, Interpret und Bild häufig in
+mehreren kurz aufeinanderfolgenden `state_changed`-Events. Die Integration
+leitete jedes Zwischenbild sofort weiter; zusätzlich übertrug die Bridge Titel,
+Interpret und Cover-URL als unabhängig sichtbare UART-Frames. Dadurch konnten
+die Medienseite und der Cover-Screensaver für einen Übergang alte und neue
+Felder mischen. Der Startdialog schrieb außerdem den ausgewählten Bibliothekstitel
+optimistisch in einen anderen UI-Pfad.
+
+3.0.1-beta.2 bündelt Player-Events mit einer 250-ms-Latest-Wins-Beruhigungszeit.
+Die Bridge rahmt Titel, Interpret und Cover mit Session und Runtime-Sequenz ein;
+der S3 übernimmt alle drei Werte erst nach vollständigem, passendem Commit. Bei
+einer Änderung werden die Deskriptoren des alten Covers vor dem neuen Titel
+invalidiert. Medienseite und Cover-Screensaver lesen ausschließlich denselben
+autoritativen Titel- und Interpretencache. Der lokale Startdialog verändert
+diesen Runtimecache außerhalb des Demo-Modus nicht mehr.
+
+Abnahmekriterium: Bei mindestens fünf aufeinanderfolgenden Titelwechseln müssen
+Medienseite und Cover-Screensaver immer denselben Titel und Interpreten melden.
+Kein altes Cover darf gemeinsam mit dem neuen Titel und kein alter Titel
+gemeinsam mit dem neuen Cover erscheinen.
+
+### PW-UI-006: Weißer vertikaler Rand im Wetter-Screensaver
+
+Status: In Firmware 3.0.1-beta.2 implementiert und in allen S3-Profilen
+kompiliert; die visuelle Abnahme auf Timo folgt mit der Installation.
+
+Die 360×360-Wettergrafik lag exakt auf dem 360×360-Canvas. Rundung und
+Bildsampling ließen am linken und rechten Rand jeweils eine sehr schmale helle
+Naht sichtbar werden. Das Bild wird nun mittig auf 102 Prozent skaliert und
+ohne interpoliertes Antialiasing gerendert. Damit liegt die Grafik auf allen
+Seiten sicher außerhalb der sichtbaren Displayfläche.
 
 ## Beta.19: Beobachtbarer Firmware-Updatepfad
 

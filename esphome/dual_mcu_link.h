@@ -84,6 +84,8 @@ enum class MessageType : uint8_t {
   RUNTIME_STATE = 55,
   LIGHT_DETAIL_REQUEST = 56,
   VERSION_STATE = 57,
+  MEDIA_PRESENTATION_BEGIN = 58,
+  MEDIA_PRESENTATION_COMMIT = 59,
 };
 
 enum class HAAction : uint8_t {

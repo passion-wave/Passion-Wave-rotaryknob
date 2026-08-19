@@ -32,6 +32,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.event import (
+    async_call_later,
     async_track_state_change_event,
     async_track_time_interval,
 )
@@ -94,6 +95,8 @@ PLATFORMS = (
     Platform.SWITCH,
     Platform.UPDATE,
 )
+
+MEDIA_PRESENTATION_SETTLE_SECONDS = 0.25
 _LOGGER = logging.getLogger(__name__)
 _RUNTIME_SYNC: dict[str, dict[str, Any]] = {}
 
@@ -601,10 +604,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
     def async_media_state_changed(
         event: Event[EventStateChangedData],
     ) -> None:
-        """Schedule one authoritative media/runtime snapshot."""
-        hass.async_create_task(
-            _async_push_runtime_snapshot(hass, entry),
-            "Sync PassionWave runtime state",
+        """Coalesce transitional player attributes into one complete snapshot."""
+        runtime = _RUNTIME_SYNC[entry.entry_id]
+        cancel_pending = runtime.get("cancel_media_sync")
+        if cancel_pending is not None:
+            cancel_pending()
+
+        @callback
+        def async_push_settled_snapshot(_now: Any) -> None:
+            runtime["cancel_media_sync"] = None
+            hass.async_create_task(
+                _async_push_runtime_snapshot(hass, entry),
+                "Sync settled PassionWave media presentation",
+            )
+
+        # Music Assistant/player platforms commonly emit state, title,
+        # artist and artwork as a short series of state_changed events. Sending
+        # every intermediate event made the previous title/cover visible again
+        # during track transitions. Latest-wins settling keeps the UART
+        # presentation complete while adding only a quarter-second latency.
+        runtime["cancel_media_sync"] = async_call_later(
+            hass,
+            MEDIA_PRESENTATION_SETTLE_SECONDS,
+            async_push_settled_snapshot,
         )
 
     entry.async_on_unload(
@@ -692,5 +714,7 @@ async def async_unload_entry(
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         cancel_playback_coordinator(entry.entry_id)
-        _RUNTIME_SYNC.pop(entry.entry_id, None)
+        runtime = _RUNTIME_SYNC.pop(entry.entry_id, None)
+        if runtime is not None and runtime.get("cancel_media_sync") is not None:
+            runtime["cancel_media_sync"]()
     return unloaded
