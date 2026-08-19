@@ -25,6 +25,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.storage import Store
 from homeassistant.util import slugify
 
+from . import async_rehydrate_runtime_snapshot
 from .broker import bridge_config_entry_id
 from .const import (
     BRIDGE_RECEIVE_INTEGRATION_VERSION_ACTION,
@@ -513,6 +514,7 @@ class PassionWaveFirmwareUpdate(PassionWaveEntity, UpdateEntity):
         if index == 0:
             await self.hass.config_entries.async_reload(entry_ids[index])
             await self._sync_bridge_integration_version(entry_ids[index])
+            await async_rehydrate_runtime_snapshot(self.hass, self._entry)
 
     async def _sync_bridge_integration_version(
         self, config_entry_id: str | None

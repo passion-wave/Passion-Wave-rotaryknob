@@ -97,6 +97,7 @@ PLATFORMS = (
 )
 
 MEDIA_PRESENTATION_SETTLE_SECONDS = 0.25
+RUNTIME_REHYDRATE_ATTEMPTS = 10
 _LOGGER = logging.getLogger(__name__)
 _RUNTIME_SYNC: dict[str, dict[str, Any]] = {}
 
@@ -328,6 +329,25 @@ async def _async_push_runtime_snapshot(
         )
 
 
+async def async_rehydrate_runtime_snapshot(
+    hass: HomeAssistant, entry: PassionWaveConfigEntry
+) -> bool:
+    """Restore Bridge/S3 runtime state after the Bridge API reconnects."""
+    for attempt in range(RUNTIME_REHYDRATE_ATTEMPTS):
+        try:
+            await _async_push_runtime_snapshot(hass, entry)
+            return True
+        except HomeAssistantError as err:
+            if attempt + 1 >= RUNTIME_REHYDRATE_ATTEMPTS:
+                _LOGGER.warning(
+                    "PassionWave runtime rehydration failed after reconnect: %s",
+                    err,
+                )
+                return False
+            await asyncio.sleep(2)
+    return False
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Register the bounded PassionWave service API."""
 
@@ -556,9 +576,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
     ) -> None:
         """Dispatch a new bounded command without granting ESPHome HA actions."""
         nonlocal last_command_state
+        old_state = event.data["old_state"]
         new_state = event.data["new_state"]
         if new_state is None:
             return
+        bridge_reconnected = (
+            old_state is None
+            or old_state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+        ) and new_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+        if bridge_reconnected:
+            hass.async_create_task(
+                async_rehydrate_runtime_snapshot(hass, entry),
+                "Rehydrate PassionWave runtime after Bridge reconnect",
+            )
         if not new_state.state or new_state.state in (
             STATE_UNKNOWN,
             STATE_UNAVAILABLE,
