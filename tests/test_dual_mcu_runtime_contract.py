@@ -374,6 +374,8 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
             self.assertIn("target_version: string", processor)
             self.assertIn("update.check: passion_wave_firmware_update", processor)
             self.assertIn("manifest_mismatch:", processor)
+            self.assertIn("timeout: 60s", processor)
+            self.assertIn("update::UPDATE_STATE_AVAILABLE", processor)
 
         for processor in (S3, BRIDGE):
             self.assertIn('name: "Firmware Update Status"', processor)
@@ -383,6 +385,8 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertIn("UpdateEntityFeature.PROGRESS", update)
         self.assertIn("await self._async_run_job(raise_on_failure=True)", update)
         self.assertIn("LEGACY_ACTIVATION_TIMEOUT_SECONDS", update)
+        self.assertIn("TRANSPORT_START_TIMEOUT_SECONDS = 90", update)
+        self.assertIn("VERSION_METADATA_REFRESH_ATTEMPTS = 2", update)
 
 
 if __name__ == "__main__":

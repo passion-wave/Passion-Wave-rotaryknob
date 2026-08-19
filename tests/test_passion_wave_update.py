@@ -548,7 +548,7 @@ def test_internal_transport_receives_target_and_is_verified(monkeypatch):
     ]
 
 
-def test_fresh_manifest_error_is_reported_immediately():
+def test_fresh_manifest_error_is_reported_immediately(monkeypatch):
     entity = _entity()
     current_state = SimpleNamespace(
         state="manifest_error", last_updated=2, attributes={}
@@ -556,6 +556,12 @@ def test_fresh_manifest_error_is_reported_immediately():
     entity.hass = SimpleNamespace(
         loop=SimpleNamespace(time=lambda: 0),
         states=SimpleNamespace(get=lambda entity_id: current_state),
+    )
+    entity._device_version = lambda entry_id: "3.0.0-beta.17"
+    monkeypatch.setattr(
+        update_module,
+        "_endpoint_entry_ids",
+        lambda hass, entry: ("bridge_entry", "s3_entry"),
     )
 
     with pytest.raises(HomeAssistantError, match="could not download"):
@@ -567,6 +573,108 @@ def test_fresh_manifest_error_is_reported_immediately():
                 SimpleNamespace(last_updated=1),
             )
         )
+
+
+def test_fresh_checking_state_confirms_transport_start(monkeypatch):
+    entity = _entity()
+    current_state = SimpleNamespace(
+        state="checking:3.0.0-beta.18", last_updated=2, attributes={}
+    )
+    entity.hass = SimpleNamespace(
+        loop=SimpleNamespace(time=lambda: 0),
+        states=SimpleNamespace(get=lambda entity_id: current_state),
+    )
+    entity._device_version = lambda entry_id: "3.0.0-beta.17"
+    monkeypatch.setattr(
+        update_module,
+        "_endpoint_entry_ids",
+        lambda hass, entry: ("bridge_entry", "s3_entry"),
+    )
+
+    asyncio.run(
+        entity._wait_for_transport_start(
+            1,
+            "3.0.0-beta.18",
+            "sensor.s3_status",
+            SimpleNamespace(last_updated=1),
+        )
+    )
+
+
+def test_fresh_idle_reloads_stale_device_version(monkeypatch):
+    entity = _entity()
+    reloaded = False
+    calls = []
+    current_state = SimpleNamespace(state="idle", last_updated=2, attributes={})
+
+    class ConfigEntries:
+        async def async_reload(self, entry_id):
+            nonlocal reloaded
+            calls.append(entry_id)
+            reloaded = True
+
+    entity.hass = SimpleNamespace(
+        config_entries=ConfigEntries(),
+        loop=SimpleNamespace(time=lambda: 0),
+        states=SimpleNamespace(get=lambda entity_id: current_state),
+    )
+    entity._device_version = lambda entry_id: (
+        "3.0.0-beta.18" if reloaded else "3.0.0-beta.17"
+    )
+    monkeypatch.setattr(
+        update_module,
+        "_endpoint_entry_ids",
+        lambda hass, entry: ("bridge_entry", "s3_entry"),
+    )
+
+    asyncio.run(
+        entity._wait_for_transport_start(
+            1,
+            "3.0.0-beta.18",
+            "sensor.s3_status",
+            SimpleNamespace(last_updated=1),
+        )
+    )
+
+    assert calls == ["s3_entry"]
+
+
+def test_version_wait_reloads_stale_device_metadata(monkeypatch):
+    entity = _entity()
+    now = 0
+    reloaded = False
+    calls = []
+
+    class ConfigEntries:
+        async def async_reload(self, entry_id):
+            nonlocal reloaded
+            calls.append(entry_id)
+            reloaded = True
+
+    async def advance(seconds):
+        nonlocal now
+        now += seconds
+
+    entity.hass = SimpleNamespace(
+        config_entries=ConfigEntries(),
+        loop=SimpleNamespace(time=lambda: now),
+        states=SimpleNamespace(get=lambda entity_id: SimpleNamespace(state="idle")),
+    )
+    entity._device_version = lambda entry_id: (
+        "3.0.0-beta.18" if reloaded else "3.0.0-beta.17"
+    )
+    monkeypatch.setattr(asyncio, "sleep", advance)
+
+    asyncio.run(
+        entity._wait_for_version(
+            "s3_entry",
+            "3.0.0-beta.18",
+            index=1,
+            status_entity="sensor.s3_status",
+        )
+    )
+
+    assert calls == ["s3_entry"]
 
 
 def test_transport_progress_is_mapped_across_both_processors():

@@ -1,11 +1,12 @@
-# Firmware and integration 3.0.1-beta.2
+# Firmware and integration 3.0.1-beta.3
 
-Release description: `atomic-media-presentation`
+Release description: `reliable-dual-mcu-update`
 
-3.0.1-beta.2 keeps title, artist and cover synchronized across the media page
+3.0.1-beta.3 keeps title, artist and cover synchronized across the media page
 and cover screensaver. It also removes the thin white side seams from the
 weather screensaver. The release is coordinated across the Home Assistant
-integration, the ESP32 Bridge and the ESP32-S3 display firmware.
+integration, the ESP32 Bridge and the ESP32-S3 display firmware. In addition,
+it closes the update-completion race found during the live Beta.2 installation.
 
 ## Customer-visible changes
 
@@ -26,6 +27,12 @@ integration, the ESP32 Bridge and the ESP32-S3 display firmware.
   the displayed title and artist.
 - The new UART capability remains rolling-update compatible: older S3 firmware
   ignores the new boundary frames and consumes the unchanged payload frames.
+- Both processors wait for a fresh, installable manifest state for up to 60
+  seconds before starting OTA.
+- Home Assistant accepts the processor's fresh `checking` state, allows up to
+  90 seconds for OTA startup and refreshes stale ESPHome device metadata after
+  reconnect. A fast S3 reboot can no longer leave a completed update displayed
+  as failed.
 
 ## Root cause
 
@@ -37,11 +44,18 @@ new player state with the previous title or cover. The cover screensaver also
 had an additional fallback label path, and the library-start dialog could
 overwrite that label before the player confirmed playback.
 
+During the Beta.2 live installation, the S3 completed its OTA and rebooted
+between the blocking ESPHome action and Home Assistant's status observer. The
+device registry still exposed the previous version, so the logical updater
+timed out even though the processor already ran the target. Beta.3 recognizes
+the fresh checking/reconnect path and reloads endpoint metadata at bounded
+intervals before deciding that an update failed.
+
 ## Verification
 
-- Home Assistant 2026.7.4 and 2026.8.2: 79 tests and four subtests pass per
+- Home Assistant 2026.7.4 and 2026.8.2: 82 tests and four subtests pass per
   version.
-- AwesomeVersion orders `3.0.1-beta.2` above both integration
+- AwesomeVersion orders `3.0.1-beta.3` above both integration
   `3.0.1-beta.1` and firmware `3.0.0-beta.19`.
 - All six factory and managed ESPHome configurations validate and compile with
   ESPHome 2026.7.0.
@@ -49,25 +63,25 @@ overwrite that label before the player confirmed playback.
 - Factory Bridge: 40.4% RAM, 63.0% flash.
 - Both managed S3 profiles: 52.8% RAM, 71.7% flash.
 - Both managed Bridge profiles: 40.3% RAM, 62.8% flash.
-- Both generated manifests advertise `3.0.1-beta.2` and contain the matching
+- Both generated manifests advertise `3.0.1-beta.3` and contain the matching
   OTA MD5, immutable release URL and chip family.
 - The four public artifacts match `release/public/SHA256SUMS`.
 
 ## Public artifact checksums
 
 ```text
-928ced02d5b346e702b93f970ba8b1686aaa5f8fce922337e155dc46a9fb55c0  s3/passion-wave-rotaryknob-s3-3.0.1-beta.2.factory.bin
-76de3b8d1622c09f2d5ee3bbdf7d67dc040e2608c43670e0fbc69ffcf80dff16  s3/passion-wave-rotaryknob-s3-3.0.1-beta.2.ota.bin
-7cc0e9e0be2b373e55bed4bfe0f9441d2ed731bbbfb7af2dc5f41933e23f8696  esp32/passion-wave-rotaryknob-esp32-3.0.1-beta.2.factory.bin
-2ca646ea59fd8b1a4a7e125c2648f1292a1f26996a023072df62f12b22ab5328  esp32/passion-wave-rotaryknob-esp32-3.0.1-beta.2.ota.bin
+032d1902dc3106cf8983eff9a44456b5564cf819607cd88ea3bbcc6f1bd6fefb  s3/passion-wave-rotaryknob-s3-3.0.1-beta.3.factory.bin
+2e68595dddbefe229c2c2bfe1b02252582dd0c1002b42afc7065ed9fc6d2a392  s3/passion-wave-rotaryknob-s3-3.0.1-beta.3.ota.bin
+f1277c7842d58ae45364218056d4840b7cb01440cee03f86613f032120cd212f  esp32/passion-wave-rotaryknob-esp32-3.0.1-beta.3.factory.bin
+0e55327cbf5e2d2351566f10a84209b1c2155e89a3a11bb24b8dffa2456ee475  esp32/passion-wave-rotaryknob-esp32-3.0.1-beta.3.ota.bin
 ```
 
 ## Live acceptance on Timo
 
-1. Install integration 3.0.1-beta.2 and restart Home Assistant.
-2. Start Timo's single PassionWave firmware update from 3.0.0-beta.19.
+1. Install integration 3.0.1-beta.3 and restart Home Assistant.
+2. Start Timo's single PassionWave firmware update from 3.0.1-beta.2.
 3. Confirm the update remains active while Bridge and S3 install sequentially.
-4. Confirm both processors reconnect as 3.0.1-beta.2, phase becomes `complete`
+4. Confirm both processors reconnect as 3.0.1-beta.3, phase becomes `complete`
    and the logical update entity returns to `off` with no error.
 5. Start and skip several Music Assistant tracks. Confirm the media page and
    cover screensaver always show the same current title and artist, without the
