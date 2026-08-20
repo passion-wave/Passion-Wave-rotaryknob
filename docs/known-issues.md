@@ -8,9 +8,8 @@ Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführ
 ### PW-UI-008: Coveransicht ließ links und rechts Hintergrundstreifen frei
 
 Status: In Firmware 3.0.1-beta.6 implementiert; automatisierter Widget-,
-Bildgrößen- und vollständiger Build-Nachweis bestanden. Die technische
-Installation auf Timo und Marco sowie die direkte visuelle Kantenabnahme folgen
-im Release-Rollout.
+Bildgrößen- und vollständiger Build-Nachweis sowie die technische Installation
+auf Timo und Marco bestanden. Die direkte visuelle Kantenabnahme bleibt offen.
 
 Die bisherige Vollbild-Coveransicht verwendete dasselbe 256×256-Decodierziel
 wie ein quadratischer Bildausschnitt und positionierte das Widget bei `x=52`,
@@ -32,6 +31,20 @@ Cover die sichtbare runde Fläche links, rechts, oben und unten ohne weiße oder
 bunte Streifen vollständig füllen. Titel, Interpret und Cover müssen während
 jedes Titelwechsels weiterhin aus derselben atomar übernommenen Präsentation
 stammen.
+
+Remote-Live-Nachweis am 2026-08-20: HACS installierte Integration
+3.0.1-beta.6, Home Assistant erreichte `RUNNING`. Die logische Update-Entität
+aktualisierte zuerst Timos Bridge und S3, danach Marcos Bridge und S3. Beide
+Transaktionen endeten `off` mit `phase=complete`, allen vier Prozessoren auf
+3.0.1-beta.6, aktiven Verbindungen und `last_error=null`. Nach den Reboots
+stimmten bei Timo Player-, Runtime- und gerenderter Titel auf `He's a Pirate`,
+Artist auf `Klaus Badelt` und die Cover-URL auf denselben aktuellen
+Music-Assistant-Proxy. Bei Marco stimmten Player und gerenderter Titel auf
+`Kapitel 03: Spur der Tresorknacker - Folge 102`; die UI meldete
+`UI + Uhrzeit bereit · 1.951 s`. Marcos optionale Runtime-Diagnosesensoren waren
+deaktiviert und deshalb erwartungsgemäß `unavailable`. Dieser Nachweis belegt
+Installation, Rehydration und Datenkonsistenz, nicht die physische
+Pixelqualität an den Coverkanten.
 
 ## 3.0.1-beta.5: Statischer Wetterbild-Overscan
 
