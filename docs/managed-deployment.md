@@ -15,10 +15,10 @@ evidence.
 One physical RotaryKnob contains two separately addressable ESPHome endpoints:
 S3/display and ESP32/bridge. The repository contains entrypoints for two
 physical RotaryKnobs and therefore four endpoints. Source configuration alone
-confirms neither physical pair. The Beta.6 rollout repeats the already proven
-one-product-at-a-time update on both physical pairs; its result is recorded
-only after the live version and connectivity checks pass. Configured
-entrypoints must never be mistaken for live evidence.
+confirms neither physical pair. The 2026-08-20 Beta.6 rollout updated Timo and
+then Marco through their logical Home Assistant entities. Both physical pairs
+ended with Bridge and S3 on 3.0.1-beta.6, both connections active and no update
+error. Configured entrypoints must never be mistaken for future live evidence.
 Every device uses the same release sources and Managed security policy. Only
 stable network identity, build directory and physical-device target overlay
 differ. This avoids copied configurations while preserving independent OTA

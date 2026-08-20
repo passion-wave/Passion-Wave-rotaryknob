@@ -78,6 +78,18 @@ Managed S3 uses 52.8 percent RAM and 73.9 percent flash. Managed Bridge uses
 6. During those title changes, media page and cover screensaver must display
    the same current title, artist and cover.
 
-Steps 1–4 and the remotely observable presentation diagnostics are recorded
-after rollout. Steps 5–6 include a physical display check and are never claimed
-from remote diagnostics alone.
+Remote live result on 2026-08-20: steps 1–4 passed for Timo and Marco. HACS
+installed integration 3.0.1-beta.6 and Home Assistant reached `RUNNING` after
+restart. The single logical update transaction updated Timo first and Marco
+second; both ended `off` with `phase=complete`, Bridge and S3 on
+3.0.1-beta.6, both connections active and `last_error=null`.
+
+After both processor reboots, Timo's player, runtime title and rendered title
+all reported `He's a Pirate`; runtime artist was `Klaus Badelt` and the runtime
+cover URL equalled the selected player's current 512-pixel Music Assistant
+proxy URL. Marco's selected player and rendered title both reported
+`Kapitel 03: Spur der Tresorknacker - Folge 102`; artist was
+`Die drei ??? Kids`, and UI plus valid clock were ready after 1.951 seconds.
+Marco's optional detailed runtime diagnostics remained disabled and therefore
+`unavailable`, as expected. Steps 5–6 still require direct observation on the
+two physical displays and are not claimed from remote diagnostics.
