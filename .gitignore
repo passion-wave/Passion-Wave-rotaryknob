@@ -7,3 +7,6 @@ __pycache__/
 *.bin
 *.elf
 *.map
+.release-pipeline/
+/release/public/build-metadata.json
+/release/public/sbom.cdx.json

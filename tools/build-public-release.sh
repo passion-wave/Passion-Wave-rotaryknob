@@ -2,7 +2,21 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-output_dir="${1:-${repo_dir}/release/public}"
+source "${repo_dir}/tools/release-toolchain.env"
+requested_output="${1:-${repo_dir}/release/public}"
+mkdir -p "$(dirname "${requested_output}")"
+output_parent="$(cd "$(dirname "${requested_output}")" && pwd)"
+output_name="$(basename "${requested_output}")"
+final_output_dir="${output_parent}/${output_name}"
+lock_dir="${output_parent}/.${output_name}.build.lock"
+mkdir "${lock_dir}" 2>/dev/null || {
+  echo "Public artifact build is already running for ${final_output_dir}." >&2
+  exit 75
+}
+output_dir="$(mktemp -d "${output_parent}/.${output_name}.stage.XXXXXX")"
+if [[ -d "${final_output_dir}" ]]; then
+  cp -a "${final_output_dir}/." "${output_dir}/"
+fi
 version="$(tr -d '[:space:]' < "${repo_dir}/VERSION")"
 resolved_dir="$(mktemp -d)"
 s3_binary="passion-wave-rotaryknob-s3-${version}.factory.bin"
@@ -15,6 +29,8 @@ esp32_manifest="manifest-${version}.json"
 cleanup() {
   rm -f "${resolved_dir}/factory-s3.yaml" "${resolved_dir}/factory-esp32.yaml"
   rmdir "${resolved_dir}"
+  rm -rf "${output_dir}"
+  rmdir "${lock_dir}" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -40,11 +56,11 @@ if [[ -n "${ESPHOME_COMMAND:-}" ]]; then
   "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-esp32.yaml"
 else
   docker run --rm -v "${repo_dir}":/config \
-    "${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.7.0}" \
+    "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
     config /config/esphome/factory-s3.yaml \
     > "${resolved_dir}/factory-s3.yaml"
   docker run --rm -v "${repo_dir}":/config \
-    "${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.7.0}" \
+    "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
     config /config/esphome/factory-esp32.yaml \
     > "${resolved_dir}/factory-esp32.yaml"
   "${repo_dir}/tools/build.sh" esphome/factory-s3.yaml
@@ -182,4 +198,153 @@ cp "${output_dir}/esp32/${esp32_manifest}" "${output_dir}/esp32/manifest.json"
   fi
 )
 
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "${repo_dir}" show -s --format=%ct HEAD)}" \
+ESPHOME_IMAGE_RESOLVED="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
+python3 - "${repo_dir}" "${output_dir}" "${version}" <<'PY'
+import datetime as dt
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import uuid
+from urllib.parse import quote
+
+repo, output, version = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+oid = subprocess.check_output(["git", "-C", repo, "rev-parse", "HEAD"], text=True).strip()
+dirty = subprocess.run(
+    ["git", "-C", repo, "diff", "--quiet", "HEAD", "--", ":(exclude)release/public"],
+    check=False,
+).returncode != 0
+epoch = int(os.environ["SOURCE_DATE_EPOCH"])
+artifacts = []
+for line in (output / "SHA256SUMS").read_text().splitlines():
+    sha256, relative = line.split(maxsplit=1)
+    path = output / relative
+    artifacts.append({
+        "path": relative,
+        "size": path.stat().st_size,
+        "sha256": sha256,
+        "md5": hashlib.md5(path.read_bytes(), usedforsecurity=False).hexdigest(),
+    })
+metadata = {
+    "schema_version": 1,
+    "version": version,
+    "source_oid": oid,
+    "source_dirty": dirty,
+    "source_date_epoch": epoch,
+    "built_at": dt.datetime.fromtimestamp(epoch, dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+    "toolchain": {"esphome": os.environ["ESPHOME_IMAGE_RESOLVED"]},
+    "artifacts": artifacts,
+}
+(output / "build-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+components = [
+    {"type": "file", "name": item["path"], "version": version,
+     "bom-ref": f"artifact:{item['path']}",
+     "hashes": [{"alg": "SHA-256", "content": item["sha256"]}]} for item in artifacts
+]
+image = os.environ["ESPHOME_IMAGE_RESOLVED"]
+image_name, image_digest = image.rsplit("@sha256:", 1)
+components.append({
+    "type": "container", "name": image_name, "version": "2026.7.0",
+    "bom-ref": f"container:{image}", "hashes": [{"alg": "SHA-256", "content": image_digest}],
+    "purl": "pkg:oci/esphome@2026.7.0?repository_url=ghcr.io/esphome",
+})
+
+def lock_components(path):
+    values = {}
+    current = None
+    in_dependencies = False
+    for line in path.read_text().splitlines():
+        if line == "dependencies:":
+            in_dependencies = True
+            continue
+        if line.startswith("direct_dependencies:"):
+            break
+        if not in_dependencies:
+            continue
+        if line.startswith("  ") and not line.startswith("    ") and line.endswith(":"):
+            current = line.strip()[:-1]
+            values[current] = {"version": "unknown", "hash": None}
+        elif current and line.startswith("    version:"):
+            values[current]["version"] = line.split(":", 1)[1].strip().strip("'\"").replace("*", "unknown")
+        elif current and line.startswith("    component_hash:"):
+            values[current]["hash"] = line.split(":", 1)[1].strip()
+    return values
+
+dependencies = {}
+for role in ("passion_wave_factory_s3", "passion_wave_factory_esp32"):
+    lock = repo / "esphome/.esphome/build" / role / "dependencies.lock"
+    if lock.is_file():
+        dependencies.update(lock_components(lock))
+for name, item in sorted(dependencies.items()):
+    component = {
+        "type": "library", "name": name, "version": item["version"],
+        "bom-ref": f"component:{name}@{item['version']}",
+        "purl": f"pkg:generic/{quote(name, safe='')}@{quote(item['version'], safe='')}",
+        "properties": [{"name": "passionwave:source", "value": "ESP-IDF dependencies.lock"}],
+    }
+    if item["hash"]:
+        component["hashes"] = [{"alg": "SHA-256", "content": item["hash"]}]
+    components.append(component)
+external_yaml = (repo / "esphome/rotaryknob-s3-ui-core.yaml").read_text()
+external_ref = "214077a1934e5a1f52488731bf45ab51048c3570"
+if external_ref not in external_yaml:
+    raise SystemExit("Pinned drv2605 external component ref is missing")
+components.extend([
+    {
+        "type": "library", "name": "RAR/esphome-drv2605", "version": external_ref,
+        "bom-ref": f"git:RAR/esphome-drv2605@{external_ref}",
+        "purl": f"pkg:github/RAR/esphome-drv2605@{external_ref}",
+    },
+    {
+        "type": "application", "name": "xtensa-esp-elf", "version": "14.2.0_20260121",
+        "bom-ref": "toolchain:xtensa-esp-elf@14.2.0_20260121",
+        "purl": "pkg:generic/xtensa-esp-elf@14.2.0_20260121",
+    },
+])
+application_ref = f"device:passion-wave@{version}"
+sbom = {
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.6",
+    "serialNumber": f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, f'passion-wave:{oid}:{version}')}",
+    "version": 1,
+    "metadata": {
+        "timestamp": dt.datetime.fromtimestamp(epoch, dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "component": {"type": "device", "name": "PassionWave RotaryKnob", "version": version,
+                      "bom-ref": application_ref},
+        "tools": {"components": [{"type": "application", "name": "PassionWave deterministic builder",
+                                  "version": oid}]},
+    },
+    "components": components,
+    "dependencies": [{"ref": application_ref,
+                      "dependsOn": [item["bom-ref"] for item in components]}],
+}
+(output / "sbom.cdx.json").write_text(json.dumps(sbom, indent=2) + "\n")
+PY
+
+for relative in \
+  "s3/${s3_binary}" "s3/${s3_ota_binary}" \
+  "esp32/${esp32_binary}" "esp32/${esp32_ota_binary}"; do
+  if [[ -f "${final_output_dir}/${relative}" ]] &&
+      ! cmp -s "${final_output_dir}/${relative}" "${output_dir}/${relative}"; then
+    echo "Immutable artifact already exists with different bytes: ${relative}; bump VERSION." >&2
+    exit 8
+  fi
+done
+
 echo "Public release artifacts: ${output_dir}"
+
+backup_dir="${output_parent}/.${output_name}.backup.$$"
+if [[ -e "${final_output_dir}" ]]; then
+  mv "${final_output_dir}" "${backup_dir}"
+fi
+if mv "${output_dir}" "${final_output_dir}"; then
+  [[ ! -e "${backup_dir}" ]] || rm -rf "${backup_dir}"
+else
+  [[ ! -e "${backup_dir}" ]] || mv "${backup_dir}" "${final_output_dir}"
+  exit 1
+fi
+output_dir="${output_parent}/.${output_name}.promoted.$$"
+echo "Atomically promoted public release artifacts: ${final_output_dir}"

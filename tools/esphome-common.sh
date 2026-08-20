@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+source "${SCRIPT_DIR}/release-toolchain.env"
 CONFIG_FILE="${1:-scrollwheel_JC3636K518C.yaml}"
 CONFIG_BASENAME="$(basename "${CONFIG_FILE}")"
 CONFIG_NAME="${CONFIG_BASENAME%.yaml}"
@@ -14,8 +15,9 @@ fi
 CONFIG_ABS="${REPO_ROOT}/${CONFIG_FILE}"
 CONFIG_ROOT="${REPO_ROOT}${CONFIG_DIR_REL:+/${CONFIG_DIR_REL}}"
 BUILD_ROOT="${CONFIG_ROOT}/.esphome"
-PLATFORMIO_CACHE="${REPO_ROOT}/.esphome_cache/platformio"
-ESPHOME_IMAGE="${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.7.0}"
+PLATFORMIO_CACHE="${PLATFORMIO_CACHE:-${REPO_ROOT}/.esphome_cache/platformio}"
+ESPHOME_CACHE="${ESPHOME_CACHE:-${REPO_ROOT}/.esphome}"
+ESPHOME_IMAGE="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}"
 detect_serial_port() {
   local candidates=()
   shopt -s nullglob
@@ -50,7 +52,7 @@ else
   BUILD_MOUNT="/config/.esphome"
 fi
 
-mkdir -p "${BUILD_ROOT}" "${PLATFORMIO_CACHE}"
+mkdir -p "${BUILD_ROOT}" "${PLATFORMIO_CACHE}" "${ESPHOME_CACHE}"
 
 factory_bin() {
   local found
@@ -65,10 +67,22 @@ factory_bin() {
 FACTORY_BIN="$(factory_bin)"
 
 docker_esphome() {
-  docker run --rm \
+  local esphome_args=("$@")
+  set -- docker run --rm
+  if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
+    set -- "$@" -e "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" \
+      -v "${ESPHOME_CACHE}":/root/.cache/esphome --entrypoint python3
+  fi
+  if [[ -n "${CCACHE_DISABLE:-}" ]]; then
+    set -- "$@" -e "CCACHE_DISABLE=${CCACHE_DISABLE}"
+  fi
+  set -- "$@" \
     -v "${REPO_ROOT}":/config \
     -v "${BUILD_ROOT}:${BUILD_MOUNT}" \
     -v "${PLATFORMIO_CACHE}":/root/.platformio \
-    "${ESPHOME_IMAGE}" \
-    "$@"
+    "${ESPHOME_IMAGE}"
+  if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
+    set -- "$@" /config/tools/esphome-deterministic.py
+  fi
+  "$@" "${esphome_args[@]}"
 }

@@ -1,0 +1,72 @@
+name: Firmware and integration quality
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - "AGENTS.md"
+      - "custom_components/**"
+      - "tests/**"
+      - "esphome/**"
+      - "assets/**"
+      - "tools/**"
+      - "VERSION"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - "custom_components/**"
+      - "tests/**"
+      - "esphome/**"
+      - "assets/**"
+      - "tools/**"
+      - "VERSION"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-fast-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  affected-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Scan repository history for secrets
+        run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          ghcr.io/gitleaks/gitleaks@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854
+          git --redact --no-banner
+      - run: python3 tools/validate-docs-local.py
+      - run: tools/test-release-atomicity.sh
+      - run: tools/test-example-secrets-fixture.sh
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            .esphome
+            .esphome_cache
+            esphome/.esphome
+          key: esphome-fast-${{ runner.os }}-2026.7.0-${{ hashFiles('esphome/**', 'tools/**', 'VERSION') }}
+          restore-keys: esphome-fast-${{ runner.os }}-2026.7.0-
+      - name: Run affected code gate; skip docs-only changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then BASE_SHA="HEAD^"; fi
+          if git diff --quiet "${BASE_SHA}" HEAD -- custom_components tests esphome assets tools VERSION .github/workflows; then
+            echo "Docs-only change: no ESPHome compile required."
+            exit 0
+          fi
+          tools/fast-check.sh --scope all --log-dir .release-pipeline/logs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: failure()
+        with:
+          name: firmware-fast-failure-${{ github.sha }}
+          path: .release-pipeline/logs/
+          if-no-files-found: ignore
+          retention-days: 7

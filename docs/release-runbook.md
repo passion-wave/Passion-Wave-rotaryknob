@@ -8,7 +8,7 @@ ESP32-S3 display firmware, public installer, HACS delivery and physical rollout.
 
 One RotaryKnob contains two independently updated processors but exposes one
 customer-facing firmware transaction. Every coordinated release uses one
-SemVer prerelease such as `3.0.1-beta.6` across:
+SemVer prerelease such as `X.Y.Z-beta.N` across:
 
 - repository `VERSION`;
 - all factory, managed and shared ESPHome project versions;
@@ -77,25 +77,26 @@ final overscan dimensions before ESPHome converts it.
 
 ## 5. Version and release documentation
 
-Update all version surfaces together. Search for the previous version outside
-historical immutable manifests:
+Prepare all explicit runtime version surfaces from the Control repository:
 
 ```bash
-rg -n 'PREVIOUS_VERSION' --glob '!release/public/**' .
+tools/prepare-candidate --version X.Y.Z-beta.N --summary "concise delta"
 ```
 
-Update `README.md`, `RELEASE.md`, `docs/known-issues.md`, affected architecture
-documents and this runbook when the process itself changes. `RELEASE.md` must
-state the root cause, customer-visible behavior, automated evidence, artifact
-hashes and exact live-acceptance gates. Do not claim a physical visual check
-until it was observed on hardware.
+The command refuses an unaligned or already modified baseline and updates only
+the allowlisted runtime surfaces plus release-note skeletons. Evergreen README
+and architecture documents link to `VERSION` rather than duplicating it.
+Complete each `RELEASE.md` with customer-visible behavior and exact acceptance
+gates. Do not claim a physical visual check until it was observed on hardware.
 
 ## 6. Full integration and firmware qualification
 
 The standard one-command qualification is:
 
-```bash
-./tools/qualify-release.sh release/public
+```sh
+./tools/qualify-release.sh --channel beta \
+  --output release/public \
+  --log-dir .release-pipeline/qualify
 ```
 
 It performs:
@@ -127,28 +128,27 @@ Copy the final four hashes into `RELEASE.md` only after this build. Run
 
 ## 7. Firmware and integration publication
 
-1. Create a feature branch from current `main`.
-2. Stage only reviewed source, documentation, versioned manifests and the four
-   intended binaries. Never stage caches or unrelated untracked manifests.
-3. Commit, push and open one draft PR. Wait for all repository checks, mark it
-   ready and merge only when green.
-4. Pull merged `main` and use its full commit OID as release target.
-5. Create `v<version>` with `RELEASE.md`, four binaries and `SHA256SUMS`.
-6. Create immutable `v<version>-assets` at the same merged commit because the
-   website Worker streams only allowlisted files from that tag.
-7. Verify GitHub-reported asset sizes and SHA-256 digests.
-
-Do not upload the two same-named chip manifests as release assets; they collide
-by basename. They remain available in the source/tag and website.
+1. Commit reviewed source and version surfaces; never stage caches, unrelated
+   historical manifests or newly generated binary copies.
+2. Run the Control full build and retain its immutable receipt/hash.
+3. Run Control `tools/release publish-assets --receipt … --confirm-receipt …`.
+   It creates the asset-only `v<version>-assets` GitHub prerelease at the exact
+   firmware OID, uploads four binaries plus provenance, downloads every asset
+   again and rejects any mismatch. This tag suffix is intentionally not a HACS
+   version.
+4. Push draft PRs and require their checks. Web CI hydrates ignored candidate
+   binaries only from that immutable asset release and verifies `SHA256SUMS`.
+5. During final promotion Control creates `v<version>` as a normal, not
+   prerelease, GitHub release at the same exact firmware OID. Only this release
+   is HACS-visible.
 
 ## 8. Website import and production verification
 
 In `Passion-Wave-web`:
 
 1. bump `VERSION`, `package.json`, `package-lock.json`, pages and release notes;
-2. prepend all four new immutable asset routes in `worker.js`, retaining older
-   versions for rollback;
-3. import the qualified firmware set:
+2. import the qualified firmware set; the importer generates the four new
+   Worker routes and preserves existing rollback routes:
 
    ```bash
    tools/import-firmware.sh /absolute/path/to/Passion-Wave-rotaryknob/release/public
@@ -156,11 +156,11 @@ In `Passion-Wave-web`:
    npm run validate
    ```
 
-4. run local Wrangler and download both OTA paths through the same-origin proxy;
-5. compare both downloaded SHA-256 values with firmware `SHA256SUMS`;
-6. publish through one draft PR, wait for GitHub and Cloudflare checks, merge,
+3. run local Wrangler and download both OTA paths through the same-origin proxy;
+4. compare both downloaded SHA-256 values with firmware `SHA256SUMS`;
+5. publish through one draft PR, wait for GitHub and Cloudflare checks, merge,
    and create the matching web tag/release;
-7. wait for the production Worker check, then verify both stable manifests and
+6. wait for the production Worker check, then verify both stable manifests and
    both production OTA hashes with a cache-busting query parameter.
 
 ## 9. HACS integration rollout
