@@ -1,6 +1,6 @@
 # Dual-MCU Home Assistant bridge
 
-Current coordinated implementation: `3.0.1-beta.5`.
+Current coordinated implementation: `3.0.1-beta.6`.
 
 One physical Passion Wave RotaryKnob contains two processors. They share one
 product generation but keep separate firmware images, native API identities
@@ -199,9 +199,14 @@ and transfers the URL to the S3 inside the same sequence-bound presentation as
 title and artist. On commit, the S3 invalidates both decoded descriptors of the
 previous track before exposing the new strings. Compressed cover bytes are
 downloaded by the Bridge and sent through the acknowledged UART asset stream;
-the S3 decodes them after active input has been quiet. The media page and cover
-screensaver read exactly `media_title_cache` and `media_artist_cache`; neither
-keeps a separate fallback title source.
+Music Assistant proxy URLs are requested at its supported 512-pixel size. The
+S3 decodes the media-page image to 124×124 and the fullscreen image directly
+to a static 368×368 RGB565 surface after active input has been quiet. The
+fullscreen widget is positioned at −4/−4 and clipped by the 360×360 viewport;
+LVGL neither scales nor antialias-transforms it. This leaves four actual cover
+pixels beyond every panel edge and prevents exposed background strips. The
+media page and cover screensaver read exactly `media_title_cache` and
+`media_artist_cache`; neither keeps a separate fallback title source.
 
 Fullscreen cover entry requires all of the following:
 

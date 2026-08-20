@@ -8,12 +8,12 @@ ESP32-S3 display firmware, public installer, HACS delivery and physical rollout.
 
 One RotaryKnob contains two independently updated processors but exposes one
 customer-facing firmware transaction. Every coordinated release uses one
-SemVer prerelease such as `3.0.1-beta.5` across:
+SemVer prerelease such as `3.0.1-beta.6` across:
 
 - repository `VERSION`;
 - all factory, managed and shared ESPHome project versions;
 - `custom_components/passion_wave/const.py`;
-- the Home Assistant manifest form, for example `3.0.1b5`;
+- the Home Assistant manifest form, for example `3.0.1b6`;
 - public manifests, firmware filenames, website, tags and release notes.
 
 The integration is always installed before device firmware. Firmware updates

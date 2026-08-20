@@ -4,14 +4,14 @@ Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
 Current coordinated baseline: device firmware and Home Assistant integration
-**3.0.1-beta.5 — `static-weather-overscan`**.
+**3.0.1-beta.6 — `fullscreen-cover-overscan`**.
 
-Beta.2 commits title, artist and cover as one sequence-bound presentation on
-the S3. The media page and cover screensaver now render the same authoritative
-runtime cache, and an old decoded cover is invalidated before a new title is
-shown. The weather image is center-scaled past the circular display edge so no
-white side seam remains. The complete playlist-to-AirPlay control and feedback
-chain is documented with protocol-labelled diagrams in
+Beta.6 decodes the fullscreen cover to a static 368×368 surface and places it
+at −4/−4, so every edge is clipped outside the 360×360 panel instead of showing
+the page background. Media page and cover screensaver render the same
+authoritative runtime cache, and an old decoded cover is invalidated before a
+new title is shown. The complete playlist-to-AirPlay control and feedback chain
+is documented with protocol-labelled diagrams in
 [Dual-MCU Home Assistant bridge](docs/dual-mcu-ha-bridge.md).
 
 V3 is an intentional breaking architecture release. The obsolete standalone
@@ -69,7 +69,7 @@ PassionWave Config Entry and two unique endpoint identities. See
 
 ## Getting Started
 
-The public browser installer delivers **V3.0.1-beta.5** as an explicitly marked
+The public browser installer delivers **V3.0.1-beta.6** as an explicitly marked
 prerelease. Version 2.1.1 remains the rollback tag. The steps below are for
 maintainers and beta testers; promotion beyond beta requires the coordinated
 hardware acceptance.
@@ -126,9 +126,9 @@ switches the precompiled RGB565 image without an HTTP request or loading delay.
 Unknown states use `partlycloudy` as a deterministic fallback. Source,
 provenance, checksums and the exact state mapping are documented in
 [Weather screensaver assets](assets/screensaver/README.md).
-The centered image is rendered at 102% scale with nearest-neighbor sampling so
-its edge extends beyond all 360 display pixels without introducing a bright
-interpolation seam.
+Every source image is prepared at 368×368 and rendered unscaled at −4/−4, so
+the 360×360 viewport center-clips four pixels on each edge without runtime
+interpolation.
 
 When the screensaver opens, the display starts at 100% brightness and uses the
 native PWM transition engine to fade continuously to 10%. The default fade
@@ -210,7 +210,7 @@ and large media-library filters.
 ## Documentation
 
 - [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
-- [Version 3.0.1-beta.5 release](RELEASE.md)
+- [Version 3.0.1-beta.6 release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
 - [Customer product architecture](docs/customer-product-architecture.md)

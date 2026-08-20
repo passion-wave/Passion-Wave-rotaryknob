@@ -176,6 +176,25 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertNotIn("current_media_label", media)
         self.assertNotIn("current_media_label", cover)
 
+    def test_fullscreen_cover_decodes_to_static_panel_overscan(self) -> None:
+        fullscreen_image = S3_UI.split("- id: media_cover_image", 1)[1]
+        fullscreen_image = fullscreen_image.split(
+            "- id: media_page_cover_image", 1
+        )[0]
+        self.assertIn("resize: 368x368", fullscreen_image)
+
+        fullscreen_widget = S3_UI.split(
+            "id: media_cover_image_widget", 1
+        )[1].split("id: media_cover_volume_host", 1)[0]
+        self.assertIn("x: -4", fullscreen_widget)
+        self.assertIn("y: -4", fullscreen_widget)
+        self.assertNotIn("scale:", fullscreen_widget)
+        self.assertNotIn("antialias:", fullscreen_widget)
+
+        self.assertIn('set_query_value(url, "size", "512")', S3_UI)
+        self.assertGreaterEqual(BRIDGE.count('"512"'), 2)
+        self.assertNotIn('const std::string desired_size = "256"', BRIDGE)
+
     def test_track_selection_does_not_replace_runtime_metadata(self) -> None:
         selection = S3_UI.split("- id: start_selected_track", 1)[1].split(
             "- id: media_selection_accept_settle", 1

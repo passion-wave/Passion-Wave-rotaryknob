@@ -3,6 +3,36 @@
 Stand: 2026-08-20. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
 
+## 3.0.1-beta.6: Statischer Vollbild-Cover-Overscan
+
+### PW-UI-008: Coveransicht ließ links und rechts Hintergrundstreifen frei
+
+Status: In Firmware 3.0.1-beta.6 implementiert; automatisierter Widget-,
+Bildgrößen- und vollständiger Build-Nachweis bestanden. Die technische
+Installation auf Timo und Marco sowie die direkte visuelle Kantenabnahme folgen
+im Release-Rollout.
+
+Die bisherige Vollbild-Coveransicht verwendete dasselbe 256×256-Decodierziel
+wie ein quadratischer Bildausschnitt und positionierte das Widget bei `x=52`,
+`y=52`. Auf dem 360×360-Panel blieben dadurch zwangsläufig 52 Pixel außerhalb
+des Covers. Wegen der runden sichtbaren Displayfläche erschienen davon links
+und rechts schmale Hintergrundstreifen. Die Wetterbildkorrektur aus Beta.5
+änderte diesen separaten Online-Cover-Pfad nicht.
+
+Beta.6 fordert am Music-Assistant-Bildproxy dessen unterstützte Größe 512 an,
+dekodiert das Vollbild-Cover auf dem S3 direkt zu 368×368 RGB565 und zeichnet
+es unskaliert bei `−4/−4`. Der 360×360-Viewport beschneidet damit vier echte
+Coverpixel an jeder Kante. Es gibt weder freie Hintergrundfläche noch eine
+LVGL-Skalierungs- oder Antialias-Transformation. Die 124×124-Medienseiten-
+Darstellung bleibt unverändert und wird aus derselben autoritativen Cover-URL
+erzeugt.
+
+Abnahmekriterium: Auf Timo und Marco müssen mindestens fünf helle und dunkle
+Cover die sichtbare runde Fläche links, rechts, oben und unten ohne weiße oder
+bunte Streifen vollständig füllen. Titel, Interpret und Cover müssen während
+jedes Titelwechsels weiterhin aus derselben atomar übernommenen Präsentation
+stammen.
+
 ## 3.0.1-beta.5: Statischer Wetterbild-Overscan
 
 ### PW-UI-007: Laufzeitskalierung erzeugte bunte vertikale Bildspalten
