@@ -14,12 +14,14 @@ evidence.
 
 One physical RotaryKnob contains two separately addressable ESPHome endpoints:
 S3/display and ESP32/bridge. The repository contains entrypoints for two
-physical RotaryKnobs and therefore four endpoints. Only one physical pair is
-confirmed by the current live-test evidence; configured entrypoints must not
-be mistaken for installed firmware. Every device uses the same release sources
-and Managed security policy. Only stable network identity, build directory and
-physical-device target overlay differ. This avoids copied configurations while
-preserving independent OTA recovery for each processor.
+physical RotaryKnobs and therefore four endpoints. Source configuration alone
+confirms neither physical pair. The 2026-08-20 Beta.5 live rollout
+confirmed both installed physical pairs and all four processor versions;
+configured entrypoints must still not be mistaken for future live evidence.
+Every device uses the same release sources and Managed security policy. Only
+stable network identity, build directory and physical-device target overlay
+differ. This avoids copied configurations while preserving independent OTA
+recovery for each processor.
 
 ## What runs where
 

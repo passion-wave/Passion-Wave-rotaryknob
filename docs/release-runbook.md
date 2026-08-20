@@ -170,15 +170,19 @@ authenticates with `HOME_ASSISTANT_TOKEN`, never prints the token and supports:
 
 ```bash
 python scripts/ha_release.py hacs-info --repository-id <id>
+python scripts/ha_release.py hacs-refresh --repository-id <id>
 python scripts/ha_release.py hacs-install --repository-id <id> --version v<version>
 python scripts/ha_release.py restart
 python scripts/ha_release.py wait-core
 ```
 
 The helper requires `aiohttp`; execute it inside a pinned Home Assistant
-container when it is unavailable on the host. After restart, wait for Core
-state `RUNNING`, not merely a responding HTTP socket. Confirm the local custom
-integration manifest and HACS `installed_version` both match the release.
+container when it is unavailable on the host. Refresh the HACS repository
+explicitly so a newly published GitHub tag is not hidden by cached metadata;
+`hacs-install` performs this refresh and verifies both offered and installed
+versions. After restart, wait for Core state `RUNNING`, not merely a responding
+HTTP socket. Confirm the local custom integration manifest and HACS
+`installed_version` both match the release.
 
 ## 10. Device rollout through Home Assistant
 
