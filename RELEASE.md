@@ -84,3 +84,11 @@ Managed S3 uses 52.8 percent RAM and 73.9 percent flash. Managed Bridge uses
    visible.
 6. Verify the selected player, runtime title/artist/cover and rendered title
    recover after both processor reboots without a manual integration reload.
+
+Remote live result on 2026-08-20: steps 1–4 passed for Timo and Marco. Both
+logical updates ended `off` with `phase=complete`, Bridge and S3 on
+3.0.1-beta.5, both connections active and no error. Timo also restored the
+complete idle presentation (`Photograph`, `Ed Sheeran`, current cover), while
+both rendered-title diagnostics reported `Photograph`; Marco reported UI and
+valid clock ready after 1.963 seconds. Step 5 and the physical portion of step
+6 remain direct on-device checks and are not claimed from remote diagnostics.

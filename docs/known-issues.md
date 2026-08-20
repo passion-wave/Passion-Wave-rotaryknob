@@ -8,8 +8,8 @@ Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführ
 ### PW-UI-007: Laufzeitskalierung erzeugte bunte vertikale Bildspalten
 
 Status: In Firmware 3.0.1-beta.5 implementiert; automatisierte Bildgrößen- und
-Widget-Vertragstests bestanden. Die visuelle Abnahme auf Timo und Marco folgt
-mit der Installation dieses Releases.
+Widget-Vertragstests sowie die technische Installation auf Timo und Marco sind
+bestanden. Die direkte visuelle Kantenabnahme an beiden Displays bleibt offen.
 
 Beta.4 skalierte die kompilierten 360×360-RGB565-Bilder in LVGL auf 102 Prozent,
 um die zuvor sichtbare weiße Seitennaht abzudecken. Auf der realen Anzeige
@@ -23,6 +23,18 @@ Hintergrundkante noch eine RGB565-Laufzeittransformation.
 Abnahmekriterium: Auf beiden physischen Geräten müssen repräsentative helle und
 dunkle Wetterbilder alle vier Displaykanten ohne weiße Naht, bunte Spalten oder
 Flimmern füllen.
+
+Remote-Live-Nachweis am 2026-08-20: HACS installierte Integration
+3.0.1-beta.5, Home Assistant erreichte nach dem Neustart `RUNNING`. Die jeweils
+einzige PassionWave-Update-Entität aktualisierte zuerst Timos Bridge/S3 von
+3.0.1-beta.4 und danach Marcos Bridge/S3 von 3.0.0-beta.19. Beide Transaktionen
+endeten mit `phase=complete`, beiden Prozessoren auf 3.0.1-beta.5, aktiver S3-
+und Bridge-Verbindung und `last_error=null`. Marcos Diagnose meldete
+`UI + Uhrzeit bereit · 1.963 s`. Der gerenderte Titel war auf beiden Geräten
+nach den Reboots wieder `Photograph`; Timos aktivierte Runtime-Diagnose meldete
+dazu `Ed Sheeran` und die aktuelle Cover-URL. Diese Daten beweisen Installation,
+Rehydration und Renderingzustand, jedoch nicht die Pixelqualität der
+Displaykanten.
 
 ## 3.0.1-beta.4: Atomare Medienpräsentation und vollflächiges Wetterbild
 
@@ -72,9 +84,9 @@ statischen Overscan ohne LVGL-Transformation ersetzt.
 
 Die 360×360-Wettergrafik lag exakt auf dem 360×360-Canvas. Rundung und
 Bildsampling ließen am linken und rechten Rand jeweils eine sehr schmale helle
-Naht sichtbar werden. Das Bild wird nun mittig auf 102 Prozent skaliert und
-ohne interpoliertes Antialiasing gerendert. Damit liegt die Grafik auf allen
-Seiten sicher außerhalb der sichtbaren Displayfläche.
+Naht sichtbar werden. Beta.4 skalierte es deshalb mittig auf 102 Prozent und
+erzeugte damit PW-UI-007. Beta.5 ersetzt diesen Transformationspfad durch das
+statisch vorbereitete 368×368-Bild.
 
 ## Beta.19: Beobachtbarer Firmware-Updatepfad
 
