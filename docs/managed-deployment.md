@@ -2,12 +2,15 @@
 
 > V3 is intentionally MQTT-free and not backward compatible.
 
-Current coordinated beta: `3.0.0-beta.15`.
+Current coordinated beta: `3.0.1-beta.5`.
 
-Deployment status: beta.15 source and release artifacts are built and
-statically validated. Installation is delivered through the single
-PassionWave firmware entity in Home Assistant; physical beta.15 acceptance and
-the long-duration power measurement remain open.
+Deployment status: Beta.5 integration, both ECU firmwares and public artifacts
+are qualified by `tools/qualify-release.sh`. Installation is delivered through
+the single logical PassionWave firmware entity in Home Assistant, which updates
+Bridge first and S3 second. See `release-runbook.md` for the complete release,
+HACS and live-device rollout gates. Physical display acceptance and the
+long-duration power measurement remain explicitly separate from automated
+evidence.
 
 One physical RotaryKnob contains two separately addressable ESPHome endpoints:
 S3/display and ESP32/bridge. The repository contains entrypoints for two

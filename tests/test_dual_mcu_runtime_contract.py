@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from PIL import Image
+
 
 ROOT = Path(__file__).parents[1]
 BRIDGE = (ROOT / "esphome" / "dual-mcu-esp32-core.yaml").read_text()
@@ -186,7 +188,14 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         page = S3_UI.split("id: screensaver_weather_image_widget", 1)[1]
         page = page.split("id: screensaver_bg", 1)[0]
         self.assertIn("align: center", page)
-        self.assertIn("scale: 1.02", page)
+        self.assertNotIn("scale:", page)
+        self.assertNotIn("antialias:", page)
+        weather_assets = ROOT / "assets" / "screensaver" / "states"
+        artwork = sorted(weather_assets.glob("*.jpg"))
+        self.assertEqual(len(artwork), 15)
+        for path in artwork:
+            with Image.open(path) as image:
+                self.assertEqual(image.size, (368, 368), path.name)
 
     def test_runtime_cover_replacement_invalidates_lvgl_cache(self) -> None:
         self.assertGreaterEqual(

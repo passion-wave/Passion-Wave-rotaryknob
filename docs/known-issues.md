@@ -1,7 +1,28 @@
 # Known issues
 
-Stand: 2026-08-19. Offene Fehler behalten eine eindeutige Statuszeile;
+Stand: 2026-08-20. Offene Fehler behalten eine eindeutige Statuszeile;
 Live-Nachweise und Restabnahme werden zusätzlich als prüfbare Tabellen geführt.
+
+## 3.0.1-beta.5: Statischer Wetterbild-Overscan
+
+### PW-UI-007: Laufzeitskalierung erzeugte bunte vertikale Bildspalten
+
+Status: In Firmware 3.0.1-beta.5 implementiert; automatisierte Bildgrößen- und
+Widget-Vertragstests bestanden. Die visuelle Abnahme auf Timo und Marco folgt
+mit der Installation dieses Releases.
+
+Beta.4 skalierte die kompilierten 360×360-RGB565-Bilder in LVGL auf 102 Prozent,
+um die zuvor sichtbare weiße Seitennaht abzudecken. Auf der realen Anzeige
+resultierte dieser Transformationspfad in vertikalen bunten Spalten.
+
+Beta.5 bereitet alle 15 Wetterbilder statisch mit 368×368 Pixeln vor. Das
+Bildwidget bleibt unskaliert, wird mittig ausgerichtet und vom 360×360-Viewport
+an jeder Kante um vier Pixel beschnitten. Dadurch gibt es weder eine freie
+Hintergrundkante noch eine RGB565-Laufzeittransformation.
+
+Abnahmekriterium: Auf beiden physischen Geräten müssen repräsentative helle und
+dunkle Wetterbilder alle vier Displaykanten ohne weiße Naht, bunte Spalten oder
+Flimmern füllen.
 
 ## 3.0.1-beta.4: Atomare Medienpräsentation und vollflächiges Wetterbild
 
@@ -45,9 +66,9 @@ flüchtigen Bridge-Mediencaches nach Update-Reboots behoben.
 
 ### PW-UI-006: Weißer vertikaler Rand im Wetter-Screensaver
 
-Status: In Firmware 3.0.1-beta.4 implementiert, in allen S3-Profilen kompiliert
-und auf Timos S3 installiert. Die visuelle Abnahme der beiden Displayränder
-bleibt offen, da sie nicht über Home-Assistant-Diagnosewerte messbar ist.
+Status: Der weiße Rand wurde in Beta.4 überdeckt, die verwendete
+Laufzeitskalierung erzeugte jedoch den Folgedefekt PW-UI-007. In Beta.5 durch
+statischen Overscan ohne LVGL-Transformation ersetzt.
 
 Die 360×360-Wettergrafik lag exakt auf dem 360×360-Canvas. Rundung und
 Bildsampling ließen am linken und rechten Rand jeweils eine sehr schmale helle

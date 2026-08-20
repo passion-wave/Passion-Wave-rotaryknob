@@ -1,6 +1,6 @@
 # Dual-MCU Home Assistant bridge
 
-Current coordinated implementation: `3.0.1-beta.4`.
+Current coordinated implementation: `3.0.1-beta.5`.
 
 One physical Passion Wave RotaryKnob contains two processors. They share one
 product generation but keep separate firmware images, native API identities
@@ -238,8 +238,10 @@ navigation.
 
 The weather photographs are compiled into the S3 and selected locally from the
 Bridge condition, so the normal weather screensaver needs no image download.
-They are center-aligned at 102% scale without antialias interpolation, extending
-past the 360×360 canvas so a one-pixel white seam cannot remain at either side.
+Each production asset is prepared offline at 368×368 and center-aligned behind
+the 360×360 panel. LVGL only clips the four-pixel overscan at each edge; it does
+not transform RGB565 pixels at runtime. This removes both an exposed background
+seam and the colored edge columns produced by LVGL image scaling.
 
 The managed S3 configuration removes inherited direct Home Assistant state
 subscriptions and replaces the standalone media, weather and light fetchers
