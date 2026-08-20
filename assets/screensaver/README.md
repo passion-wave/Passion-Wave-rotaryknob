@@ -15,9 +15,11 @@ Technical properties:
 The collage remains stored unchanged as source evidence. Eight approved motifs
 were cropped from it; seven missing motifs were generated with OpenAI's built-in
 image-generation workflow using the collage as the visual reference. All
-production files are 360 x 360 JPEGs and are compiled into the ESP32-S3
-firmware as RGB565 images. `states/SHA256SUMS` makes the complete set
-reproducible.
+production files are 368 x 368 JPEGs and are compiled into the ESP32-S3
+firmware as RGB565 images. They are center-clipped to the 360 x 360 panel with
+four pixels of static overscan on every edge. Runtime image scaling is forbidden
+because its RGB565 transform produced colored vertical edge columns on hardware.
+`states/SHA256SUMS` makes the complete set reproducible.
 
 ## Complete state mapping
 
@@ -46,6 +48,8 @@ Unknown or empty values deliberately fall back to `partlycloudy`.
 - The ESP32 bridge transports the Home Assistant condition as before.
 - The S3 maps the condition locally and swaps the already compiled image; there
   is no HTTP request and therefore no loading state.
+- Every image already contains its 368 x 368 overscan at build time. LVGL
+  center-clips it without scaling or antialias transformation.
 - A restrained dark LVGL scrim keeps clock hands and status text readable.
 - Clock contrast is selected from the fixed `Smoked Aqua` benchmark palette
   without runtime image analysis. Dark photographs use warm white `#F2F1EE`

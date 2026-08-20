@@ -4,7 +4,7 @@ Firmware and Home Assistant integration for the round JC3636K518C controller
 with an ESP32-S3 display processor and an ESP32 coprocessor.
 
 Current coordinated baseline: device firmware and Home Assistant integration
-**3.0.1-beta.4 — `reconnect-media-rehydration`**.
+**3.0.1-beta.5 — `static-weather-overscan`**.
 
 Beta.2 commits title, artist and cover as one sequence-bound presentation on
 the S3. The media page and cover screensaver now render the same authoritative
@@ -69,7 +69,7 @@ PassionWave Config Entry and two unique endpoint identities. See
 
 ## Getting Started
 
-The public browser installer delivers **V3.0.1-beta.4** as an explicitly marked
+The public browser installer delivers **V3.0.1-beta.5** as an explicitly marked
 prerelease. Version 2.1.1 remains the rollback tag. The steps below are for
 maintainers and beta testers; promotion beyond beta requires the coordinated
 hardware acceptance.
@@ -210,7 +210,7 @@ and large media-library filters.
 ## Documentation
 
 - [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
-- [Version 3.0.1-beta.4 release](RELEASE.md)
+- [Version 3.0.1-beta.5 release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)
 - [Customer product architecture](docs/customer-product-architecture.md)
@@ -218,6 +218,7 @@ and large media-library filters.
 - [Radar and floorplan data flow](docs/radar-floorplan-data-flow.md)
 - [UI Next framework](docs/ui-next-framework.md)
 - [Dual-MCU managed deployment](docs/managed-deployment.md)
+- [Coordinated release and device rollout runbook](docs/release-runbook.md)
 - [Responsiveness test catalog](docs/stage1-responsiveness-test-catalog.md)
 - [End-to-end latency benchmark](docs/end-to-end-latency-benchmark.md)
 - [UX assurance report](docs/ux-assurance-report.md)

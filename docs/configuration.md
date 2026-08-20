@@ -8,7 +8,7 @@ API; MQTT is not part of the device firmware.
 
 - Historical rollback reference: single-profile firmware `1.2.0` (not part of
   the V3 source tree).
-- Current coordinated dual-processor beta: `3.0.1-beta.4`.
+- Current coordinated dual-processor beta: `3.0.1-beta.5`.
 - Public Factory profiles: credential-free first adoption only.
 - Private Managed profiles: encrypted API, authenticated OTA and thin
   per-endpoint entrypoints over two shared processor roles. The repository has

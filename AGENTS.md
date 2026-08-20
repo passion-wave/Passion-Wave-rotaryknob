@@ -35,6 +35,8 @@ logs for completed architecture work; Git preserves that history.
   Home Assistant registration, acceptance and OTA recovery.
 - `docs/api-security-lifecycle.md` — Factory-to-managed API encryption,
   provisioning window, OTA authentication and credential rules.
+- `docs/release-runbook.md` — Standardized integration/firmware test, build,
+  publish, HACS rollout, device OTA and acceptance process.
 - `docs/ui-next-framework.md` — Current UI composition, page ownership,
   navigation, popups, rendering and display behavior.
 

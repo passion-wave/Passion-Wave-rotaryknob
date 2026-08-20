@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave RotaryKnob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.1-beta.4"
+  project_version: "3.0.1-beta.5"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -14143,8 +14143,6 @@ lvgl:
         - image:
             id: screensaver_weather_image_widget
             align: center
-            scale: 1.02
-            antialias: false
             src: screensaver_weather_partlycloudy_image
         - obj:
             id: screensaver_bg

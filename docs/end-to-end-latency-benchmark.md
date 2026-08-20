@@ -1,7 +1,7 @@
 # End-to-end input latency benchmark
 
 The measurements in this document are historical qualification snapshots. The
-current coordinated candidate is S3 and Bridge `3.0.0-beta.15`; re-run the
+current coordinated candidate is S3 and Bridge `3.0.1-beta.5`; re-run the
 catalog on both physical devices rather than treating an older result as proof
 for the current image.
 
