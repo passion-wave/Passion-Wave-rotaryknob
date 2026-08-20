@@ -1,5 +1,5 @@
 substitutions:
-  project_version: "3.0.1-beta.5"
+  project_version: "3.0.1-beta.6"
   name: "passion-wave-rotary-test-esp32"
   friendly_name: "Passion Wave RotaryKnob Test ESP32"
   passion_wave_config_entry_id: ""
@@ -2119,7 +2119,7 @@ script:
               if (end == std::string::npos) end = target.size();
               target.replace(start, end - start, value);
             };
-            set_query_value(url, "size", "256");
+            set_query_value(url, "size", "512");
             set_query_value(url, "fmt", "jpg");
             return url;
           };
@@ -3048,15 +3048,15 @@ interval:
                   }
                 } else if (kind == dual_mcu::AssetKind::MEDIA_COVER) {
                   url = id(bridge_media_cover_url);
-                  // Music Assistant's image proxy rejects 128px for this
-                  // provider (HTTP 400); 256px is the smallest supported
-                  // source and cuts the original 512px payload by about 69%.
+                  // Music Assistant accepts 512px while arbitrary 368/384px
+                  // requests return HTTP 400. S3 decodes this source directly
+                  // into its unscaled 368px full-screen overscan buffer.
                   if (url.find("/imageproxy") != std::string::npos) {
                     const std::string needle = "size=";
                     const size_t query = url.find('?');
                     const size_t pos = query == std::string::npos
                       ? std::string::npos : url.find(needle, query + 1);
-                    const std::string desired_size = "256";
+                    const std::string desired_size = "512";
                     if (pos == std::string::npos) {
                       url += url.find('?') == std::string::npos ? "?" : "&";
                       url += needle + desired_size;

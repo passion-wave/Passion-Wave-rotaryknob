@@ -7,7 +7,7 @@ substitutions:
   name: "passion-wave-rotary-test-s3"
   friendly_name: "Passion Wave RotaryKnob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "3.0.1-beta.5"
+  project_version: "3.0.1-beta.6"
   firmware_update_manifest_url: "https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"

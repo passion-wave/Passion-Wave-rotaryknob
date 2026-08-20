@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave RotaryKnob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.1-beta.5"
+  project_version: "3.0.1-beta.6"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -2051,7 +2051,9 @@ online_image:
     url: "http://127.0.0.1/"
     format: JPEG
     type: RGB565
-    resize: 256x256
+    # Decode into the final overscan geometry. The LVGL widget is never scaled;
+    # the 360x360 panel clips four pixels from every edge instead.
+    resize: 368x368
     buffer_size: 65536
     update_interval: never
     on_download_finished:
@@ -4934,7 +4936,7 @@ script:
                 }
                 target.replace(value_start, value_end - value_start, value);
               };
-              set_query_value(url, "size", "256");
+              set_query_value(url, "size", "512");
               set_query_value(url, "fmt", "jpg");
               return url;
             };
@@ -13982,8 +13984,8 @@ lvgl:
             pad_all: 0
         - image:
             id: media_cover_image_widget
-            x: 52
-            y: 52
+            x: -4
+            y: -4
             src: media_cover_image
         - obj:
             id: media_cover_volume_host
