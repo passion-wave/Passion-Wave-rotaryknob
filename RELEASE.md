@@ -1,14 +1,14 @@
-# Firmware and integration 3.0.1-beta.8
+# Firmware and integration 3.0.1-beta.9
 
 Release summary: reproducible firmware assets and production-safe qualification
 
-Beta.8 carries the Beta.7 runtime behavior into a new version because the
-immutable Beta.7 asset binaries contained non-reproducible embedded build
-times. They are preserved for audit and are not overwritten.
+Beta.9 carries the qualified runtime behavior forward after the canonical gate
+found that the unpublished Beta.8 payload had reused timestamp-bearing factory
+objects. Beta.7 and Beta.8 remain preserved for audit and are not overwritten.
 
 ## Customer-visible scope
 
-- Home Assistant integration version is `3.0.1b8`.
+- Home Assistant integration version is `3.0.1b9`.
 - One logical RotaryKnob update still performs Bridge, confirmed reconnect,
   S3, confirmed reconnect and final completion.
 - The 368×368 cover overscan and atomic title/artist/cover state remain the
