@@ -46,6 +46,7 @@ jobs:
       - run: tools/test-release-atomicity.sh
       - run: tools/test-example-secrets-fixture.sh
       - run: tools/test-workflow-cache-keys.sh
+      - run: tools/test-cold-cache-scheduling.sh
       - name: Fingerprint tracked firmware inputs
         id: firmware-inputs
         run: >-

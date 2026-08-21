@@ -28,6 +28,12 @@ builds mount the persistent ESPHome dependency cache explicitly. The local
 double-build proof shares those read-only inputs but disables ccache, ensuring
 that both payload sets are compiled independently.
 
+On a cold runner the managed production S3 endpoint compiles first and
+initializes the shared ESP-IDF Python environment. Only after it succeeds do
+the remaining three managed endpoints compile in parallel. This keeps the
+parallel speedup without allowing first-use ESP-IDF cleanup races in a shared
+`.esphome` tree.
+
 GitHub Actions computes its ESPHome cache key once, before compilation, from
 the tracked Git index entries below `esphome`, `custom_components`, `assets`
 and `tools` plus `VERSION`. Generated `.esphome` trees never participate in the

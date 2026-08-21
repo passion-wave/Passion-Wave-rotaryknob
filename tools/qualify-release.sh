@@ -127,25 +127,37 @@ done
 
 if [[ "${channel}" != "alpha" ]]; then
   echo "== Managed endpoint builds =="
-  for pair in "esphome/managed-production-s3.yaml esphome/managed-production-esp32.yaml" \
-              "esphome/managed-test-s3.yaml esphome/managed-test-esp32.yaml"; do
-    read -r s3_profile bridge_profile <<<"${pair}"
-    s3_label="$(basename "${s3_profile}" .yaml)"
-    bridge_label="$(basename "${bridge_profile}" .yaml)"
-    ESPHOME_IMAGE="${esphome_image}" "${repo_dir}/tools/build.sh" "${s3_profile}" \
-      >"${log_dir}/build-${s3_label}.log" 2>&1 & s3_pid=$!
-    ESPHOME_IMAGE="${esphome_image}" "${repo_dir}/tools/build.sh" "${bridge_profile}" \
-      >"${log_dir}/build-${bridge_label}.log" 2>&1 & bridge_pid=$!
-    pair_failed=0
-    wait "${s3_pid}" || pair_failed=1
-    wait "${bridge_pid}" || pair_failed=1
-    if [[ ${pair_failed} -ne 0 ]]; then
-      tail -n 30 "${log_dir}/build-${s3_label}.log" >&2 || true
-      tail -n 30 "${log_dir}/build-${bridge_label}.log" >&2 || true
-      exit 5
-    fi
-    echo "PASS build-${s3_label} + build-${bridge_label}"
+  warmup_profile="esphome/managed-production-s3.yaml"
+  warmup_label="$(basename "${warmup_profile}" .yaml)"
+  ESPHOME_IMAGE="${esphome_image}" run_logged "build-${warmup_label}" \
+    "${log_dir}/build-${warmup_label}.log" \
+    "${repo_dir}/tools/build.sh" "${warmup_profile}"
+
+  remaining_profiles=(
+    esphome/managed-production-esp32.yaml
+    esphome/managed-test-s3.yaml
+    esphome/managed-test-esp32.yaml
+  )
+  build_pids=()
+  build_labels=()
+  for profile in "${remaining_profiles[@]}"; do
+    label="$(basename "${profile}" .yaml)"
+    build_labels+=("${label}")
+    ESPHOME_IMAGE="${esphome_image}" "${repo_dir}/tools/build.sh" "${profile}" \
+      >"${log_dir}/build-${label}.log" 2>&1 &
+    build_pids+=("$!")
   done
+  build_failed=0
+  for index in "${!build_pids[@]}"; do
+    if wait "${build_pids[$index]}"; then
+      echo "PASS build-${build_labels[$index]}"
+    else
+      build_failed=1
+      echo "FAIL build-${build_labels[$index]}" >&2
+      tail -n 30 "${log_dir}/build-${build_labels[$index]}.log" >&2 || true
+    fi
+  done
+  [[ ${build_failed} -eq 0 ]] || exit 5
 fi
 
 ESPHOME_IMAGE="${esphome_image}" run_logged public-artifacts "${log_dir}/public-artifacts.log" \
