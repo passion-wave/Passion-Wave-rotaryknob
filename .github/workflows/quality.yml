@@ -47,6 +47,7 @@ jobs:
       - run: tools/test-example-secrets-fixture.sh
       - run: tools/test-workflow-cache-keys.sh
       - run: tools/test-cold-cache-scheduling.sh
+      - run: tools/test-esphome-cache-contract.sh
       - name: Fingerprint tracked firmware inputs
         id: firmware-inputs
         run: >-

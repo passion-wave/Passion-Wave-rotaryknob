@@ -16,6 +16,7 @@ CONFIG_ABS="${REPO_ROOT}/${CONFIG_FILE}"
 CONFIG_ROOT="${REPO_ROOT}${CONFIG_DIR_REL:+/${CONFIG_DIR_REL}}"
 BUILD_ROOT="${CONFIG_ROOT}/.esphome"
 PLATFORMIO_CACHE="${PLATFORMIO_CACHE:-${REPO_ROOT}/.esphome_cache/platformio}"
+CCACHE_CACHE="${CCACHE_CACHE:-${REPO_ROOT}/.esphome_cache/ccache}"
 ESPHOME_CACHE="${ESPHOME_CACHE:-${REPO_ROOT}/.esphome}"
 ESPHOME_IMAGE="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}"
 detect_serial_port() {
@@ -52,7 +53,7 @@ else
   BUILD_MOUNT="/config/.esphome"
 fi
 
-mkdir -p "${BUILD_ROOT}" "${PLATFORMIO_CACHE}" "${ESPHOME_CACHE}"
+mkdir -p "${BUILD_ROOT}" "${PLATFORMIO_CACHE}" "${CCACHE_CACHE}" "${ESPHOME_CACHE}"
 
 factory_bin() {
   local found
@@ -80,6 +81,8 @@ docker_esphome() {
     -v "${REPO_ROOT}":/config \
     -v "${BUILD_ROOT}:${BUILD_MOUNT}" \
     -v "${PLATFORMIO_CACHE}":/root/.platformio \
+    -v "${CCACHE_CACHE}":/root/.ccache \
+    -e CCACHE_DIR=/root/.ccache \
     "${ESPHOME_IMAGE}"
   if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
     set -- "$@" /config/tools/esphome-deterministic.py
