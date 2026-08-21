@@ -49,6 +49,12 @@ CI caches dependency downloads only, never `esphome/.esphome` build output.
 This bounds fresh-runner disk use and prevents a late Factory CMake failure
 after an otherwise valid managed matrix.
 
+The qualified Beta/RC path then builds Factory S3 and Factory Bridge in
+parallel. This mode is enabled only after the managed S3 warmup has initialized
+ESP-IDF; direct standalone public builds remain serial and cold-start safe.
+Both child statuses are collected before artifact assembly, so one failed
+factory target cannot be hidden by the other target succeeding.
+
 GitHub Actions computes its ESPHome cache key once, before compilation, from
 the tracked Git index entries below `esphome`, `custom_components`, `assets`
 and `tools` plus `VERSION`. Generated `.esphome` trees never participate in the

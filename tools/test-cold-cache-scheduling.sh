@@ -3,6 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${root}/tools/qualify-release.sh"
+public_builder="${root}/tools/build-public-release.sh"
 
 warmup_line="$(grep -n 'warmup_profile="esphome/managed-production-s3.yaml"' "${script}" | cut -d: -f1)"
 parallel_line="$(grep -n 'remaining_profiles=(' "${script}" | cut -d: -f1)"
@@ -21,5 +22,8 @@ if grep -Fq 'rm -rf -- "${build_dir}"' "${script}"; then
   exit 1
 fi
 grep -Fq 'PASS managed-build-cleanup' "${script}"
+grep -Fq 'PW_PARALLEL_FACTORY_BUILDS=1' "${script}"
+grep -Fq 'wait_factory_pair' "${public_builder}"
+grep -Fq 'PW_PARALLEL_FACTORY_BUILDS:-0' "${public_builder}"
 
-echo "PASS cold-cache ESP-IDF warmup, parallel builds and root-safe cleanup."
+echo "PASS cold-cache warmup, bounded parallel builds and root-safe cleanup."
