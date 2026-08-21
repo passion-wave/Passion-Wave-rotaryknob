@@ -23,9 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Scan repository history for secrets
         run: >-
           docker run --rm -v "$PWD:/repo" -w /repo
@@ -36,7 +37,7 @@ jobs:
         run: >-
           echo "hash=$(git ls-files -s -- esphome custom_components assets tools VERSION |
           git hash-object --stdin)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
             .esphome
@@ -47,7 +48,7 @@ jobs:
         run: test -z "$(git ls-files esphome/secrets.yaml)"
       - name: Qualify candidate
         run: tools/qualify-release.sh --channel "${{ inputs.channel }}" --output release/public --log-dir .release-pipeline/logs
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: passion-wave-${{ inputs.channel }}-${{ github.sha }}
           path: |
@@ -55,6 +56,6 @@ jobs:
             .release-pipeline/logs/
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: release/public/**/*.bin
