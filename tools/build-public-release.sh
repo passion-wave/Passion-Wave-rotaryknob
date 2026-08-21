@@ -3,6 +3,10 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_dir}/tools/release-toolchain.env"
+# Public release payloads must never reuse cached objects: generated sources
+# embed SOURCE_DATE_EPOCH and a stale ccache entry can otherwise produce a
+# self-consistent but non-reproducible candidate.
+export CCACHE_DISABLE=1
 requested_output="${1:-${repo_dir}/release/public}"
 mkdir -p "$(dirname "${requested_output}")"
 output_parent="$(cd "$(dirname "${requested_output}")" && pwd)"
@@ -63,6 +67,21 @@ wait_factory_pair() {
 }
 
 mkdir -p "${output_dir}/s3" "${output_dir}/esp32"
+
+clean_factory_builds() {
+  local build_root="${repo_dir}/esphome/.esphome/build" role
+  for role in passion_wave_factory_s3 passion_wave_factory_esp32; do
+    [[ ! -d "${build_root}/${role}" ]] && continue
+    rm -rf -- "${build_root:?}/${role}" 2>/dev/null || true
+    [[ ! -d "${build_root}/${role}" ]] || docker run --rm \
+      -v "${build_root}:/build" \
+      --entrypoint sh \
+      "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
+      -c 'rm -rf -- "/build/$1"' sh "${role}"
+  done
+}
+
+clean_factory_builds
 
 if [[ -n "${ESPHOME_COMMAND:-}" ]]; then
   "${ESPHOME_COMMAND}" config "${repo_dir}/esphome/factory-s3.yaml" \

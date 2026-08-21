@@ -14,6 +14,9 @@ enable_line="$(grep -n 'IDF_CCACHE_ENABLE=1' "${common}" | cut -d: -f1)"
 [[ -n "${disable_line}" && -n "${enable_line}" && ${disable_line} -lt ${enable_line} ]]
 grep -Fq 'CCACHE_DISABLE=1' "${root}/.github/workflows/rc-reproducibility.yml"
 grep -Fq 'CCACHE_DISABLE=1' "${root}/tools/reproducible-public-release.sh"
+grep -Fq 'export CCACHE_DISABLE=1' "${root}/tools/build-public-release.sh"
+grep -Fq 'passion_wave_factory_s3 passion_wave_factory_esp32' \
+  "${root}/tools/build-public-release.sh"
 
 normal_args="$(bash -c '
   source "$1"

@@ -18,6 +18,8 @@ times. They are preserved for audit and are not overwritten.
 
 - All release binaries bind their build timestamp to the exact source commit
   epoch and must match the coordinated receipt byte for byte.
+- Public payload builds delete both exact factory build trees and disable
+  ccache, preventing stale timestamp-bearing objects from entering a candidate.
 - Managed qualification immediately removes the warmup S3 build tree, then
   runs at most one S3 plus one ESP32 build concurrently and logs free disk
   before and after each group.

@@ -76,6 +76,7 @@ if [[ -n "${canonical_dir}" ]]; then
   }
   cmp -s "${scratch}/output-a/SHA256SUMS" "${canonical_dir}/SHA256SUMS" || {
     echo "Clean reproducibility output differs from the qualified canonical output." >&2
+    preserve_failure
     exit 7
   }
 fi
