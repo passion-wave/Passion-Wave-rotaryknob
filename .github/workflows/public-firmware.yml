@@ -41,7 +41,6 @@ jobs:
           path: |
             .esphome
             .esphome_cache
-            esphome/.esphome
           key: esphome-${{ runner.os }}-2026.7.0-${{ steps.firmware-inputs.outputs.hash }}
           restore-keys: esphome-${{ runner.os }}-2026.7.0-
       - name: Reject tracked secrets

@@ -14,4 +14,11 @@ for name in "${workflows[@]}"; do
   fi
 done
 
+for name in quality.yml public-firmware.yml; do
+  if grep -Fq '            esphome/.esphome' "${root}/.github/workflows/${name}"; then
+    echo "Generated build trees must not be cached in ${name}" >&2
+    exit 1
+  fi
+done
+
 echo "PASS workflow cache keys use the tracked pre-build source fingerprint."

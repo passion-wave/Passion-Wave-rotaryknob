@@ -47,6 +47,7 @@ jobs:
       - run: tools/test-example-secrets-fixture.sh
       - run: tools/test-workflow-cache-keys.sh
       - run: tools/test-cold-cache-scheduling.sh
+      - run: tools/test-esphome-cache-contract.sh
       - name: Fingerprint tracked firmware inputs
         id: firmware-inputs
         run: >-
@@ -57,7 +58,6 @@ jobs:
           path: |
             .esphome
             .esphome_cache
-            esphome/.esphome
           key: esphome-fast-${{ runner.os }}-2026.7.0-${{ steps.firmware-inputs.outputs.hash }}
           restore-keys: esphome-fast-${{ runner.os }}-2026.7.0-
       - name: Run affected code gate; skip docs-only changes

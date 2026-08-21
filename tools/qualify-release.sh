@@ -158,6 +158,15 @@ if [[ "${channel}" != "alpha" ]]; then
     fi
   done
   [[ ${build_failed} -eq 0 ]] || exit 5
+
+  managed_build_root="${repo_dir}/esphome/.esphome/build"
+  for build_name in managed_production_s3 managed_production_esp32 managed_test_s3 managed_test_esp32; do
+    build_dir="${managed_build_root}/${build_name}"
+    if [[ -d "${build_dir}" ]]; then
+      rm -rf -- "${build_dir}"
+    fi
+  done
+  echo "PASS managed-build-cleanup"
 fi
 
 ESPHOME_IMAGE="${esphome_image}" run_logged public-artifacts "${log_dir}/public-artifacts.log" \
