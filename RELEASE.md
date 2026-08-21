@@ -1,36 +1,24 @@
-# Firmware and integration 3.0.1-beta.9
+# Firmware and integration 3.0.1-beta.10
 
-Release summary: reproducible firmware assets and production-safe qualification
+Release summary: Canonical linux/amd64 builder platform and customer-visible update acceptance flow
 
-Beta.9 carries the qualified runtime behavior forward after the canonical gate
-found that the unpublished Beta.8 payload had reused timestamp-bearing factory
-objects. Beta.7 and Beta.8 remain preserved for audit and are not overwritten.
+Public Factory and OTA binaries are now always built by the digest-pinned
+`linux/amd64` ESPHome image, including on Apple Silicon. Build metadata and the
+SBOM record this platform so local and hosted receipts qualify identical bytes.
 
-## Customer-visible scope
+## Repository scope
 
-- Home Assistant integration version is `3.0.1b9`.
-- One logical RotaryKnob update still performs Bridge, confirmed reconnect,
-  S3, confirmed reconnect and final completion.
-- The 368×368 cover overscan and atomic title/artist/cover state remain the
-  qualified media behavior introduced before this candidate.
+- Role: S3, Bridge and Home Assistant implementation.
+- Runtime/channel metadata: `VERSION` and the Control release contract.
+- OIDs, toolchain digests, gate durations and payload hashes: generated release receipt.
 
-## Build and release changes
+## Automated evidence
 
-- All release binaries bind their build timestamp to the exact source commit
-  epoch and must match the coordinated receipt byte for byte.
-- Public payload builds delete both exact factory build trees and disable
-  ccache, preventing stale timestamp-bearing objects from entering a candidate.
-- Managed qualification immediately removes the warmup S3 build tree, then
-  runs at most one S3 plus one ESP32 build concurrently and logs free disk
-  before and after each group.
-- Root-owned generated trees are deleted inside the pinned ESPHome container;
-  download/compiler caches remain separate from build output.
-- Beta qualification covers two Home Assistant versions, all ESPHome profiles,
-  both public payload families, manifests, hashes, SBOM and cross-repository
-  distribution.
+Run the channel pipeline and attach the resulting receipt. Do not paste or
+manually transcribe checksums; promotion verifies the receipt bytes directly.
 
-## Required evidence
+## Manual acceptance
 
-Promotion additionally requires physical clean-install, Timo, Marco and
-cover/media observations. Remote entity state is useful technical evidence but
-does not satisfy a visual gate.
+Record only directly observed clean-install, update, rollback and physical UI
+results required by the selected channel. Remote entity state is not visual
+evidence.

@@ -19,6 +19,7 @@ PLATFORMIO_CACHE="${PLATFORMIO_CACHE:-${REPO_ROOT}/.esphome_cache/platformio}"
 CCACHE_CACHE="${CCACHE_CACHE:-${REPO_ROOT}/.esphome_cache/ccache}"
 ESPHOME_CACHE="${ESPHOME_CACHE:-${REPO_ROOT}/.esphome}"
 ESPHOME_IMAGE="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}"
+ESPHOME_PLATFORM="${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}"
 detect_serial_port() {
   local candidates=()
   shopt -s nullglob
@@ -69,7 +70,7 @@ FACTORY_BIN="$(factory_bin)"
 
 docker_esphome() {
   local esphome_args=("$@")
-  set -- docker run --rm
+  set -- docker run --rm --platform "${ESPHOME_PLATFORM}"
   if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
     set -- "$@" -e "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" \
       -v "${ESPHOME_CACHE}":/root/.cache/esphome --entrypoint python3

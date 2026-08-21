@@ -74,6 +74,7 @@ clean_factory_builds() {
     [[ ! -d "${build_root}/${role}" ]] && continue
     rm -rf -- "${build_root:?}/${role}" 2>/dev/null || true
     [[ ! -d "${build_root}/${role}" ]] || docker run --rm \
+      --platform "${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
       -v "${build_root}:/build" \
       --entrypoint sh \
       "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
@@ -99,11 +100,13 @@ if [[ -n "${ESPHOME_COMMAND:-}" ]]; then
     "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-esp32.yaml"
   fi
 else
-  docker run --rm -v "${repo_dir}":/config \
+  docker run --rm --platform "${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
+    -v "${repo_dir}":/config \
     "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
     config /config/esphome/factory-s3.yaml \
     > "${resolved_dir}/factory-s3.yaml"
-  docker run --rm -v "${repo_dir}":/config \
+  docker run --rm --platform "${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
+    -v "${repo_dir}":/config \
     "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
     config /config/esphome/factory-esp32.yaml \
     > "${resolved_dir}/factory-esp32.yaml"
@@ -252,6 +255,7 @@ cp "${output_dir}/esp32/${esp32_manifest}" "${output_dir}/esp32/manifest.json"
 
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "${repo_dir}" show -s --format=%ct HEAD)}" \
 ESPHOME_IMAGE_RESOLVED="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
+ESPHOME_PLATFORM_RESOLVED="${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
 python3 - "${repo_dir}" "${output_dir}" "${version}" <<'PY'
 import datetime as dt
 import hashlib
@@ -287,7 +291,10 @@ metadata = {
     "source_dirty": dirty,
     "source_date_epoch": epoch,
     "built_at": dt.datetime.fromtimestamp(epoch, dt.timezone.utc).isoformat().replace("+00:00", "Z"),
-    "toolchain": {"esphome": os.environ["ESPHOME_IMAGE_RESOLVED"]},
+    "toolchain": {
+        "esphome": os.environ["ESPHOME_IMAGE_RESOLVED"],
+        "platform": os.environ["ESPHOME_PLATFORM_RESOLVED"],
+    },
     "artifacts": artifacts,
 }
 (output / "build-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
@@ -302,6 +309,8 @@ components.append({
     "type": "container", "name": image_name, "version": "2026.7.0",
     "bom-ref": f"container:{image}", "hashes": [{"alg": "SHA-256", "content": image_digest}],
     "purl": "pkg:oci/esphome@2026.7.0?repository_url=ghcr.io/esphome",
+    "properties": [{"name": "passion-wave:container-platform",
+                    "value": os.environ["ESPHOME_PLATFORM_RESOLVED"]}],
 })
 
 def lock_components(path):
