@@ -13,9 +13,9 @@ invent a second release sequence here.
 | S3 UI, touch, EC1 or images | `docs/ui-next-framework.md`, relevant feature doc | `tools/fast-check.sh --scope s3` |
 | Bridge, EC2, UART or network assets | `docs/dual-mcu-ha-bridge.md`, `docs/debugging.md` | `tools/fast-check.sh --scope bridge` |
 | Factory/security/onboarding | `docs/api-security-lifecycle.md`, `docs/installation.md` | `tools/fast-check.sh --scope all` |
-| Candidate build | `docs/build-pipeline.md` | run from Control: `tools/release build ...` |
+| Candidate build | `docs/build-pipeline.md` | canonical `linux/amd64`; run from Control: `tools/release build ...` |
 | Atomicity/failure injection | `docs/build-pipeline.md` | `tools/test-release-atomicity.sh` |
-| Publish/HACS/device OTA | `docs/release-runbook.md` | use an immutable qualified receipt |
+| Publish/HACS/device OTA | `docs/release-runbook.md` | use the Hosted-CI-authorized immutable receipt |
 | Physical defect or acceptance | `docs/known-issues.md`, test catalog | record observed, remote and automated evidence separately |
 | Documentation only | this file plus the target document | Control `tools/release check` with the current contract channel |
 
@@ -28,6 +28,8 @@ invent a second release sequence here.
   `.release-pipeline`) or derived stable manifests by hand.
 - `release/public/` is promoted only by `tools/build-public-release.sh` after
   hashes and both manifests pass. Historical immutable artifacts are retained.
+- Release-producing ESPHome runs use the resolved amd64 manifest digest and
+  platform-namespaced caches; never substitute the parent multi-arch index.
 - No real Wi-Fi, API, OTA, Home Assistant or customer identifiers may enter
   tracked files. `esphome/secrets.yaml` is forbidden.
 - A configured endpoint or remote entity is not physical visual evidence.
