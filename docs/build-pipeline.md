@@ -34,6 +34,12 @@ the remaining three managed endpoints compile in parallel. This keeps the
 parallel speedup without allowing first-use ESP-IDF cleanup races in a shared
 `.esphome` tree.
 
+After the four managed endpoints pass, their generated build directories are
+removed before the public Factory/OTA assembly starts. CI caches dependency
+downloads only, never `esphome/.esphome` build output. This bounds fresh-runner
+disk use and prevents a late Factory CMake failure after an otherwise valid
+managed matrix.
+
 GitHub Actions computes its ESPHome cache key once, before compilation, from
 the tracked Git index entries below `esphome`, `custom_components`, `assets`
 and `tools` plus `VERSION`. Generated `.esphome` trees never participate in the

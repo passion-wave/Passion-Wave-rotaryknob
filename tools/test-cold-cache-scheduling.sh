@@ -11,5 +11,9 @@ parallel_line="$(grep -n 'remaining_profiles=(' "${script}" | cut -d: -f1)"
 for profile in managed-production-esp32 managed-test-s3 managed-test-esp32; do
   grep -Fq "esphome/${profile}.yaml" "${script}"
 done
+for build_name in managed_production_s3 managed_production_esp32 managed_test_s3 managed_test_esp32; do
+  grep -Fq "${build_name}" "${script}"
+done
+grep -Fq 'PASS managed-build-cleanup' "${script}"
 
 echo "PASS cold-cache ESP-IDF warmup precedes parallel managed builds."

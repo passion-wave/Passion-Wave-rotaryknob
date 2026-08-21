@@ -57,7 +57,6 @@ jobs:
           path: |
             .esphome
             .esphome_cache
-            esphome/.esphome
           key: esphome-fast-${{ runner.os }}-2026.7.0-${{ steps.firmware-inputs.outputs.hash }}
           restore-keys: esphome-fast-${{ runner.os }}-2026.7.0-
       - name: Run affected code gate; skip docs-only changes
