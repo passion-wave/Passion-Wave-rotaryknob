@@ -20,8 +20,8 @@
 2. Falls beide angeboten werden, zuerst die Integration über HACS aktualisieren
    und Home Assistant wie von HACS verlangt neu starten.
 3. Danach beim RotaryKnob **Installieren** wählen. Das ist die einzige
-   Kundenaktion für beide Firmwares; technische ESPHome-Updates erscheinen ab
-   Beta.16 nicht mehr.
+   Kundenaktion für beide Firmwares; seit Einführung des logischen
+   PassionWave-Geräteupdates erscheinen technische ESPHome-Updates nicht mehr.
 4. PassionWave aktualisiert zuerst die Bridge und wartet auf deren bestätigte
    Rückkehr mit der Zielversion.
 5. Nur bei erfolgreicher Bridge aktualisiert PassionWave anschließend den S3
