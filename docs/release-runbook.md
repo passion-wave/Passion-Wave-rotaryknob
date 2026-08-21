@@ -80,7 +80,8 @@ final overscan dimensions before ESPHome converts it.
 Prepare all explicit runtime version surfaces from the Control repository:
 
 ```bash
-tools/prepare-candidate --version X.Y.Z-beta.N --summary "concise delta"
+cd ../Passion-Wave-control
+tools/release prepare --version X.Y.Z-beta.N --summary "concise delta"
 ```
 
 The command refuses an unaligned or already modified baseline and updates only
@@ -158,14 +159,25 @@ In `Passion-Wave-web`:
 
 3. run local Wrangler and download both OTA paths through the same-origin proxy;
 4. compare both downloaded SHA-256 values with firmware `SHA256SUMS`;
-5. publish through one draft PR, wait for GitHub and Cloudflare checks, merge,
-   and create the matching web tag/release;
-6. wait for the production Worker check, then verify both stable manifests and
-   both production OTA hashes with a cache-busting query parameter.
+5. publish through one draft PR and wait for GitHub and Cloudflare preview
+   checks, but keep the PR unmerged; merging would advance the global stable
+   firmware pointer before the matching integration is installed;
+6. after the Control promotion in section 9 has installed HACS first and
+   deployed/verified the candidate, merge the byte-identical Web PR, wait for
+   the production Worker check and verify both stable manifests and both OTA
+   hashes with a cache-busting query parameter.
 
 ## 9. HACS integration rollout
 
-Use the reusable skill helper rather than rewriting WebSocket messages. It
+Run the canonical promotion from the Control repository with the approved
+receipt/hash, HACS entity and serial production device entities. The publisher
+creates the normal HACS-visible release, installs and verifies the integration
+through the Home Assistant restart, and only then deploys the stable firmware
+manifests. Any later manifest, payload or device failure restores the previous
+Cloudflare deployment.
+
+Use the reusable skill helper only for diagnostics or documented manual
+recovery rather than rewriting WebSocket messages. It
 authenticates with `HOME_ASSISTANT_TOKEN`, never prints the token and supports:
 
 ```bash
