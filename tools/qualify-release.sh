@@ -75,6 +75,57 @@ run_logged() {
   fi
 }
 
+managed_build_root="${repo_dir}/esphome/.esphome/build"
+
+disk_evidence() {
+  local label="$1" available_kib
+  mkdir -p "${managed_build_root}"
+  available_kib="$(df -Pk "${managed_build_root}" | awk 'NR == 2 {print $4}')"
+  echo "DISK ${label} available_kib=${available_kib}"
+}
+
+cleanup_managed_build() {
+  local build_id="$1"
+  case "${build_id}" in
+    managed_production_s3|managed_production_esp32|managed_test_s3|managed_test_esp32) ;;
+    *) echo "Unsafe managed build id: ${build_id}" >&2; return 2 ;;
+  esac
+  docker run --rm \
+    -v "${managed_build_root}:/build" \
+    --entrypoint sh \
+    "${esphome_image}" \
+    -c 'rm -rf -- "/build/$1"' sh "${build_id}"
+  echo "PASS cleanup-${build_id}"
+}
+
+run_managed_group() {
+  local group="$1"
+  shift
+  local profiles=("$@") build_pids=() build_labels=() build_ids=()
+  local profile label index build_failed=0
+  disk_evidence "before-${group}"
+  for profile in "${profiles[@]}"; do
+    label="$(basename "${profile}" .yaml)"
+    build_labels+=("${label}")
+    build_ids+=("${label//-/_}")
+    ESPHOME_IMAGE="${esphome_image}" "${repo_dir}/tools/build.sh" "${profile}" \
+      >"${log_dir}/build-${label}.log" 2>&1 &
+    build_pids+=("$!")
+  done
+  for index in "${!build_pids[@]}"; do
+    if wait "${build_pids[$index]}"; then
+      echo "PASS build-${build_labels[$index]}"
+    else
+      build_failed=1
+      echo "FAIL build-${build_labels[$index]}" >&2
+      tail -n 30 "${log_dir}/build-${build_labels[$index]}.log" >&2 || true
+    fi
+    cleanup_managed_build "${build_ids[$index]}" || return 2
+  done
+  disk_evidence "after-${group}" || return 2
+  return "${build_failed}"
+}
+
 for command in docker git jq python3 shasum; do require_command "${command}"; done
 cd "${repo_dir}"
 git diff --check
@@ -132,44 +183,19 @@ if [[ "${channel}" != "alpha" ]]; then
   ESPHOME_IMAGE="${esphome_image}" run_logged "build-${warmup_label}" \
     "${log_dir}/build-${warmup_label}.log" \
     "${repo_dir}/tools/build.sh" "${warmup_profile}"
+  disk_evidence "before-warmup-cleanup"
+  cleanup_managed_build "${warmup_label//-/_}"
+  disk_evidence "after-warmup-cleanup"
 
-  remaining_profiles=(
+  first_managed_group=(
     esphome/managed-production-esp32.yaml
     esphome/managed-test-s3.yaml
+  )
+  second_managed_group=(
     esphome/managed-test-esp32.yaml
   )
-  build_pids=()
-  build_labels=()
-  for profile in "${remaining_profiles[@]}"; do
-    label="$(basename "${profile}" .yaml)"
-    build_labels+=("${label}")
-    ESPHOME_IMAGE="${esphome_image}" "${repo_dir}/tools/build.sh" "${profile}" \
-      >"${log_dir}/build-${label}.log" 2>&1 &
-    build_pids+=("$!")
-  done
-  build_failed=0
-  for index in "${!build_pids[@]}"; do
-    if wait "${build_pids[$index]}"; then
-      echo "PASS build-${build_labels[$index]}"
-    else
-      build_failed=1
-      echo "FAIL build-${build_labels[$index]}" >&2
-      tail -n 30 "${log_dir}/build-${build_labels[$index]}.log" >&2 || true
-    fi
-  done
-  [[ ${build_failed} -eq 0 ]] || exit 5
-
-  managed_build_root="${repo_dir}/esphome/.esphome/build"
-  mkdir -p "${managed_build_root}"
-  # ESPHome runs as root in its container, so generated files can be
-  # root-owned on Linux runners. Remove only the four known build directories
-  # from a container instead of relying on the unprivileged runner user.
-  docker run --rm \
-    -v "${managed_build_root}:/build" \
-    --entrypoint sh \
-    "${esphome_image}" \
-    -c 'rm -rf -- /build/managed_production_s3 /build/managed_production_esp32 /build/managed_test_s3 /build/managed_test_esp32'
-  echo "PASS managed-build-cleanup"
+  run_managed_group first-managed "${first_managed_group[@]}" || exit 5
+  run_managed_group second-managed "${second_managed_group[@]}" || exit 5
 fi
 
 PW_PARALLEL_FACTORY_BUILDS=1 ESPHOME_IMAGE="${esphome_image}" \
