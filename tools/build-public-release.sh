@@ -3,6 +3,12 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_dir}/tools/release-toolchain.env"
+# The public build is also a supported standalone diagnostic entrypoint. Set
+# the commit epoch before any ESPHome process starts; setting it only while
+# writing build-metadata.json makes the metadata deterministic but leaves the
+# embedded build_info timestamp dependent on the host clock.
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "${repo_dir}" show -s --format=%ct HEAD)}"
+export SOURCE_DATE_EPOCH
 # Public release payloads must never reuse cached objects: generated sources
 # embed SOURCE_DATE_EPOCH and a stale ccache entry can otherwise produce a
 # self-consistent but non-reproducible candidate.
@@ -253,7 +259,6 @@ cp "${output_dir}/esp32/${esp32_manifest}" "${output_dir}/esp32/manifest.json"
   fi
 )
 
-SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "${repo_dir}" show -s --format=%ct HEAD)}" \
 ESPHOME_IMAGE_RESOLVED="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
 ESPHOME_PLATFORM_RESOLVED="${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
 ESPHOME_MANIFEST_DIGEST_RESOLVED="${ESPHOME_MANIFEST_DIGEST:-${ESPHOME_MANIFEST_DIGEST_DEFAULT}}" \
