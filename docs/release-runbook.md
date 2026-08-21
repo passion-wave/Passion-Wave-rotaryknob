@@ -132,6 +132,10 @@ Copy the final four hashes into `RELEASE.md` only after this build. Run
 1. Commit reviewed source and version surfaces; never stage caches, unrelated
    historical manifests or newly generated binary copies.
 2. Run the Control full build and retain its immutable receipt/hash.
+   The receipt is valid only for the canonical `linux/amd64` ESPHome builder;
+   local and hosted candidate hashes must be byte-identical. If a second green
+   receipt contains different payload hashes, stop and bump the candidate
+   version after fixing the builder contract.
 3. Run Control `tools/release publish-assets --receipt … --confirm-receipt …`.
    It creates the asset-only `v<version>-assets` GitHub prerelease at the exact
    firmware OID, uploads four binaries plus provenance, downloads every asset

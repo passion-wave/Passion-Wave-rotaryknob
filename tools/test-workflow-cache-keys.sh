@@ -8,6 +8,7 @@ for name in "${workflows[@]}"; do
   file="${root}/.github/workflows/${name}"
   grep -Fq 'id: firmware-inputs' "${file}"
   grep -Fq '${{ steps.firmware-inputs.outputs.hash }}' "${file}"
+  grep -Fq 'linux-amd64-a018bf33' "${file}"
   if grep -Fq "hashFiles('esphome/**'" "${file}"; then
     echo "Generated ESPHome trees must not be hashed in ${name}" >&2
     exit 1

@@ -3,6 +3,10 @@ set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_dir}/tools/release-toolchain.env"
+# Public release payloads must never reuse cached objects: generated sources
+# embed SOURCE_DATE_EPOCH and a stale ccache entry can otherwise produce a
+# self-consistent but non-reproducible candidate.
+export CCACHE_DISABLE=1
 requested_output="${1:-${repo_dir}/release/public}"
 mkdir -p "$(dirname "${requested_output}")"
 output_parent="$(cd "$(dirname "${requested_output}")" && pwd)"
@@ -64,6 +68,22 @@ wait_factory_pair() {
 
 mkdir -p "${output_dir}/s3" "${output_dir}/esp32"
 
+clean_factory_builds() {
+  local build_root="${repo_dir}/esphome/.esphome/build" role
+  for role in passion_wave_factory_s3 passion_wave_factory_esp32; do
+    [[ ! -d "${build_root}/${role}" ]] && continue
+    rm -rf -- "${build_root:?}/${role}" 2>/dev/null || true
+    [[ ! -d "${build_root}/${role}" ]] || docker run --rm \
+      --platform "${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
+      -v "${build_root}:/build" \
+      --entrypoint sh \
+      "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
+      -c 'rm -rf -- "/build/$1"' sh "${role}"
+  done
+}
+
+clean_factory_builds
+
 if [[ -n "${ESPHOME_COMMAND:-}" ]]; then
   "${ESPHOME_COMMAND}" config "${repo_dir}/esphome/factory-s3.yaml" \
     > "${resolved_dir}/factory-s3.yaml"
@@ -80,11 +100,13 @@ if [[ -n "${ESPHOME_COMMAND:-}" ]]; then
     "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-esp32.yaml"
   fi
 else
-  docker run --rm -v "${repo_dir}":/config \
+  docker run --rm --platform "${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
+    -v "${repo_dir}":/config \
     "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
     config /config/esphome/factory-s3.yaml \
     > "${resolved_dir}/factory-s3.yaml"
-  docker run --rm -v "${repo_dir}":/config \
+  docker run --rm --platform "${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
+    -v "${repo_dir}":/config \
     "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
     config /config/esphome/factory-esp32.yaml \
     > "${resolved_dir}/factory-esp32.yaml"
@@ -233,6 +255,8 @@ cp "${output_dir}/esp32/${esp32_manifest}" "${output_dir}/esp32/manifest.json"
 
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "${repo_dir}" show -s --format=%ct HEAD)}" \
 ESPHOME_IMAGE_RESOLVED="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
+ESPHOME_PLATFORM_RESOLVED="${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
+ESPHOME_MANIFEST_DIGEST_RESOLVED="${ESPHOME_MANIFEST_DIGEST:-${ESPHOME_MANIFEST_DIGEST_DEFAULT}}" \
 python3 - "${repo_dir}" "${output_dir}" "${version}" <<'PY'
 import datetime as dt
 import hashlib
@@ -268,7 +292,11 @@ metadata = {
     "source_dirty": dirty,
     "source_date_epoch": epoch,
     "built_at": dt.datetime.fromtimestamp(epoch, dt.timezone.utc).isoformat().replace("+00:00", "Z"),
-    "toolchain": {"esphome": os.environ["ESPHOME_IMAGE_RESOLVED"]},
+    "toolchain": {
+        "esphome": os.environ["ESPHOME_IMAGE_RESOLVED"],
+        "platform": os.environ["ESPHOME_PLATFORM_RESOLVED"],
+        "resolved_manifest_digest": os.environ["ESPHOME_MANIFEST_DIGEST_RESOLVED"],
+    },
     "artifacts": artifacts,
 }
 (output / "build-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
@@ -283,6 +311,10 @@ components.append({
     "type": "container", "name": image_name, "version": "2026.7.0",
     "bom-ref": f"container:{image}", "hashes": [{"alg": "SHA-256", "content": image_digest}],
     "purl": "pkg:oci/esphome@2026.7.0?repository_url=ghcr.io/esphome",
+    "properties": [{"name": "passion-wave:container-platform",
+                    "value": os.environ["ESPHOME_PLATFORM_RESOLVED"]},
+                   {"name": "passion-wave:resolved-manifest-digest",
+                    "value": os.environ["ESPHOME_MANIFEST_DIGEST_RESOLVED"]}],
 })
 
 def lock_components(path):

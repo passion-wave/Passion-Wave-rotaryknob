@@ -28,6 +28,18 @@ builds mount the persistent ESPHome dependency cache explicitly. The local
 double-build proof shares those read-only inputs but disables ccache, ensuring
 that both payload sets are compiled independently.
 
+Release-producing ESPHome containers also pin `linux/amd64`. An OCI index
+digest alone is insufficient because Docker otherwise selects an
+architecture-specific image on each host: Apple Silicon used the arm64 image
+while GitHub's hosted runner used amd64. The flashed sections were equivalent,
+but the ESP image embeds the architecture-dependent ELF hash, so the final
+Factory and OTA bytes differed. The explicit platform makes local, CI and
+publication builds select one canonical builder and records that choice in
+build metadata and the SBOM. The image reference uses the resolved amd64
+manifest digest rather than the parent OCI-index digest. ESPHome, PlatformIO
+and compiler caches are namespaced by platform so host-side tools from arm64
+and amd64 can never share a cache.
+
 Normal fast and Beta builds mount `.esphome_cache/ccache` into every ESPHome
 container as `/root/.ccache`, set ESP-IDF's required
 `IDF_CCACHE_ENABLE=1` switch and point PlatformIO's cross-environment build
@@ -105,6 +117,11 @@ the cache contains dependency downloads only. The compare job also requires
 identical source OID, epoch, toolchain and artifact metadata. That green workflow is mandatory RC evidence; the local
 clean-worktree double build gives faster preflight feedback but does not
 replace it.
+
+Beta publication applies the same byte-identity rule: the receipt selected for
+publication is authoritative, and a fresh hosted materialization must match its
+four payload hashes. A second green receipt for the same version and source
+OIDs is not interchangeable evidence when any artifact hash differs.
 
 ## Atomic artifacts
 

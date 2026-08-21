@@ -36,6 +36,7 @@ if [[ "${version_channel}" != "${channel}" ]]; then
 fi
 
 esphome_image="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}"
+esphome_platform="${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}"
 ha_images=("${HA_IMAGE_CURRENT:-${HA_IMAGE_CURRENT_DEFAULT}}")
 if [[ "${channel}" != "alpha" ]]; then
   ha_images=("${HA_IMAGE_BASELINE:-${HA_IMAGE_BASELINE_DEFAULT}}" "${HA_IMAGE_CURRENT:-${HA_IMAGE_CURRENT_DEFAULT}}")
@@ -90,7 +91,7 @@ cleanup_managed_build() {
     managed_production_s3|managed_production_esp32|managed_test_s3|managed_test_esp32) ;;
     *) echo "Unsafe managed build id: ${build_id}" >&2; return 2 ;;
   esac
-  docker run --rm \
+  docker run --rm --platform "${esphome_platform}" \
     -v "${managed_build_root}:/build" \
     --entrypoint sh \
     "${esphome_image}" \

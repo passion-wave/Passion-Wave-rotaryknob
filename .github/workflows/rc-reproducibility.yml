@@ -35,8 +35,8 @@ jobs:
           path: |
             .esphome
             .esphome_cache
-          key: rc-platformio-${{ runner.os }}-2026.7.0-${{ steps.firmware-inputs.outputs.hash }}
-          restore-keys: rc-platformio-${{ runner.os }}-2026.7.0-
+          key: rc-platformio-${{ runner.os }}-linux-amd64-a018bf33-${{ steps.firmware-inputs.outputs.hash }}
+          restore-keys: rc-platformio-${{ runner.os }}-linux-amd64-a018bf33-
       - name: Build from clean OID with deterministic epoch
         run: |
           test ! -e esphome/.esphome
