@@ -31,6 +31,62 @@
 7. Bei einem Fehler bleibt der Ablauf stehen und nennt die betroffene Phase.
    Ein Neustart von Home Assistant verliert einen laufenden Auftrag nicht.
 
+## Änderungsabnahme im Home-Assistant-Updatefenster
+
+Dieser Ablauf ist nach jeder Änderung an Integration, Update-Logik, Firmware,
+Manifesten oder Veröffentlichung aus Kundensicht auszuführen. Ein API-Test
+ersetzt ihn nicht. Integration, Timo und Marco werden strikt nacheinander
+aktualisiert; ein zweiter Auftrag darf nie parallel laufen.
+
+### Vorbereitung
+
+1. Unter **Einstellungen → System → Updates** die angebotene und installierte
+   Version der PassionWave-Integration sowie der logischen Firmware-Updates
+   von Timo und Marco festhalten.
+2. Sicherstellen, dass beide RotaryKnobs erreichbar sind und kein Update läuft.
+   Für jedes Produkt Bridge-/S3-Version, Verbindungsstatus, Phase und letzten
+   Fehler als technische Baseline erfassen.
+3. Einen angemeldeten Home-Assistant-Browser mit sichtbarer Update-Seite
+   bereitstellen. Fehlt diese Browser-Sitzung, lautet das UI-Ergebnis
+   `BLOCKIERT`; Remote- oder API-Zustände dürfen nicht als UI-Erfolg gelten.
+
+### Integration
+
+1. Die PassionWave-Integrationskachel öffnen. Installierte und angebotene
+   Version sowie Release-Hinweise müssen eindeutig sein.
+2. **Aktualisieren** genau einmal betätigen. Der Dialog muss danach einen
+   dauerhaften Fortschritts- oder Beschäftigtzustand zeigen; ein kurzes
+   Aufblitzen mit sofort wieder aktivem Knopf ist ein Fehlerbefund.
+3. Bis Erfolg oder verständlicher Fehlermeldung warten. Mehrfachklicks dürfen
+   keinen zweiten Auftrag starten.
+4. Einen verlangten Home-Assistant-Neustart ausführen und bis zum Core-Zustand
+   `RUNNING` warten. Danach müssen HACS- und geladene Integrationsversion dem
+   Ziel entsprechen.
+
+### Geräte
+
+1. Zuerst nur Timo aktualisieren. Auf der Kachel müssen Zielversion und ein
+   verständlicher Hinweis auf das zweistufige Geräteupdate sichtbar sein.
+2. **Aktualisieren** genau einmal betätigen. Während Bridge, Rückkehrprüfung,
+   S3 und Abschluss muss ein dauerhafter Status sichtbar sein; der Benutzer
+   darf das Gerät nicht ausschalten und keinen zweiten Auftrag auslösen können.
+3. Erfolg erst annehmen, wenn die Kachel keinen offenen Updatezustand mehr
+   zeigt und technisch `phase=complete`, Bridge und S3 auf der Zielversion,
+   beide Verbindungen aktiv und `last_error=null` bestätigt sind.
+4. Erst danach denselben Ablauf vollständig für Marco wiederholen.
+5. Beide Entitäten erneut aktualisieren. Die Zielversion darf nicht nochmals
+   angeboten werden.
+
+### Protokoll und Bewertung
+
+Für jeden der drei Schritte werden Start-/Endzeit, installierte und angebotene
+Version, sichtbare Texte, Knopfzustände, Fortschritt, Ergebnis und Screenshot
+notiert. Evidenz erhält genau eine Herkunft: `UI-beobachtet`, `remote
+beobachtet` oder `automatisiert`. Ein Fehler nennt Produkt und Phase sowie den
+sicheren Wiederaufnahmepunkt. Die Abnahme ist nur `BESTANDEN`, wenn alle drei
+UI-Abläufe und ihre technischen Endzustände übereinstimmen; andernfalls ist
+sie `FEHLGESCHLAGEN` oder bei fehlendem Browser `BLOCKIERT`.
+
 ## Konfiguration
 
 1. **Einstellungen → Geräte & Dienste → PassionWave → Konfigurieren** öffnen.
