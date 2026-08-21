@@ -4,9 +4,9 @@ This guide installs the Passion Wave RotaryKnob firmware in ESPHome and links it
 to Home Assistant.
 
 The current public no-expert path is
-`https://www.passion-wave.com/install/`. It delivers
-V3.0.1-beta.6 as an explicitly marked prerelease; V2.1.1 remains the rollback
-tag until physical acceptance is complete.
+`https://www.passion-wave.com/install/`. It delivers the coordinated version
+from [`../VERSION`](../VERSION) as an explicitly marked prerelease; the stable
+rollback remains immutable until physical acceptance is complete.
 
 The customer still needs a USB data cable and a supported browser because Web
 Serial talks directly to the selected ESP32 over USB. Use Chrome or Edge on desktop.
@@ -18,8 +18,8 @@ This is the intended after-purchase flow:
 
 1. Connect the RotaryKnob to the browser device with USB in the orientation
    that exposes the ESP32-S3.
-2. Open
-   `https://www.passion-wave.com/install/?v=3.0.1-beta.6`.
+2. Open `https://www.passion-wave.com/install/`; maintainers may append the
+   exact value from `VERSION` as the cache-safe `?v=` query.
 3. Press `Install RotaryKnob`.
 4. Let the installer perform a clean erase, verify the ESP32-S3 and flash
    `PassionWave RotaryKnob`.
@@ -44,8 +44,8 @@ not sent to Passion Wave.
 The website repository contains the installer page and both factory manifests:
 
 ```text
-https://www.passion-wave.com/firmware/rotaryknob/s3/manifest-3.0.1-beta.6.json
-https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest-3.0.1-beta.6.json
+https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json
+https://www.passion-wave.com/firmware/rotaryknob/esp32/manifest.json
 ```
 
 Both published binaries are built from sanitized public factory

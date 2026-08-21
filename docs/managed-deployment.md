@@ -2,9 +2,9 @@
 
 > V3 is intentionally MQTT-free and not backward compatible.
 
-Current coordinated beta: `3.0.1-beta.6`.
+The coordinated version is defined only in [`../VERSION`](../VERSION).
 
-Deployment status: Beta.6 integration, both ECU firmwares and public artifacts
+Deployment status for the current integration, both ECU firmwares and public artifacts
 are qualified by `tools/qualify-release.sh`. Installation is delivered through
 the single logical PassionWave firmware entity in Home Assistant, which updates
 Bridge first and S3 second. See `release-runbook.md` for the complete release,
@@ -15,9 +15,10 @@ evidence.
 One physical RotaryKnob contains two separately addressable ESPHome endpoints:
 S3/display and ESP32/bridge. The repository contains entrypoints for two
 physical RotaryKnobs and therefore four endpoints. Source configuration alone
-confirms neither physical pair. The 2026-08-20 Beta.6 rollout updated Timo and
+confirms neither physical pair. The dated rollout recorded in
+[RELEASE.md](../RELEASE.md) updated Timo and
 then Marco through their logical Home Assistant entities. Both physical pairs
-ended with Bridge and S3 on 3.0.1-beta.6, both connections active and no update
+ended with Bridge and S3 on the coordinated version, both connections active and no update
 error. Configured entrypoints must never be mistaken for future live evidence.
 Every device uses the same release sources and Managed security policy. Only
 stable network identity, build directory and physical-device target overlay

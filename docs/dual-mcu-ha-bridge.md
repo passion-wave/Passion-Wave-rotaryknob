@@ -1,6 +1,6 @@
 # Dual-MCU Home Assistant bridge
 
-Current coordinated implementation: `3.0.1-beta.6`.
+The coordinated implementation version is defined only in [`../VERSION`](../VERSION).
 
 One physical Passion Wave RotaryKnob contains two processors. They share one
 product generation but keep separate firmware images, native API identities

@@ -48,6 +48,9 @@ the panel viewport center-clip four real cover pixels on every edge.
   ESPHome 2026.7.0.
 - Generated manifests advertise `3.0.1-beta.6` and all four public artifacts
   match `release/public/SHA256SUMS`.
+- The candidate builder now fixes ESPHome build metadata to the commit epoch,
+  proves 4/4 bit-identical clean builds, emits dependency-complete CycloneDX
+  provenance and fault-tests atomic promotion.
 
 ## Public artifact checksums
 

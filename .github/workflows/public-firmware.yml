@@ -1,28 +1,61 @@
-name: Public dual-MCU firmware
+name: Qualified dual-MCU candidate
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+    inputs:
+      channel:
+        description: Release policy
+        required: true
+        type: choice
+        options: [alpha, beta, rc]
 
 permissions:
   contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: firmware-candidate-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
+  qualify:
     runs-on: ubuntu-latest
-    container: ghcr.io/esphome/esphome:2026.7.0
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - name: Reject tracked secrets
-        run: test ! -e esphome/secrets.yaml
-      - name: Validate, compile and assemble public release
-        env:
-          ESPHOME_COMMAND: esphome
-        run: tools/build-public-release.sh release/public
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          name: passion-wave-dual-mcu-factory
-          path: release/public/
+          fetch-depth: 0
+      - name: Scan repository history for secrets
+        run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          ghcr.io/gitleaks/gitleaks@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854
+          git --redact --no-banner
+      - name: Fingerprint tracked firmware inputs
+        id: firmware-inputs
+        run: >-
+          echo "hash=$(git ls-files -s -- esphome custom_components assets tools VERSION |
+          git hash-object --stdin)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            .esphome
+            .esphome_cache
+            esphome/.esphome
+          key: esphome-${{ runner.os }}-2026.7.0-${{ steps.firmware-inputs.outputs.hash }}
+          restore-keys: esphome-${{ runner.os }}-2026.7.0-
+      - name: Reject tracked secrets
+        run: test -z "$(git ls-files esphome/secrets.yaml)"
+      - name: Qualify candidate
+        run: tools/qualify-release.sh --channel "${{ inputs.channel }}" --output release/public --log-dir .release-pipeline/logs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: passion-wave-${{ inputs.channel }}-${{ github.sha }}
+          path: |
+            release/public/
+            .release-pipeline/logs/
           if-no-files-found: error
+          retention-days: 14
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        with:
+          subject-path: release/public/**/*.bin

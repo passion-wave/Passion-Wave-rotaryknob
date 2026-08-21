@@ -2,128 +2,177 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-output_dir="${1:-${repo_dir}/release/public}"
+source "${repo_dir}/tools/release-toolchain.env"
+source "${repo_dir}/tools/example-secrets-fixture.sh"
+channel="beta"
+output_dir="${repo_dir}/release/public"
+log_dir="${repo_dir}/.release-pipeline/qualify"
+
+usage() {
+  echo "Usage: $0 --channel alpha|beta|rc [--output DIR] [--log-dir DIR]" >&2
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --channel) channel="${2:-}"; shift 2 ;;
+    --output) output_dir="${2:-}"; shift 2 ;;
+    --log-dir) log_dir="${2:-}"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage; exit 2 ;;
+  esac
+done
+case "${channel}" in alpha|beta|rc) ;; *) usage; exit 2 ;; esac
+
 version="$(tr -d '[:space:]' < "${repo_dir}/VERSION")"
-integration_version="${version/-beta./b}"
-esphome_image="${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:2026.7.0}"
-ha_images=(
-  "ghcr.io/home-assistant/home-assistant:2026.7.4"
-  "ghcr.io/home-assistant/home-assistant:2026.8.2"
-)
-factory_profiles=(
-  "esphome/factory-s3.yaml"
-  "esphome/factory-esp32.yaml"
-)
+case "${version}" in
+  *-alpha.*) version_channel="alpha"; integration_version="${version/-alpha./a}" ;;
+  *-beta.*) version_channel="beta"; integration_version="${version/-beta./b}" ;;
+  *-rc.*) version_channel="rc"; integration_version="${version/-rc./rc}" ;;
+  *) echo "Unsupported prerelease version: ${version}" >&2; exit 3 ;;
+esac
+if [[ "${version_channel}" != "${channel}" ]]; then
+  echo "VERSION ${version} does not match channel ${channel}." >&2
+  exit 3
+fi
+
+esphome_image="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}"
+ha_images=("${HA_IMAGE_CURRENT:-${HA_IMAGE_CURRENT_DEFAULT}}")
+if [[ "${channel}" != "alpha" ]]; then
+  ha_images=("${HA_IMAGE_BASELINE:-${HA_IMAGE_BASELINE_DEFAULT}}" "${HA_IMAGE_CURRENT:-${HA_IMAGE_CURRENT_DEFAULT}}")
+fi
+factory_profiles=(esphome/factory-s3.yaml esphome/factory-esp32.yaml)
 managed_profiles=(
-  "esphome/managed-production-s3.yaml"
-  "esphome/managed-production-esp32.yaml"
-  "esphome/managed-test-s3.yaml"
-  "esphome/managed-test-esp32.yaml"
+  esphome/managed-production-s3.yaml esphome/managed-production-esp32.yaml
+  esphome/managed-test-s3.yaml esphome/managed-test-esp32.yaml
 )
 versioned_profiles=(
-  "esphome/dual-mcu-esp32-core.yaml"
-  "esphome/dual-mcu-s3-core.yaml"
-  "esphome/factory-s3.yaml"
-  "esphome/factory-esp32.yaml"
-  "esphome/managed-production-s3.yaml"
-  "esphome/managed-production-esp32.yaml"
-  "esphome/managed-test-s3.yaml"
-  "esphome/managed-test-esp32.yaml"
-  "esphome/rotaryknob-s3-ui-core.yaml"
+  esphome/dual-mcu-esp32-core.yaml esphome/dual-mcu-s3-core.yaml
+  "${factory_profiles[@]}" "${managed_profiles[@]}" esphome/rotaryknob-s3-ui-core.yaml
 )
-log_dir="$(mktemp -d)"
 
-cleanup() {
-  rm -rf "${log_dir}"
-}
-trap cleanup EXIT
+mkdir -p "${log_dir}"
 
 require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Required command is missing: $1" >&2
-    exit 2
+  command -v "$1" >/dev/null 2>&1 || { echo "Required command is missing: $1" >&2; exit 2; }
+}
+
+fail_log() {
+  local label="$1" log="$2" code="${3:-1}"
+  echo "FAIL ${label}; last log lines:" >&2
+  tail -n 30 "${log}" >&2 || true
+  exit "${code}"
+}
+
+run_logged() {
+  local label="$1" log="$2"
+  shift 2
+  local started
+  started="$(date +%s)"
+  if "$@" >"${log}" 2>&1; then
+    echo "PASS ${label} ($(( $(date +%s) - started ))s)"
+  else
+    fail_log "${label}" "${log}" "$?"
   fi
 }
 
-require_command docker
-require_command git
-require_command jq
-require_command python3
-require_command shasum
-
+for command in docker git jq python3 shasum; do require_command "${command}"; done
 cd "${repo_dir}"
 git diff --check
+if git ls-files --error-unmatch esphome/secrets.yaml >/dev/null 2>&1; then
+  echo "Tracked esphome/secrets.yaml is forbidden." >&2
+  exit 3
+fi
+pw_setup_example_secrets "${repo_dir}"
+trap pw_cleanup_example_secrets EXIT INT TERM
 
-if [[ "$(jq -r '.version' custom_components/passion_wave/manifest.json)" != "${integration_version}" ]]; then
-  echo "Integration manifest version does not match ${version}." >&2
-  exit 3
-fi
-if ! grep -Fqx "INTEGRATION_VERSION = \"${version}\"" custom_components/passion_wave/const.py; then
-  echo "Integration constant does not match ${version}." >&2
-  exit 3
-fi
+[[ "$(jq -r '.version' custom_components/passion_wave/manifest.json)" == "${integration_version}" ]] \
+  || { echo "Integration manifest version does not match ${version}." >&2; exit 3; }
+grep -Fqx "INTEGRATION_VERSION = \"${version}\"" custom_components/passion_wave/const.py \
+  || { echo "Integration constant does not match ${version}." >&2; exit 3; }
 for profile in "${versioned_profiles[@]}"; do
-  if ! grep -Fq "${version}" "${profile}"; then
-    echo "Firmware version is missing from ${profile}." >&2
-    exit 3
-  fi
+  grep -Fq "${version}" "${profile}" \
+    || { echo "Firmware version is missing from ${profile}." >&2; exit 3; }
 done
+echo "PASS metadata (${version}, ${channel})"
 
-echo "==> Home Assistant integration tests"
+echo "== Home Assistant matrix (${#ha_images[@]} runners) =="
 test_pids=()
 test_labels=()
 for image in "${ha_images[@]}"; do
-  label="${image##*:}"
+  tag="${image%%@*}"
+  label="${tag##*:}"
   test_labels+=("${label}")
-  docker run --rm \
-    -e PYTHONPATH=/work \
-    -v "${repo_dir}":/work \
-    -w /work \
-    "${image}" \
+  docker run --rm -e PYTHONPATH=/work -v "${repo_dir}":/work -w /work "${image}" \
     pytest -q tests >"${log_dir}/ha-${label}.log" 2>&1 &
   test_pids+=("$!")
 done
-
 test_failed=0
 for index in "${!test_pids[@]}"; do
-  if ! wait "${test_pids[$index]}"; then
+  if wait "${test_pids[$index]}"; then
+    echo "PASS ha-${test_labels[$index]}"
+  else
     test_failed=1
+    echo "FAIL ha-${test_labels[$index]}" >&2
+    tail -n 30 "${log_dir}/ha-${test_labels[$index]}.log" >&2 || true
   fi
-  echo "--- Home Assistant ${test_labels[$index]} ---"
-  cat "${log_dir}/ha-${test_labels[$index]}.log"
 done
-if [[ ${test_failed} -ne 0 ]]; then
-  echo "Home Assistant integration tests failed." >&2
-  exit 4
+[[ ${test_failed} -eq 0 ]] || exit 4
+
+echo "== ESPHome configuration matrix =="
+for profile in "${factory_profiles[@]}" "${managed_profiles[@]}"; do
+  label="$(basename "${profile}" .yaml)"
+  ESPHOME_IMAGE="${esphome_image}" run_logged "config-${label}" "${log_dir}/config-${label}.log" \
+    "${repo_dir}/tools/config.sh" "${profile}"
+done
+
+if [[ "${channel}" != "alpha" ]]; then
+  echo "== Managed endpoint builds =="
+  warmup_profile="esphome/managed-production-s3.yaml"
+  warmup_label="$(basename "${warmup_profile}" .yaml)"
+  ESPHOME_IMAGE="${esphome_image}" run_logged "build-${warmup_label}" \
+    "${log_dir}/build-${warmup_label}.log" \
+    "${repo_dir}/tools/build.sh" "${warmup_profile}"
+
+  remaining_profiles=(
+    esphome/managed-production-esp32.yaml
+    esphome/managed-test-s3.yaml
+    esphome/managed-test-esp32.yaml
+  )
+  build_pids=()
+  build_labels=()
+  for profile in "${remaining_profiles[@]}"; do
+    label="$(basename "${profile}" .yaml)"
+    build_labels+=("${label}")
+    ESPHOME_IMAGE="${esphome_image}" "${repo_dir}/tools/build.sh" "${profile}" \
+      >"${log_dir}/build-${label}.log" 2>&1 &
+    build_pids+=("$!")
+  done
+  build_failed=0
+  for index in "${!build_pids[@]}"; do
+    if wait "${build_pids[$index]}"; then
+      echo "PASS build-${build_labels[$index]}"
+    else
+      build_failed=1
+      echo "FAIL build-${build_labels[$index]}" >&2
+      tail -n 30 "${log_dir}/build-${build_labels[$index]}.log" >&2 || true
+    fi
+  done
+  [[ ${build_failed} -eq 0 ]] || exit 5
 fi
 
-echo "==> Validate all six ESPHome profiles"
-for profile in "${factory_profiles[@]}" "${managed_profiles[@]}"; do
-  "${repo_dir}/tools/config.sh" "${profile}" >/dev/null
-  echo "validated ${profile}"
-done
-
-echo "==> Compile the four managed endpoint profiles"
-for profile in "${managed_profiles[@]}"; do
-  "${repo_dir}/tools/build.sh" "${profile}"
-done
-
-echo "==> Compile factory profiles and assemble public artifacts"
-ESPHOME_IMAGE="${esphome_image}" \
+ESPHOME_IMAGE="${esphome_image}" run_logged public-artifacts "${log_dir}/public-artifacts.log" \
   "${repo_dir}/tools/build-public-release.sh" "${output_dir}"
 
 python3 -m json.tool "${output_dir}/s3/manifest.json" >/dev/null
 python3 -m json.tool "${output_dir}/esp32/manifest.json" >/dev/null
-if [[ "$(jq -r '.version' "${output_dir}/s3/manifest.json")" != "${version}" ]] ||
-   [[ "$(jq -r '.version' "${output_dir}/esp32/manifest.json")" != "${version}" ]]; then
-  echo "Generated public manifests do not match ${version}." >&2
-  exit 5
+[[ "$(jq -r '.version' "${output_dir}/s3/manifest.json")" == "${version}" ]]
+[[ "$(jq -r '.version' "${output_dir}/esp32/manifest.json")" == "${version}" ]]
+(cd "${output_dir}" && shasum -a 256 -c SHA256SUMS >/dev/null)
+
+if [[ "${channel}" == "rc" ]]; then
+  run_logged reproducibility "${log_dir}/reproducibility.log" \
+    "${repo_dir}/tools/reproducible-public-release.sh" --canonical "${output_dir}"
 fi
 
-(
-  cd "${output_dir}"
-  shasum -a 256 -c SHA256SUMS
-)
-
 git diff --check
-echo "Release candidate ${version} is qualified."
+echo "QUALIFIED ${version} channel=${channel} logs=${log_dir}"
