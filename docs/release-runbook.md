@@ -124,26 +124,39 @@ release/public/esp32/passion-wave-rotaryknob-esp32-<version>.factory.bin
 release/public/esp32/passion-wave-rotaryknob-esp32-<version>.ota.bin
 ```
 
-Copy the final four hashes into `RELEASE.md` only after this build. Run
-`git diff --check` and inspect the staged paths before committing.
+Treat this local build as diagnostic evidence only. Do not copy hashes into
+`RELEASE.md` or use its locally generated receipt for publication. Run
+`git diff --check`, inspect the staged paths and commit only the intended
+source plus generated manifest/route text required by the Web registry.
 
 ## 7. Firmware and integration publication
 
 1. Commit reviewed source and version surfaces; never stage caches, unrelated
-   historical manifests or newly generated binary copies.
-2. Run the Control full build and retain its immutable receipt/hash.
-   The receipt is valid only for the canonical `linux/amd64` ESPHome builder;
-   local and hosted candidate hashes must be byte-identical. If a second green
-   receipt contains different payload hashes, stop and bump the candidate
-   version after fixing the builder contract.
-3. Run Control `tools/release publish-assets --receipt … --confirm-receipt …`.
-   It creates the asset-only `v<version>-assets` GitHub prerelease at the exact
-   firmware OID, uploads four binaries plus provenance, downloads every asset
-   again and rejects any mismatch. This tag suffix is intentionally not a HACS
-   version.
-4. Push draft PRs and require their checks. Web CI hydrates ignored candidate
+   historical manifests or newly generated binary copies. Commit the matching
+   Web registry text, then pin the exact Firmware and Web OIDs in Control.
+2. Let the Control Hosted-CI candidate workflow build those three clean OIDs.
+   It is the only publication authority. The receipt is valid only for the
+   canonical `linux/amd64` ESPHome builder; local diagnostic and Hosted-CI
+   payload hashes must be byte-identical. If they differ, stop, fix the builder
+   contract and bump the candidate version.
+3. Import the successful workflow artifact from Control with
+   `tools/import-ci-candidate.py --run-id …`. The importer verifies the run and
+   head OID, GitHub artifact digest, portable provenance, exact three OIDs,
+   receipt hash, materialization bundle and every payload before an atomic
+   local swap. A local Control receipt cannot pass this authority gate.
+4. Run Control `tools/release publish-assets --ci-run-id … --receipt …
+   --confirm-receipt …`. It creates the asset-only `v<version>-assets` GitHub
+   prerelease at the exact firmware OID, uploads four binaries plus receipt,
+   CI authority, provenance and materialization evidence, downloads every
+   asset again and rejects any mismatch. This tag suffix is intentionally not
+   a HACS version.
+5. Push draft PRs and require their checks. Web CI hydrates ignored candidate
    binaries only from that immutable asset release and verifies `SHA256SUMS`.
-5. During final promotion Control creates `v<version>` as a normal, not
+6. Record physical and Home Assistant acceptance as append-only events. After
+   every required gate passes, create the separate immutable authorization with
+   `tools/release authorize --ci-run-id … --receipt … --confirm-receipt …`.
+   Never rebuild or rewrite the candidate receipt after manual testing.
+7. During final promotion Control creates `v<version>` as a normal, not
    prerelease, GitHub release at the same exact firmware OID. Only this release
    is HACS-visible.
 
@@ -173,8 +186,9 @@ In `Passion-Wave-web`:
 
 ## 9. HACS integration rollout
 
-Run the canonical promotion from the Control repository with the approved
-receipt/hash, HACS entity and serial production device entities. The publisher
+Run the canonical promotion from the Control repository with the authoritative
+Hosted-CI run ID, approved receipt/hash, bound authorization, HACS entity and
+serial production device entities. The publisher
 creates the normal HACS-visible release, installs and verifies the integration
 through the Home Assistant restart, and only then deploys the stable firmware
 manifests. Any later manifest, payload or device failure restores the previous
