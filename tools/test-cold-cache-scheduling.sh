@@ -14,6 +14,12 @@ done
 for build_name in managed_production_s3 managed_production_esp32 managed_test_s3 managed_test_esp32; do
   grep -Fq "${build_name}" "${script}"
 done
+grep -Fq -- '--entrypoint sh' "${script}"
+grep -Fq -- '-v "${managed_build_root}:/build"' "${script}"
+if grep -Fq 'rm -rf -- "${build_dir}"' "${script}"; then
+  echo "Managed build cleanup must not run as the unprivileged host user." >&2
+  exit 1
+fi
 grep -Fq 'PASS managed-build-cleanup' "${script}"
 
-echo "PASS cold-cache ESP-IDF warmup precedes parallel managed builds."
+echo "PASS cold-cache ESP-IDF warmup, parallel builds and root-safe cleanup."

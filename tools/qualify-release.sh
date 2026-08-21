@@ -160,12 +160,15 @@ if [[ "${channel}" != "alpha" ]]; then
   [[ ${build_failed} -eq 0 ]] || exit 5
 
   managed_build_root="${repo_dir}/esphome/.esphome/build"
-  for build_name in managed_production_s3 managed_production_esp32 managed_test_s3 managed_test_esp32; do
-    build_dir="${managed_build_root}/${build_name}"
-    if [[ -d "${build_dir}" ]]; then
-      rm -rf -- "${build_dir}"
-    fi
-  done
+  mkdir -p "${managed_build_root}"
+  # ESPHome runs as root in its container, so generated files can be
+  # root-owned on Linux runners. Remove only the four known build directories
+  # from a container instead of relying on the unprivileged runner user.
+  docker run --rm \
+    -v "${managed_build_root}:/build" \
+    --entrypoint sh \
+    "${esphome_image}" \
+    -c 'rm -rf -- /build/managed_production_s3 /build/managed_production_esp32 /build/managed_test_s3 /build/managed_test_esp32'
   echo "PASS managed-build-cleanup"
 fi
 
