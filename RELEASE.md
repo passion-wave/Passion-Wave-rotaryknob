@@ -1,10 +1,6 @@
-# Firmware and integration 3.0.1-beta.10
+# Firmware and integration 3.0.1-beta.11
 
-Release summary: Canonical linux/amd64 builder platform and customer-visible update acceptance flow
-
-Public Factory and OTA binaries are now always built by the digest-pinned
-`linux/amd64` ESPHome image, including on Apple Silicon. Build metadata and the
-SBOM record this platform so local and hosted receipts qualify identical bytes.
+Release summary: Deterministic web manifests and customer update acceptance
 
 ## Repository scope
 

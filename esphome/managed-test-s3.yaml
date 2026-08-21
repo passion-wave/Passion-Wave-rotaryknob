@@ -6,7 +6,7 @@ substitutions:
   name: "passion-wave-managed-2-s3"
   friendly_name: "PassionWave RotaryKnob 2"
   project_name: "passion-wave.rotaryknob-s3"
-  project_version: "3.0.1-beta.10"
+  project_version: "3.0.1-beta.11"
   media_debug_topic: "passion_wave/managed_2_s3/media/debug"
   managed_fallback_ap_ssid: "PW Managed 2 S3"
   responsive_power_policy_enabled: "true"
