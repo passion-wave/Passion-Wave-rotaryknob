@@ -24,7 +24,9 @@ cleanup() {
 }
 trap cleanup EXIT
 source_date_epoch="$(git -C "${repo_dir}" show -s --format=%ct HEAD)"
-shared_platformio_cache="${repo_dir}/.esphome_cache/platformio"
+platform_key="${ESPHOME_PLATFORM_DEFAULT//\//-}"
+shared_platformio_cache="${repo_dir}/.esphome_cache/${platform_key}/platformio"
+shared_esphome_cache="${repo_dir}/.esphome_cache/${platform_key}/esphome"
 mkdir -p "${shared_platformio_cache}"
 
 preserve_failure() {
@@ -48,7 +50,7 @@ done
 build_pids=()
 for run in a b; do
   SOURCE_DATE_EPOCH="${source_date_epoch}" PLATFORMIO_CACHE="${shared_platformio_cache}" \
-    ESPHOME_CACHE="${repo_dir}/.esphome" CCACHE_DISABLE=1 \
+    ESPHOME_CACHE="${shared_esphome_cache}" CCACHE_DISABLE=1 \
     ESPHOME_IMAGE="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
     "${scratch}/source-${run}/tools/build-public-release.sh" "${scratch}/output-${run}" \
     >"${scratch}/build-${run}.log" 2>&1 &

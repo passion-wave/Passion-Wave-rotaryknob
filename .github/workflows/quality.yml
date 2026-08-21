@@ -58,8 +58,8 @@ jobs:
           path: |
             .esphome
             .esphome_cache
-          key: esphome-fast-${{ runner.os }}-2026.7.0-${{ steps.firmware-inputs.outputs.hash }}
-          restore-keys: esphome-fast-${{ runner.os }}-2026.7.0-
+          key: esphome-fast-${{ runner.os }}-linux-amd64-a018bf33-${{ steps.firmware-inputs.outputs.hash }}
+          restore-keys: esphome-fast-${{ runner.os }}-linux-amd64-a018bf33-
       - name: Run affected code gate; skip docs-only changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}

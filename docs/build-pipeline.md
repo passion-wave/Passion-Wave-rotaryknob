@@ -35,7 +35,10 @@ while GitHub's hosted runner used amd64. The flashed sections were equivalent,
 but the ESP image embeds the architecture-dependent ELF hash, so the final
 Factory and OTA bytes differed. The explicit platform makes local, CI and
 publication builds select one canonical builder and records that choice in
-build metadata and the SBOM.
+build metadata and the SBOM. The image reference uses the resolved amd64
+manifest digest rather than the parent OCI-index digest. ESPHome, PlatformIO
+and compiler caches are namespaced by platform so host-side tools from arm64
+and amd64 can never share a cache.
 
 Normal fast and Beta builds mount `.esphome_cache/ccache` into every ESPHome
 container as `/root/.ccache`, set ESP-IDF's required

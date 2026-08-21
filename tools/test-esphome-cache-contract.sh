@@ -18,8 +18,13 @@ grep -Fq 'export CCACHE_DISABLE=1' "${root}/tools/build-public-release.sh"
 grep -Fq 'passion_wave_factory_s3 passion_wave_factory_esp32' \
   "${root}/tools/build-public-release.sh"
 grep -Fq 'ESPHOME_PLATFORM_DEFAULT="linux/amd64"' "${root}/tools/release-toolchain.env"
+grep -Fq 'ESPHOME_MANIFEST_DIGEST_DEFAULT="sha256:a018bf' "${root}/tools/release-toolchain.env"
 grep -Fq -- '--platform "${ESPHOME_PLATFORM}"' "${common}"
 grep -Fq 'ESPHOME_PLATFORM_RESOLVED' "${root}/tools/build-public-release.sh"
+grep -Fq 'ESPHOME_MANIFEST_DIGEST_RESOLVED' "${root}/tools/build-public-release.sh"
+grep -Fq '.esphome_cache/${ESPHOME_PLATFORM_KEY}/platformio' "${common}"
+grep -Fq '.esphome_cache/${ESPHOME_PLATFORM_KEY}/ccache' "${common}"
+grep -Fq '.esphome_cache/${ESPHOME_PLATFORM_KEY}/esphome' "${common}"
 
 normal_args="$(bash -c '
   source "$1"

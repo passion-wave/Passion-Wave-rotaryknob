@@ -41,8 +41,8 @@ jobs:
           path: |
             .esphome
             .esphome_cache
-          key: esphome-${{ runner.os }}-2026.7.0-${{ steps.firmware-inputs.outputs.hash }}
-          restore-keys: esphome-${{ runner.os }}-2026.7.0-
+          key: esphome-${{ runner.os }}-linux-amd64-a018bf33-${{ steps.firmware-inputs.outputs.hash }}
+          restore-keys: esphome-${{ runner.os }}-linux-amd64-a018bf33-
       - name: Reject tracked secrets
         run: test -z "$(git ls-files esphome/secrets.yaml)"
       - name: Qualify candidate

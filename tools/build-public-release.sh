@@ -256,6 +256,7 @@ cp "${output_dir}/esp32/${esp32_manifest}" "${output_dir}/esp32/manifest.json"
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "${repo_dir}" show -s --format=%ct HEAD)}" \
 ESPHOME_IMAGE_RESOLVED="${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
 ESPHOME_PLATFORM_RESOLVED="${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
+ESPHOME_MANIFEST_DIGEST_RESOLVED="${ESPHOME_MANIFEST_DIGEST:-${ESPHOME_MANIFEST_DIGEST_DEFAULT}}" \
 python3 - "${repo_dir}" "${output_dir}" "${version}" <<'PY'
 import datetime as dt
 import hashlib
@@ -294,6 +295,7 @@ metadata = {
     "toolchain": {
         "esphome": os.environ["ESPHOME_IMAGE_RESOLVED"],
         "platform": os.environ["ESPHOME_PLATFORM_RESOLVED"],
+        "resolved_manifest_digest": os.environ["ESPHOME_MANIFEST_DIGEST_RESOLVED"],
     },
     "artifacts": artifacts,
 }
@@ -310,7 +312,9 @@ components.append({
     "bom-ref": f"container:{image}", "hashes": [{"alg": "SHA-256", "content": image_digest}],
     "purl": "pkg:oci/esphome@2026.7.0?repository_url=ghcr.io/esphome",
     "properties": [{"name": "passion-wave:container-platform",
-                    "value": os.environ["ESPHOME_PLATFORM_RESOLVED"]}],
+                    "value": os.environ["ESPHOME_PLATFORM_RESOLVED"]},
+                   {"name": "passion-wave:resolved-manifest-digest",
+                    "value": os.environ["ESPHOME_MANIFEST_DIGEST_RESOLVED"]}],
 })
 
 def lock_components(path):
