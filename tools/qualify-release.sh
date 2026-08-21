@@ -172,7 +172,8 @@ if [[ "${channel}" != "alpha" ]]; then
   echo "PASS managed-build-cleanup"
 fi
 
-ESPHOME_IMAGE="${esphome_image}" run_logged public-artifacts "${log_dir}/public-artifacts.log" \
+PW_PARALLEL_FACTORY_BUILDS=1 ESPHOME_IMAGE="${esphome_image}" \
+  run_logged public-artifacts "${log_dir}/public-artifacts.log" \
   "${repo_dir}/tools/build-public-release.sh" "${output_dir}"
 
 python3 -m json.tool "${output_dir}/s3/manifest.json" >/dev/null
