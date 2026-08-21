@@ -38,7 +38,7 @@ esphome:
     version: "3.0.1-beta.6"
 
 dashboard_import:
-  package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main
+  package_import_url: github://passion-wave/Passion-Wave-rotaryknob/esphome/factory-esp32.yaml@main
   import_full_config: false
 
 # Provisioning-only profile: the PassionWave Home Assistant integration

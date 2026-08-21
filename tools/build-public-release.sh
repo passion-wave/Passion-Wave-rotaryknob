@@ -145,7 +145,7 @@ cat > "${output_dir}/s3/${s3_manifest}" <<EOF
       "ota": {
         "md5": "${s3_ota_md5}",
         "path": "${s3_ota_binary}",
-        "release_url": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob/releases/tag/v${version}",
+        "release_url": "https://github.com/passion-wave/Passion-Wave-rotaryknob/releases/tag/v${version}",
         "summary": "PassionWave RotaryKnob ${version}"
       }
     }
@@ -168,7 +168,7 @@ cat > "${output_dir}/esp32/${esp32_manifest}" <<EOF
       "ota": {
         "md5": "${esp32_ota_md5}",
         "path": "${esp32_ota_binary}",
-        "release_url": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob/releases/tag/v${version}",
+        "release_url": "https://github.com/passion-wave/Passion-Wave-rotaryknob/releases/tag/v${version}",
         "summary": "PassionWave RotaryKnob Bridge ${version}"
       }
     }

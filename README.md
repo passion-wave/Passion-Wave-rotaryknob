@@ -207,7 +207,7 @@ and large media-library filters.
 
 ## Documentation
 
-- [Cross-repository overview](https://github.com/Passion-Wave/Passion-Wave-control)
+- [Cross-repository overview](https://github.com/passion-wave/Passion-Wave-control)
 - [Current coordinated release](RELEASE.md)
 - [Known issues and resolved findings](docs/known-issues.md)
 - [Onboarding ungeflashter Verkaufsgeräte](docs/unflashed-customer-onboarding.md)

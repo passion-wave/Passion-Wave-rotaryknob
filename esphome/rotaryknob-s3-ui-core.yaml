@@ -156,7 +156,7 @@ esphome:
               - script.execute: fetch_rain_eta
 
 dashboard_import:
-  package_import_url: github://Passion-Wave/Passion-Wave-rotaryknob/esphome/factory-s3.yaml@main
+  package_import_url: github://passion-wave/Passion-Wave-rotaryknob/esphome/factory-s3.yaml@main
   import_full_config: true
 
 external_components:
