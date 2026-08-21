@@ -28,6 +28,12 @@ builds mount the persistent ESPHome dependency cache explicitly. The local
 double-build proof shares those read-only inputs but disables ccache, ensuring
 that both payload sets are compiled independently.
 
+GitHub Actions computes its ESPHome cache key once, before compilation, from
+the tracked Git index entries below `esphome`, `custom_components`, `assets`
+and `tools` plus `VERSION`. Generated `.esphome` trees never participate in the
+key and therefore cannot break the post-job cache phase or invalidate an
+otherwise identical source build.
+
 ## Candidate qualification
 
 The normal command is issued from the Control repository:

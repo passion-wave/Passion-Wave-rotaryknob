@@ -31,13 +31,18 @@ jobs:
           docker run --rm -v "$PWD:/repo" -w /repo
           ghcr.io/gitleaks/gitleaks@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854
           git --redact --no-banner
+      - name: Fingerprint tracked firmware inputs
+        id: firmware-inputs
+        run: >-
+          echo "hash=$(git ls-files -s -- esphome custom_components assets tools VERSION |
+          git hash-object --stdin)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
             .esphome
             .esphome_cache
             esphome/.esphome
-          key: esphome-${{ runner.os }}-2026.7.0-${{ hashFiles('esphome/**', 'tools/**', 'VERSION') }}
+          key: esphome-${{ runner.os }}-2026.7.0-${{ steps.firmware-inputs.outputs.hash }}
           restore-keys: esphome-${{ runner.os }}-2026.7.0-
       - name: Reject tracked secrets
         run: test -z "$(git ls-files esphome/secrets.yaml)"
