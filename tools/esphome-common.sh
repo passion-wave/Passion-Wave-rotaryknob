@@ -76,6 +76,11 @@ docker_esphome() {
   fi
   if [[ -n "${CCACHE_DISABLE:-}" ]]; then
     set -- "$@" -e "CCACHE_DISABLE=${CCACHE_DISABLE}"
+  else
+    # ESP-IDF does not enable ccache merely because CCACHE_DIR exists.
+    # PlatformIO's shared build cache complements ccache across profiles.
+    set -- "$@" -e IDF_CCACHE_ENABLE=1 \
+      -e PLATFORMIO_BUILD_CACHE_DIR=/root/.platformio/build-cache
   fi
   set -- "$@" \
     -v "${REPO_ROOT}":/config \

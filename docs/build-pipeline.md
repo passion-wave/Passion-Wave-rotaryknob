@@ -29,10 +29,13 @@ double-build proof shares those read-only inputs but disables ccache, ensuring
 that both payload sets are compiled independently.
 
 Normal fast and Beta builds mount `.esphome_cache/ccache` into every ESPHome
-container as `/root/.ccache`. Managed Production, Managed Test and Factory
-therefore reuse identical compiler outputs within one runner instead of
-recompiling the shared product sources. RC reproducibility keeps
-`CCACHE_DISABLE=1`; cache contents are never receipt or artifact evidence.
+container as `/root/.ccache`, set ESP-IDF's required
+`IDF_CCACHE_ENABLE=1` switch and point PlatformIO's cross-environment build
+cache at the persistent `/root/.platformio/build-cache`. Managed Production,
+Managed Test and Factory therefore reuse matching compiler outputs within one
+runner instead of recompiling shared product sources. RC reproducibility keeps
+`CCACHE_DISABLE=1` and does not enable either build cache; cache contents are
+never receipt or artifact evidence.
 
 On a cold runner the managed production S3 endpoint compiles first and
 initializes the shared ESP-IDF Python environment. Only after it succeeds do
