@@ -16,6 +16,10 @@ integration/device update workflow onto the current protected main branch.
 The automated suite must qualify both Home Assistant versions, all managed and
 factory profiles, and both ECUs from the exact committed source OID.
 
+Factory S3 and Bridge builds now initialize and reuse the deterministic
+ESPHome tool cache serially. This removes a download-retry race in which two
+parallel ESP-IDF installers could invalidate each other's tool directory.
+
 Only the fresh Hosted-CI receipt is publication authority. Local build hashes
 are diagnostic and must match the hosted `linux/amd64` payloads byte for byte.
 

@@ -55,23 +55,6 @@ require_line() {
   fi
 }
 
-wait_factory_pair() {
-  local s3_pid="$1" esp32_pid="$2" failed=0
-  if wait "${s3_pid}"; then
-    echo "PASS factory-s3-build"
-  else
-    echo "FAIL factory-s3-build" >&2
-    failed=1
-  fi
-  if wait "${esp32_pid}"; then
-    echo "PASS factory-esp32-build"
-  else
-    echo "FAIL factory-esp32-build" >&2
-    failed=1
-  fi
-  [[ ${failed} -eq 0 ]]
-}
-
 mkdir -p "${output_dir}/s3" "${output_dir}/esp32"
 
 clean_factory_builds() {
@@ -95,16 +78,8 @@ if [[ -n "${ESPHOME_COMMAND:-}" ]]; then
     > "${resolved_dir}/factory-s3.yaml"
   "${ESPHOME_COMMAND}" config "${repo_dir}/esphome/factory-esp32.yaml" \
     > "${resolved_dir}/factory-esp32.yaml"
-  if [[ "${PW_PARALLEL_FACTORY_BUILDS:-0}" == "1" ]]; then
-    "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-s3.yaml" &
-    s3_build_pid="$!"
-    "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-esp32.yaml" &
-    esp32_build_pid="$!"
-    wait_factory_pair "${s3_build_pid}" "${esp32_build_pid}"
-  else
-    "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-s3.yaml"
-    "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-esp32.yaml"
-  fi
+  "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-s3.yaml"
+  "${ESPHOME_COMMAND}" compile "${repo_dir}/esphome/factory-esp32.yaml"
 else
   docker run --rm --platform "${ESPHOME_PLATFORM:-${ESPHOME_PLATFORM_DEFAULT}}" \
     -v "${repo_dir}":/config \
@@ -116,16 +91,12 @@ else
     "${ESPHOME_IMAGE:-${ESPHOME_IMAGE_DEFAULT}}" \
     config /config/esphome/factory-esp32.yaml \
     > "${resolved_dir}/factory-esp32.yaml"
-  if [[ "${PW_PARALLEL_FACTORY_BUILDS:-0}" == "1" ]]; then
-    "${repo_dir}/tools/build.sh" esphome/factory-s3.yaml &
-    s3_build_pid="$!"
-    "${repo_dir}/tools/build.sh" esphome/factory-esp32.yaml &
-    esp32_build_pid="$!"
-    wait_factory_pair "${s3_build_pid}" "${esp32_build_pid}"
-  else
-    "${repo_dir}/tools/build.sh" esphome/factory-s3.yaml
-    "${repo_dir}/tools/build.sh" esphome/factory-esp32.yaml
-  fi
+  # Both deterministic builds mount one shared ESPHome tool cache. Running the
+  # initial ESP-IDF installation concurrently can make one installer delete a
+  # partially populated tool directory while the other still uses it. Build
+  # S3 first, then reuse the complete cache for the Bridge.
+  "${repo_dir}/tools/build.sh" esphome/factory-s3.yaml
+  "${repo_dir}/tools/build.sh" esphome/factory-esp32.yaml
 fi
 
 for resolved_config in \
