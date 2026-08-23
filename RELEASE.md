@@ -1,10 +1,6 @@
-# Firmware and integration 3.0.1-beta.10
+# Firmware and integration 3.0.1-beta.12
 
-Release summary: Canonical linux/amd64 builder platform and customer-visible update acceptance flow
-
-Public Factory and OTA binaries are now always built by the digest-pinned
-`linux/amd64` ESPHome image, including on Apple Silicon. Build metadata and the
-SBOM record this platform so local and hosted receipts qualify identical bytes.
+Release summary: A+-Baseline-Kandidat für reproduzierbare Releases und eine kontrollierte Passion-Wave-Web-Produkterweiterung
 
 ## Repository scope
 
@@ -14,11 +10,24 @@ SBOM record this platform so local and hosted receipts qualify identical bytes.
 
 ## Automated evidence
 
-Run the channel pipeline and attach the resulting receipt. Do not paste or
-manually transcribe checksums; promotion verifies the receipt bytes directly.
+Beta 12 carries the unified current-media snapshot used by media view and cover
+screensaver, the corrected full-frame artwork rendering and the consolidated
+integration/device update workflow onto the current protected main branch.
+The automated suite must qualify both Home Assistant versions, all managed and
+factory profiles, and both ECUs from the exact committed source OID.
+
+Factory S3 and Bridge builds now initialize and reuse the deterministic
+ESPHome tool cache serially. This removes a download-retry race in which two
+parallel ESP-IDF installers could invalidate each other's tool directory.
+
+Only the fresh Hosted-CI receipt is publication authority. Local build hashes
+are diagnostic and must match the hosted `linux/amd64` payloads byte for byte.
 
 ## Manual acceptance
 
 Record only directly observed clean-install, update, rollback and physical UI
 results required by the selected channel. Remote entity state is not visual
 evidence.
+
+Direct hardware acceptance still has to confirm boot timing, full-frame cover
+art without edge stripes, and synchronized title/artist/cover transitions.
