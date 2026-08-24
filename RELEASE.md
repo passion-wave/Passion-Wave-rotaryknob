@@ -1,10 +1,6 @@
-# Firmware and integration 3.0.1-beta.10
+# Firmware and integration 3.0.1-beta.13
 
-Release summary: Canonical linux/amd64 builder platform and customer-visible update acceptance flow
-
-Public Factory and OTA binaries are now always built by the digest-pinned
-`linux/amd64` ESPHome image, including on Apple Silicon. Build metadata and the
-SBOM record this platform so local and hosted receipts qualify identical bytes.
+Release summary: CI-Artefakte um rund 97 Prozent reduziert, identische OID-Builds dedupliziert und Kundenfreigabe vorbereitet
 
 ## Repository scope
 
@@ -14,11 +10,16 @@ SBOM record this platform so local and hosted receipts qualify identical bytes.
 
 ## Automated evidence
 
-Run the channel pipeline and attach the resulting receipt. Do not paste or
-manually transcribe checksums; promotion verifies the receipt bytes directly.
+Beta 13 carries the qualified Beta-12 media/cover and full-frame artwork fixes
+forward unchanged while aligning every integration, S3, Bridge, Factory and
+Managed runtime surface to the new coordinated version. Hosted CI must rebuild
+and prove all six ESPHome configurations, four Managed builds, both Factory
+images, the Home Assistant matrix and exact four-payload identity. Do not
+reuse Beta-12 hashes as Beta-13 authority.
 
 ## Manual acceptance
 
-Record only directly observed clean-install, update, rollback and physical UI
-results required by the selected channel. Remote entity state is not visual
-evidence.
+Required customer evidence remains a clean two-orientation browser install,
+five current-title/artist/cover transitions, edge-to-edge weather and cover
+artwork, startup timing, then serial logical updates for Timo and Marco.
+Record display observations separately from Home Assistant/API evidence.
