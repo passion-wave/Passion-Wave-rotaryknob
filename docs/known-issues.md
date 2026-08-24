@@ -54,6 +54,14 @@ must present both processor identities on a final confirmation screen. Add a
 regression test that attempts to combine processors from two RotaryKnobs and
 proves that neither existing registration is mutated.
 
+Recovery was remotely verified on 2026-08-24 without a firmware write: Timo's
+real Bridge `918d3c` was paired, the existing Timo PassionWave options were
+changed to that registration entity and the Marco PassionWave entry was
+reloaded. Afterwards each Bridge contained its own logical Config Entry ID,
+Timo reported both transports connected and its combined installed version was
+`3.0.1-beta.14`. This recovery does not close the product defect or replace the
+still-open physical acceptance checks.
+
 ### PW-WEB-002: Bridge restart required before Wi-Fi setup
 
 Physically observed on Timo during the 2026-08-24 Beta-14 clean install: after
