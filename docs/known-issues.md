@@ -16,6 +16,17 @@ state is not direct visual evidence.
 
 ## Active technical follow-up
 
+### PW-WEB-002: Bridge restart required before Wi-Fi setup
+
+Physically observed on Timo during the 2026-08-24 Beta-14 clean install: after
+the second-stage Bridge image reached `Installation complete`, the Wi-Fi dialog
+did not become available until the Bridge was reset. This is a real onboarding
+requirement, not evidence that the flash failed. The installer must show the
+RESET or two-second USB power-cycle instruction prominently before the Bridge
+install action and provide a separate Improv reconnect action afterwards.
+Investigate whether a future Bridge image can enter Improv reliably without the
+manual restart; until then the documented restart is the supported workaround.
+
 ### PW-MEDIA-009: Playlist track list physical completion
 
 Home Assistant object normalization and real page results are automated/live
