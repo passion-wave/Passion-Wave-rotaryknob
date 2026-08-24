@@ -195,6 +195,34 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertGreaterEqual(BRIDGE.count('"512"'), 2)
         self.assertNotIn('const std::string desired_size = "256"', BRIDGE)
 
+    def test_cover_fullscreen_never_opens_on_the_page_thumbnail(self) -> None:
+        guard = S3_UI.split("const bool cover_allowed_page", 1)[1]
+        guard = guard.split("script.execute: show_media_cover_page", 1)[0]
+        self.assertIn("id(media_cover_ready)", guard)
+        self.assertNotIn(
+            "id(media_cover_ready) || id(media_page_cover_ready)", guard
+        )
+
+        page = S3_UI.split("- id: page_6", 1)[1].split("widgets:", 1)[0]
+        self.assertIn("lv_obj_get_parent(media_cover_fallback)", page)
+        self.assertIn("lv_color_hex(0x000000)", page)
+        self.assertIn("lv_obj_set_style_bg_opa(cover_root, LV_OPA_COVER", page)
+
+    def test_one_cover_transfer_populates_page_and_fullscreen_surfaces(self) -> None:
+        decode = S3.split(
+            "else if (kind == dual_mcu::AssetKind::MEDIA_COVER)", 1
+        )[1].split("else if (kind == dual_mcu::AssetKind::PHOTO)", 1)[0]
+        self.assertIn("id(media_page_cover_image).begin_decode", decode)
+        self.assertIn("id(media_cover_image).begin_decode", decode)
+        self.assertIn("asset_decode_media_fullscreen_success", decode)
+
+        completion = S3.split("const bool page =", 1)[1].split(
+            "else if (kind == dual_mcu::AssetKind::PHOTO)", 1
+        )[0]
+        self.assertIn("asset_decode_media_fullscreen_success", completion)
+        self.assertIn("id(media_cover_ready) = true", completion)
+        self.assertIn("id(media_full_cover_loaded_url)", completion)
+
     def test_track_selection_does_not_replace_runtime_metadata(self) -> None:
         selection = S3_UI.split("- id: start_selected_track", 1)[1].split(
             "- id: media_selection_accept_settle", 1

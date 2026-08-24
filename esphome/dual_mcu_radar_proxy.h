@@ -603,6 +603,7 @@ inline RadarProxyClient radar_client;
 inline volatile bool asset_decode_running{false};
 inline volatile bool asset_decode_done{false};
 inline volatile bool asset_decode_success{false};
+inline volatile bool asset_decode_media_fullscreen_success{false};
 inline volatile uint8_t asset_decode_kind{0};
 inline volatile uint8_t asset_decode_argument{0};
 inline volatile uint8_t asset_decode_radar_target{0};

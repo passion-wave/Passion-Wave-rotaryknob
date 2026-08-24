@@ -9,12 +9,27 @@ state is not direct visual evidence.
 
 | ID | State | Required evidence |
 | --- | --- | --- |
-| PW-UI-008 | implemented; physical retest open | On Timo and Marco, inspect at least five bright/dark fullscreen covers. No left/right background seam, white line or colored column may be visible. |
+| PW-UI-008 | Beta-14 Timo retest failed; next fix implemented locally | On Timo and Marco, inspect at least five bright/dark fullscreen covers. No left/right background seam, white line or colored column may be visible, including while a fallback is shown. |
 | PW-MEDIA-011 | implemented; physical retest open | During rapid title changes, media page and cover screensaver must show the same current title, artist and cover from the selected-player presentation. No previous cover may appear first. |
 | PW-QA-001 | open | Complete the full interaction, restart, network-loss, update/recovery and endurance matrix on each physical product. |
 | PW-QA-002 | open | Record the same complete evidence independently for the second customer device. |
 
 ## Active technical follow-up
+
+### PW-MEDIA-012: Fullscreen fallback seams and delayed real cover
+
+Directly observed on Timo on 2026-08-24 with integration, S3 and Bridge on
+Beta-14: playlist playback started on Move 2, current title and artist appeared
+immediately and the cover screensaver showed the same metadata. Its temporary
+music-note fallback had white vertical strips on both sides, however, and the
+real cover replaced it only after about 30 seconds. The matching Home Assistant
+player, S3 runtime title and rendered title agreed remotely, so this is an
+asset/presentation latency defect rather than stale metadata.
+
+The next candidate keeps the complete fullscreen page root black, requires the
+368×368 cover before entering fullscreen and decodes the first transferred JPEG
+into both the 124×124 page surface and the 368×368 overscan surface. Physical
+retest remains required; this implementation evidence does not close the issue.
 
 ### PW-HA-008: Onboarding endpoint choices are hard to distinguish
 
