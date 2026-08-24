@@ -40,6 +40,20 @@ either expose and load the existing logical product, continue an incomplete
 connection flow, or present a recovery action instead of an unactionable
 `already_configured` abort.
 
+### PW-HA-010: Cross-product processor pairing is not rejected
+
+Remotely verified after the Timo Beta-14 recommissioning on 2026-08-24: the
+config flow accepted Timo S3 `a13c8c` together with Marco Bridge `9186b4` and
+wrote Timo's PassionWave Config Entry ID into Marco's Bridge registration
+entity. The resulting logical Timo update entity reported `Bridge
+3.0.1-beta.6 / S3 3.0.1-beta.14` while both connection flags were true. Block
+updates and functional acceptance for a cross-paired product. The config flow
+must validate one physical-product identity before writing registration state,
+must not overwrite a Bridge already owned by another PassionWave entry and
+must present both processor identities on a final confirmation screen. Add a
+regression test that attempts to combine processors from two RotaryKnobs and
+proves that neither existing registration is mutated.
+
 ### PW-WEB-002: Bridge restart required before Wi-Fi setup
 
 Physically observed on Timo during the 2026-08-24 Beta-14 clean install: after
