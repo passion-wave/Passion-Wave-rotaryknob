@@ -31,6 +31,12 @@ The next candidate keeps the complete fullscreen page root black, requires the
 into both the 124×124 page surface and the 368×368 overscan surface. Physical
 retest remains required; this implementation evidence does not close the issue.
 
+In the same Timo session, five remotely triggered next-track commands returned
+success and the Music Assistant player title, S3 runtime title and rendered
+LVGL title matched after every transition. This is remote-live transport/render
+evidence only; direct observation of cover replacement and visible flicker for
+those five transitions remains a separate physical result.
+
 ### PW-HA-008: Onboarding endpoint choices are hard to distinguish
 
 Physically observed while recommissioning Timo on 2026-08-24 with the Beta-14
