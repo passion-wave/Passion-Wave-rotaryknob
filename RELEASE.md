@@ -1,6 +1,6 @@
-# Firmware and integration 3.0.1-beta.13
+# Firmware and integration 3.0.1-beta.14
 
-Release summary: CI-Artefakte um rund 97 Prozent reduziert, identische OID-Builds dedupliziert und Kundenfreigabe vorbereitet
+Release summary: Isolierter Preview-Installer mit erreichbaren Kandidatenartefakten
 
 ## Repository scope
 
@@ -10,16 +10,13 @@ Release summary: CI-Artefakte um rund 97 Prozent reduziert, identische OID-Build
 
 ## Automated evidence
 
-Beta 13 carries the qualified Beta-12 media/cover and full-frame artwork fixes
-forward unchanged while aligning every integration, S3, Bridge, Factory and
-Managed runtime surface to the new coordinated version. Hosted CI must rebuild
-and prove all six ESPHome configurations, four Managed builds, both Factory
-images, the Home Assistant matrix and exact four-payload identity. Do not
-reuse Beta-12 hashes as Beta-13 authority.
+Firmware behavior is unchanged from the accepted Beta-13 sources; Beta 14
+rebuilds all four Factory/OTA payloads under the new coordinated version so the
+isolated Web preview and later HACS/OTA promotion reference one exact SemVer.
+The Hosted-CI receipt remains the byte and provenance authority.
 
 ## Manual acceptance
 
-Required customer evidence remains a clean two-orientation browser install,
-five current-title/artist/cover transitions, edge-to-edge weather and cover
-artwork, startup timing, then serial logical updates for Timo and Marco.
-Record display observations separately from Home Assistant/API evidence.
+Record only directly observed clean-install, update, rollback and physical UI
+results required by the selected channel. Remote entity state is not visual
+evidence.
