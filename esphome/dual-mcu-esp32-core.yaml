@@ -1,5 +1,5 @@
 substitutions:
-  project_version: "3.0.1-beta.12"
+  project_version: "3.0.1-beta.13"
   name: "passion-wave-rotary-test-esp32"
   friendly_name: "Passion Wave RotaryKnob Test ESP32"
   passion_wave_config_entry_id: ""
