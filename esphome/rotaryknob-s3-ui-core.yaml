@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave RotaryKnob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.1-beta.10"
+  project_version: "3.0.1-beta.15"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -9262,7 +9262,7 @@ interval:
                      !id(track_select_active) &&
                      id(music_state_cache) == "playing" &&
                      !id(media_cover_url_cache).empty() &&
-                     (id(media_cover_ready) || id(media_page_cover_ready)) &&
+                     id(media_cover_ready) &&
                      id(media_cover_fullscreen_due_ms) != 0 &&
                      millis() >= id(media_cover_fullscreen_due_ms) &&
                      (millis() - id(ui_last_activity_ms)) >= 10000;
@@ -13930,6 +13930,16 @@ lvgl:
             id(current_page) = 6;
             id(control_mode) = 1;
             id(media_cover_fullscreen_active) = true;
+            // A page root can retain the theme background outside a child
+            // object's content box. Make the complete root black so a
+            // temporary note fallback can never expose white edge columns.
+            lv_obj_t *cover_root = lv_obj_get_parent(media_cover_fallback);
+            if (cover_root != nullptr) {
+              lv_obj_set_style_bg_color(cover_root, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_bg_opa(cover_root, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_border_width(cover_root, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_pad_all(cover_root, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
             lv_label_set_long_mode(media_cover_title_label, LV_LABEL_LONG_CLIP);
             lv_label_set_long_mode(media_cover_artist_label, LV_LABEL_LONG_CLIP);
             lv_obj_set_style_text_align(media_cover_title_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);

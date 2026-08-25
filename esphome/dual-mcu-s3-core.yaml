@@ -7,7 +7,7 @@ substitutions:
   name: "passion-wave-rotary-test-s3"
   friendly_name: "Passion Wave RotaryKnob Test S3"
   project_name: "passion-wave.rotaryknob-test-s3"
-  project_version: "3.0.1-beta.10"
+  project_version: "3.0.1-beta.15"
   firmware_update_manifest_url: "https://www.passion-wave.com/firmware/rotaryknob/s3/manifest.json"
   ui_next_enabled: "true"
   dual_mcu_ha_bridge_enabled: "true"
@@ -2596,6 +2596,7 @@ interval:
             }
             dual_mcu::asset_decode_done = false;
             dual_mcu::asset_decode_success = false;
+            dual_mcu::asset_decode_media_fullscreen_success = false;
             dual_mcu::asset_decode_running = true;
             const BaseType_t created = xTaskCreatePinnedToCore(
               [](void *) {
@@ -2635,6 +2636,18 @@ interval:
                       decoded = consumed >= 0 && id(media_page_cover_image).end_decode() &&
                                 id(media_page_cover_image).get_width() > 0;
                     }
+                    // One Bridge/UART transfer contains the complete JPEG.
+                    // Decode that same immutable byte buffer into the static
+                    // 368px overscan surface as well, instead of downloading
+                    // the identical cover a second time for fullscreen.
+                    id(media_cover_image).release();
+                    if (!bytes.empty() && id(media_cover_image).begin_decode(bytes.size())) {
+                      const int consumed = id(media_cover_image).feed_data(
+                        const_cast<uint8_t *>(bytes.data()), bytes.size());
+                      dual_mcu::asset_decode_media_fullscreen_success =
+                        consumed >= 0 && id(media_cover_image).end_decode() &&
+                        id(media_cover_image).get_width() > 0;
+                    }
                   } else {
                     id(media_cover_image).release();
                     if (!bytes.empty() && id(media_cover_image).begin_decode(bytes.size())) {
@@ -2643,6 +2656,7 @@ interval:
                       decoded = consumed >= 0 && id(media_cover_image).end_decode() &&
                                 id(media_cover_image).get_width() > 0;
                     }
+                    dual_mcu::asset_decode_media_fullscreen_success = decoded;
                   }
                 } else if (kind == dual_mcu::AssetKind::PHOTO) {
                   id(photo_slideshow_image).release();
@@ -2700,6 +2714,12 @@ interval:
                   id(media_page_cover_ready) = true;
                   id(media_page_cover_loaded_url) = id(media_cover_url_cache);
                   id(media_cover_update_pending) = false;
+                  if (dual_mcu::asset_decode_media_fullscreen_success) {
+                    lv_image_cache_drop(
+                      id(media_cover_image).get_lv_image_dsc());
+                    id(media_cover_ready) = true;
+                    id(media_full_cover_loaded_url) = id(media_cover_url_cache);
+                  }
                 } else {
                   lv_image_cache_drop(
                     id(media_cover_image).get_lv_image_dsc());

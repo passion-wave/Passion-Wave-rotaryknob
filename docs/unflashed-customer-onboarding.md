@@ -61,8 +61,11 @@ Factory-Builds.
 8. Für eine eindeutige Zuordnung nur diesen neuen RotaryKnob einschalten. Im Bereich „Entdeckt“ nur
    `PassionWave RotaryKnob` öffnen; technische ESPHome-Einrichtungen werden
    von PassionWave übernommen und ausgeblendet.
-9. PassionWave innerhalb von 20 Minuten hinzufügen und S3 sowie Bridge
-   desselben RotaryKnob auswählen.
+9. PassionWave innerhalb von 20 Minuten hinzufügen, einmal den Standort-/
+   Produktnamen eingeben, zum Beispiel `Wohnzimmer`, und S3 sowie Bridge
+   desselben RotaryKnob anhand von Rolle, MAC/ID und Host auswählen. Die
+   Bestätigungsseite muss exakt `Wohnzimmer_rotaryknob_Display` und
+   `Wohnzimmer_rotaryknob_Bridge` zeigen.
    PassionWave erzeugt je Controller einen individuellen Encryption-Key,
    provisioniert ihn und hält beide ESPHome-Transporte hinter einer logischen
    PassionWave-Komponente. Der Kunde sieht und kopiert keinen Schlüssel.

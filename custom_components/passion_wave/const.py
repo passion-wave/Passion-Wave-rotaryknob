@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "passion_wave"
-INTEGRATION_VERSION = "3.0.1-beta.10"
+INTEGRATION_VERSION = "3.0.1-beta.15"
 
 CONF_S3_HOST = "s3_host"
 CONF_BRIDGE_HOST = "bridge_host"
@@ -12,6 +12,7 @@ CONF_BRIDGE_REGISTRATION_UNIQUE_ID = "bridge_registration_unique_id"
 CONF_S3_CONFIG_ENTRY_ID = "s3_config_entry_id"
 CONF_MA_CONFIG_ENTRY_ID = "music_assistant_config_entry_id"
 CONF_MEDIA_PLAYER = "media_player"
+CONF_PRODUCT_NAME = "product_name"
 CONF_LIGHT_SLOT_1 = "light_slot_1"
 CONF_LIGHT_SLOT_2 = "light_slot_2"
 CONF_LIGHT_SLOT_3 = "light_slot_3"

@@ -13,11 +13,16 @@
         "title": "PassionWave RotaryKnob einrichten",
         "description": "Ordne das Display und die Bridge dieses RotaryKnob sowie Music Assistant zu. Alle Zuordnungen können später am PassionWave-Eintrag unter „Konfigurieren“ geändert werden.",
         "data": {
+          "product_name": "Produktname / Standort (z. B. Wohnzimmer)",
           "s3_config_entry_id": "Display / S3",
           "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
           "music_assistant_config_entry_id": "Music-Assistant-Instanz",
           "media_player": "Wiedergabegerät"
         }
+      },
+      "confirm": {
+        "title": "Prozessor-Zuordnung bestätigen",
+        "description": "Prüfe die beiden Identitäten am Gerät, bevor PassionWave sie verbindet.\n\nDisplay: {display}\n\nBridge: {bridge}\n\nBeide Prozessoren müssen zum selben RotaryKnob gehören."
       },
       "lights": {
         "title": "Lichter auf dem RotaryKnob anordnen",
@@ -46,6 +51,9 @@
       "pairing_failed": "Die sichere Kopplung konnte nicht abgeschlossen werden. Prüfe, ob beide Prozessoren online sind, und versuche es erneut.",
       "invalid_s3_device": "Das gewählte Display stellt die benötigten PassionWave-Zielentitäten nicht bereit.",
       "invalid_bridge_registration_entity": "Die gewählte Entität ist nicht die PassionWave-Registrierungsentität einer ESPHome-Bridge.",
+      "invalid_product_name": "Gib einen Produktnamen mit höchstens 32 Zeichen ein.",
+      "s3_already_owned": "Dieses Display ist bereits einem anderen PassionWave RotaryKnob zugeordnet.",
+      "bridge_already_owned": "Diese Bridge ist bereits einem anderen PassionWave RotaryKnob zugeordnet und wird nicht überschrieben.",
       "library_unavailable": "Die Music-Assistant-Bibliothek konnte gerade nicht geladen werden. Du kannst mit „Alle automatisch“ fortfahren und die Auswahl später erneut öffnen."
     },
     "abort": {
@@ -58,6 +66,9 @@
     "error": {
       "invalid_s3_device": "Das gewählte Display stellt die benötigten PassionWave-Zielentitäten nicht bereit.",
       "invalid_bridge_registration_entity": "Die gewählte Entität ist nicht die PassionWave-Registrierungsentität einer ESPHome-Bridge.",
+      "invalid_product_name": "Gib einen Produktnamen mit höchstens 32 Zeichen ein.",
+      "s3_already_owned": "Dieses Display ist bereits einem anderen PassionWave RotaryKnob zugeordnet.",
+      "bridge_already_owned": "Diese Bridge ist bereits einem anderen PassionWave RotaryKnob zugeordnet und wird nicht überschrieben.",
       "library_unavailable": "Die Music-Assistant-Bibliothek konnte gerade nicht geladen werden. Du kannst mit „Alle automatisch“ fortfahren und die Auswahl später erneut öffnen."
     },
     "step": {
@@ -65,11 +76,16 @@
         "title": "PassionWave konfigurieren",
         "description": "Ändere die Zuordnung dieses RotaryKnob. Im nächsten Schritt folgen die vier Lichtplätze und danach die optionalen Medienfilter.",
         "data": {
+          "product_name": "Produktname / Standort (z. B. Wohnzimmer)",
           "s3_config_entry_id": "Display / S3",
           "bridge_registration_entity": "Bridge – PassionWave Integration Entry ID",
           "music_assistant_config_entry_id": "Music-Assistant-Instanz",
           "media_player": "Wiedergabegerät"
         }
+      },
+      "confirm": {
+        "title": "Geänderte Prozessor-Zuordnung bestätigen",
+        "description": "Prüfe die beiden Identitäten am Gerät, bevor PassionWave die Änderung speichert.\n\nDisplay: {display}\n\nBridge: {bridge}\n\nBeide Prozessoren müssen zum selben RotaryKnob gehören."
       },
       "lights": {
         "title": "Lichtplätze ändern",

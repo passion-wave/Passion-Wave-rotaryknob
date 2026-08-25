@@ -37,6 +37,11 @@ This is the intended after-purchase flow:
 11. Open that tile within 20 minutes and select the matching S3 and Bridge.
     PassionWave creates one unique API encryption key per endpoint and keeps
     the two ESPHome transports behind the logical PassionWave component.
+12. Enter one product/location name such as `Wohnzimmer`. Before saving,
+    confirm the role, MAC/ID suffix and host of both processors. Home Assistant
+    then shows `Wohnzimmer_rotaryknob_Display` and
+    `Wohnzimmer_rotaryknob_Bridge`; a processor already assigned to another
+    PassionWave product cannot be selected or overwritten.
 
 Wi-Fi credentials entered in this flow are sent over USB to the device. They are
 not sent to Passion Wave.
@@ -197,6 +202,8 @@ Authenticated OTA still requires the managed deployment step described in
 
 The PassionWave Config Flow is the only customer configuration path. Select:
 
+- one product/location name; it becomes the shared prefix of the logical
+  product, Display and Bridge entries;
 - the ESPHome RotaryKnob S3/display entry;
 - the matching Bridge registration entity;
 - the Music Assistant instance and playback device. For Sonos, choose its

@@ -199,7 +199,7 @@ if [[ "${channel}" != "alpha" ]]; then
   run_managed_group second-managed "${second_managed_group[@]}" || exit 5
 fi
 
-PW_PARALLEL_FACTORY_BUILDS=1 ESPHOME_IMAGE="${esphome_image}" \
+ESPHOME_IMAGE="${esphome_image}" \
   run_logged public-artifacts "${log_dir}/public-artifacts.log" \
   "${repo_dir}/tools/build-public-release.sh" "${output_dir}"
 
