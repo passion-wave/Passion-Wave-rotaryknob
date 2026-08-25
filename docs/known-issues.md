@@ -9,8 +9,8 @@ state is not direct visual evidence.
 
 | ID | State | Required evidence |
 | --- | --- | --- |
-| PW-UI-008 | Beta-14 Timo retest failed; next fix implemented locally | On Timo and Marco, inspect at least five bright/dark fullscreen covers. No left/right background seam, white line or colored column may be visible, including while a fallback is shown. |
-| PW-MEDIA-011 | implemented; physical retest open | During rapid title changes, media page and cover screensaver must show the same current title, artist and cover from the selected-player presentation. No previous cover may appear first. |
+| PW-UI-008 | Beta-14 Timo: real cover passed, note fallback failed; next fix implemented locally | On Timo and Marco, inspect at least five bright/dark fullscreen covers. No left/right background seam, white line or colored column may be visible, including while a fallback is shown. |
+| PW-MEDIA-011 | Beta-14 Timo physical retest passed; Marco open | During rapid title changes, media page and cover screensaver must show the same current title, artist and cover from the selected-player presentation. No previous cover may appear first. |
 | PW-QA-001 | open | Complete the full interaction, restart, network-loss, update/recovery and endurance matrix on each physical product. |
 | PW-QA-002 | open | Record the same complete evidence independently for the second customer device. |
 
@@ -33,9 +33,14 @@ retest remains required; this implementation evidence does not close the issue.
 
 In the same Timo session, five remotely triggered next-track commands returned
 success and the Music Assistant player title, S3 runtime title and rendered
-LVGL title matched after every transition. This is remote-live transport/render
-evidence only; direct observation of cover replacement and visible flicker for
-those five transitions remains a separate physical result.
+LVGL title matched after every transition. On 2026-08-25 the user additionally
+observed those transitions directly on Timo: no old title or artist appeared,
+no old cover appeared, and playback never showed `Keine Wiedergabe`. Until the
+real image was ready, only the music-note fallback was visible. The real cover
+for `I Try` was free of white and colored edge strips. This physically passes
+PW-MEDIA-011 on Timo and the real-cover portion of PW-UI-008; the white side
+strips on the note fallback remain the reproducible Timo failure. Marco was not
+physically accessible and remains unverified.
 
 ### PW-HA-008: Onboarding endpoint choices are hard to distinguish
 
@@ -48,6 +53,17 @@ pair when exactly one physical product is discoverable, while retaining an
 explicit identity confirmation and a clear warning against mixing processors
 from different RotaryKnobs. Add config-flow tests for one-product and
 multi-product discovery.
+
+The next candidate adds one required product/location name and constructs the
+three Home Assistant titles from it, for example `Wohnzimmer_rotaryknob`,
+`Wohnzimmer_rotaryknob_Display` and `Wohnzimmer_rotaryknob_Bridge`. Both
+processor selectors now foreground role, friendly name, MAC/ID suffix and
+host. A final confirmation screen shows the exact resulting Display/Bridge
+assignment before the flow can continue. ESPHome's standard Improv Serial
+implementation does not accept the generic hostname/device-name RPCs, so the
+name is applied by the PassionWave integration to the Home Assistant entries
+after secure pairing instead of pretending to persist it during browser Wi-Fi
+provisioning. Physical setup-flow verification remains open.
 
 ### PW-HA-009: Configured identity can be invisible after recommissioning
 
@@ -82,6 +98,15 @@ reloaded. Afterwards each Bridge contained its own logical Config Entry ID,
 Timo reported both transports connected and its combined installed version was
 `3.0.1-beta.14`. This recovery does not close the product defect or replace the
 still-open physical acceptance checks.
+
+The next candidate excludes S3 and Bridge processors already owned by a
+different PassionWave Config Entry, validates ownership again on submission
+and again on the final confirmation step, and refuses an existing Bridge
+registration value that names another live PassionWave entry. The current
+entry remains selectable in its own Options Flow. Automated regression tests
+cover the previous Marco-Bridge/Timo-Display combination and prove it is
+rejected before registration can be written. Physical multi-product
+onboarding remains open.
 
 ### PW-WEB-002: Bridge restart required before Wi-Fi setup
 

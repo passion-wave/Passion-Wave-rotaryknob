@@ -6,8 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import voluptuous as vol
 
+from custom_components.passion_wave import _apply_processor_titles
 from custom_components.passion_wave.config_flow import (
     PassionWaveConfigFlow,
+    _assignment_error,
     _abort_matching_discovery_flows,
     _connection_schema,
     _current_s3_light_defaults,
@@ -23,6 +25,7 @@ from custom_components.passion_wave.const import (
     CONF_LIGHT_SLOT_4,
     CONF_MA_CONFIG_ENTRY_ID,
     CONF_MEDIA_PLAYER,
+    CONF_PRODUCT_NAME,
     CONF_S3_CONFIG_ENTRY_ID,
     LIGHT_ENTITY_ORIGINAL_NAMES,
     MEDIA_ENTITY_ORIGINAL_NAME,
@@ -48,6 +51,7 @@ class FakeConfigEntries:
 
     def __init__(self, entries):
         self._entries = entries
+        self.updated = []
 
     def async_entries(self, domain):
         return [entry for entry in self._entries if entry.domain == domain]
@@ -57,6 +61,11 @@ class FakeConfigEntries:
             (entry for entry in self._entries if entry.entry_id == entry_id),
             None,
         )
+
+    def async_update_entry(self, entry, **changes):
+        self.updated.append((entry.entry_id, changes))
+        for key, value in changes.items():
+            setattr(entry, key, value)
 
 
 class FakeFlowManager:
@@ -91,6 +100,7 @@ def _entity(
     original_name=None,
     config_entry_id=None,
     disabled_by=None,
+    unique_id=None,
 ):
     return SimpleNamespace(
         entity_id=entity_id,
@@ -100,6 +110,7 @@ def _entity(
         config_entry_id=config_entry_id,
         disabled_by=disabled_by,
         name=None,
+        unique_id=unique_id,
     )
 
 
@@ -242,11 +253,15 @@ def test_connection_schema_exposes_all_customer_assignments():
                     entry_id="s3-entry",
                     domain="esphome",
                     title="PassionWave RotaryKnob",
+                    unique_id="20:6e:f1:a1:3c:8c",
+                    data={"host": "timo-display.local"},
                 ),
                 SimpleNamespace(
                     entry_id="ma-entry",
                     domain="music_assistant",
                     title="Music Assistant",
+                    unique_id="ma-entry",
+                    data={},
                 ),
             ]
         ),
@@ -269,6 +284,255 @@ def test_connection_schema_exposes_all_customer_assignments():
     assert result[CONF_BRIDGE_REGISTRATION_ENTITY] == "text.registration"
     assert result[CONF_MA_CONFIG_ENTRY_ID] == "ma-entry"
     assert result[CONF_MEDIA_PLAYER] == "media_player.living_room"
+
+
+def test_connection_schema_hides_processors_owned_by_another_product():
+    """An assigned Marco processor cannot be selected while creating Timo."""
+    entities = {
+        "text.timo_media": _entity(
+            "text.timo_media",
+            platform="esphome",
+            original_name=MEDIA_ENTITY_ORIGINAL_NAME,
+            config_entry_id="s3-timo",
+        ),
+        "text.marco_media": _entity(
+            "text.marco_media",
+            platform="esphome",
+            original_name=MEDIA_ENTITY_ORIGINAL_NAME,
+            config_entry_id="s3-marco",
+        ),
+        "text.timo_registration": _entity(
+            "text.timo_registration",
+            platform="esphome",
+            original_name=BRIDGE_REGISTRATION_ORIGINAL_NAME,
+            config_entry_id="bridge-timo",
+            unique_id="44:1d:64:91:8d:3c-registration",
+        ),
+        "text.marco_registration": _entity(
+            "text.marco_registration",
+            platform="esphome",
+            original_name=BRIDGE_REGISTRATION_ORIGINAL_NAME,
+            config_entry_id="bridge-marco",
+            unique_id="44:1d:64:91:86:b4-registration",
+        ),
+    }
+    entries = [
+        SimpleNamespace(
+            entry_id="s3-timo", domain="esphome", title="Timo", unique_id="a13c8c",
+            data={"host": "timo-display.local"}, options={},
+        ),
+        SimpleNamespace(
+            entry_id="s3-marco", domain="esphome", title="Marco", unique_id="a142a4",
+            data={"host": "marco-display.local"}, options={},
+        ),
+        SimpleNamespace(
+            entry_id="bridge-timo", domain="esphome", title="Timo Bridge",
+            unique_id="918d3c", data={"host": "timo-bridge.local"}, options={},
+        ),
+        SimpleNamespace(
+            entry_id="bridge-marco", domain="esphome", title="Marco Bridge",
+            unique_id="9186b4", data={"host": "marco-bridge.local"}, options={},
+        ),
+        SimpleNamespace(
+            entry_id="pw-marco", domain="passion_wave", title="Marco",
+            unique_id="rotaryknob_a142a4",
+            data={
+                CONF_S3_CONFIG_ENTRY_ID: "s3-marco",
+                CONF_BRIDGE_REGISTRATION_ENTITY: "text.marco_registration",
+            },
+            options={},
+        ),
+    ]
+    hass = SimpleNamespace(
+        states=FakeStates(
+            {
+                "text.timo_registration": _state(""),
+                "text.marco_registration": _state("pw-marco"),
+            }
+        ),
+        config_entries=FakeConfigEntries(entries),
+    )
+
+    with patch(
+        "custom_components.passion_wave.config_flow.er.async_get",
+        return_value=SimpleNamespace(entities=entities),
+    ):
+        schema = _connection_schema(hass)
+
+    option_sets = {
+        marker.schema: field.config["options"]
+        for marker, field in schema.schema.items()
+        if "options" in field.config
+    }
+    assert [item["value"] for item in option_sets[CONF_S3_CONFIG_ENTRY_ID]] == [
+        "s3-timo"
+    ]
+    assert [
+        item["value"]
+        for item in option_sets[CONF_BRIDGE_REGISTRATION_ENTITY]
+    ] == ["text.timo_registration"]
+    assert "DISPLAY / S3 — Timo — ID A13C8C — timo-display.local" in {
+        item["label"] for item in option_sets[CONF_S3_CONFIG_ENTRY_ID]
+    }
+    assert any(
+        item["label"].startswith("BRIDGE / ESP32 —")
+        and item["label"].endswith("timo-bridge.local")
+        for item in option_sets[CONF_BRIDGE_REGISTRATION_ENTITY]
+    )
+
+
+def test_owned_bridge_is_rejected_and_current_options_owner_is_allowed():
+    """The config flow cannot overwrite Marco, while Marco may keep its Bridge."""
+    marco = SimpleNamespace(
+        entry_id="pw-marco",
+        domain="passion_wave",
+        title="Marco",
+        data={CONF_BRIDGE_REGISTRATION_ENTITY: "text.marco_registration"},
+        options={},
+    )
+    hass = SimpleNamespace(
+        states=FakeStates({"text.marco_registration": _state("pw-marco")}),
+        config_entries=FakeConfigEntries([marco]),
+    )
+    selection = {
+        CONF_S3_CONFIG_ENTRY_ID: "s3-timo",
+        CONF_BRIDGE_REGISTRATION_ENTITY: "text.marco_registration",
+    }
+
+    assert _assignment_error(hass, selection, owner_entry_id=None) == (
+        "bridge_already_owned"
+    )
+    assert _assignment_error(hass, selection, owner_entry_id="pw-marco") is None
+
+
+def test_connection_requires_final_processor_confirmation():
+    """No new entry proceeds to mutable setup before identities are confirmed."""
+    registration = _entity(
+        "text.timo_registration",
+        platform="esphome",
+        original_name=BRIDGE_REGISTRATION_ORIGINAL_NAME,
+        config_entry_id="bridge-timo",
+        unique_id="918d3c-registration",
+    )
+    registry = SimpleNamespace(
+        entities={
+            registration.entity_id: registration,
+            "text.timo_media": _entity(
+                "text.timo_media",
+                platform="esphome",
+                original_name=MEDIA_ENTITY_ORIGINAL_NAME,
+                config_entry_id="s3-timo",
+            ),
+        },
+        async_get=lambda entity_id: (
+            registration if entity_id == registration.entity_id else None
+        ),
+    )
+    entries = [
+        SimpleNamespace(
+            entry_id="s3-timo", domain="esphome", title="Timo Display",
+            unique_id="a13c8c", data={"host": "timo-display.local"}, options={},
+        ),
+        SimpleNamespace(
+            entry_id="bridge-timo", domain="esphome", title="Timo Bridge",
+            unique_id="918d3c", data={"host": "timo-bridge.local"}, options={},
+        ),
+    ]
+    hass = SimpleNamespace(
+        states=FakeStates({registration.entity_id: _state("", "Timo Bridge")}),
+        config_entries=FakeConfigEntries(entries),
+    )
+    flow = PassionWaveConfigFlow()
+    flow.hass = hass
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = lambda: None
+    user_input = {
+        CONF_PRODUCT_NAME: "Wohnzimmer",
+        CONF_S3_CONFIG_ENTRY_ID: "s3-timo",
+        CONF_BRIDGE_REGISTRATION_ENTITY: registration.entity_id,
+        CONF_MA_CONFIG_ENTRY_ID: "ma-entry",
+        CONF_MEDIA_PLAYER: "media_player.move_2",
+    }
+
+    with (
+        patch(
+            "custom_components.passion_wave.config_flow.er.async_get",
+            return_value=registry,
+        ),
+        patch(
+            "custom_components.passion_wave.config_flow._s3_config_entry_is_valid",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.passion_wave.config_flow.s3_product_unique_id",
+            return_value="rotaryknob_a13c8c",
+        ),
+        patch(
+            "custom_components.passion_wave.config_flow._abort_matching_discovery_flows"
+        ),
+    ):
+        result = asyncio.run(flow.async_step_connection(user_input))
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "confirm"
+    assert result["description_placeholders"]["display"].startswith(
+        "Wohnzimmer_rotaryknob_Display ← DISPLAY / S3"
+    )
+    assert result["description_placeholders"]["bridge"].startswith(
+        "Wohnzimmer_rotaryknob_Bridge ← BRIDGE / ESP32"
+    )
+    assert flow._pending_data[CONF_BRIDGE_REGISTRATION_ENTITY] == (
+        "text.timo_registration"
+    )
+
+
+def test_one_product_name_labels_both_esphome_processors():
+    """The chosen customer name becomes two role-specific HA entry titles."""
+    s3 = SimpleNamespace(
+        entry_id="s3-timo", domain="esphome", title="PassionWave RotaryKnob"
+    )
+    bridge = SimpleNamespace(
+        entry_id="bridge-timo",
+        domain="esphome",
+        title="PassionWave RotaryKnob Bridge",
+    )
+    manager = FakeConfigEntries([s3, bridge])
+    registration = _entity(
+        "text.timo_registration",
+        platform="esphome",
+        original_name=BRIDGE_REGISTRATION_ORIGINAL_NAME,
+        config_entry_id="bridge-timo",
+    )
+    registry = SimpleNamespace(
+        async_get=lambda entity_id: (
+            registration if entity_id == registration.entity_id else None
+        )
+    )
+    hass = SimpleNamespace(config_entries=manager)
+    entry = SimpleNamespace(
+        entry_id="pw-timo",
+        title="PassionWave RotaryKnob",
+        data={
+            CONF_PRODUCT_NAME: "Wohnzimmer",
+            CONF_S3_CONFIG_ENTRY_ID: "s3-timo",
+            CONF_BRIDGE_REGISTRATION_ENTITY: registration.entity_id,
+        },
+        options={},
+    )
+
+    with patch(
+        "custom_components.passion_wave.er.async_get", return_value=registry
+    ):
+        _apply_processor_titles(hass, entry)
+
+    assert s3.title == "Wohnzimmer_rotaryknob_Display"
+    assert bridge.title == "Wohnzimmer_rotaryknob_Bridge"
+    assert entry.title == "Wohnzimmer_rotaryknob"
+    assert manager.updated == [
+        ("s3-timo", {"title": "Wohnzimmer_rotaryknob_Display"}),
+        ("bridge-timo", {"title": "Wohnzimmer_rotaryknob_Bridge"}),
+        ("pw-timo", {"title": "Wohnzimmer_rotaryknob"}),
+    ]
 
 
 def test_connection_form_routes_submit_to_connection_step():

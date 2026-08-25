@@ -56,6 +56,7 @@ from .const import (
     CONF_BRIDGE_REGISTRATION_UNIQUE_ID,
     CONF_MA_CONFIG_ENTRY_ID,
     CONF_MEDIA_PLAYER,
+    CONF_PRODUCT_NAME,
     CONF_S3_CONFIG_ENTRY_ID,
     DEFAULT_PAGE_SIZE,
     DOMAIN,
@@ -85,6 +86,7 @@ from .media import (
     normalize_browse_page,
     normalize_library_page,
 )
+from .identity import logical_product_title, processor_titles
 
 type PassionWaveConfigEntry = config_entries.ConfigEntry[dict[str, Any]]
 
@@ -124,6 +126,34 @@ def _hide_native_entities(
                 registry_entry.entity_id,
                 hidden_by=er.RegistryEntryHider.INTEGRATION,
             )
+
+
+def _apply_processor_titles(
+    hass: HomeAssistant, entry: PassionWaveConfigEntry
+) -> None:
+    """Name both technical ESPHome entries from one customer product label."""
+    product_name = _entry_value(entry, CONF_PRODUCT_NAME)
+    if not product_name:
+        return
+    display_title, bridge_title = processor_titles(product_name)
+    product_title = logical_product_title(product_name)
+    s3_entry = hass.config_entries.async_get_entry(
+        _entry_value(entry, CONF_S3_CONFIG_ENTRY_ID)
+    )
+    registration = er.async_get(hass).async_get(
+        _entry_value(entry, CONF_BRIDGE_REGISTRATION_ENTITY)
+    )
+    bridge_entry = (
+        hass.config_entries.async_get_entry(registration.config_entry_id)
+        if registration is not None and registration.config_entry_id
+        else None
+    )
+    if s3_entry is not None and s3_entry.title != display_title:
+        hass.config_entries.async_update_entry(s3_entry, title=display_title)
+    if bridge_entry is not None and bridge_entry.title != bridge_title:
+        hass.config_entries.async_update_entry(bridge_entry, title=bridge_title)
+    if entry.title != product_title:
+        hass.config_entries.async_update_entry(entry, title=product_title)
 
 
 _LIBRARY_SCHEMA = vol.Schema(
@@ -546,12 +576,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
         "sequence": 0,
         "lock": asyncio.Lock(),
     }
+    _apply_processor_titles(hass, entry)
     dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.unique_id or entry.entry_id)},
         manufacturer="PassionWave",
         model="RotaryKnob Dual MCU",
-        name="PassionWave RotaryKnob",
+        name=entry.title,
         sw_version=INTEGRATION_VERSION,
     )
     _hide_native_entities(hass, entry)
