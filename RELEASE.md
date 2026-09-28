@@ -1,43 +1,44 @@
-# Firmware and integration 3.0.1-beta.15
+# Firmware and integration 3.0.1-beta.16
 
-Release summary: Fix fullscreen cover fallback, prevent cross-product pairing and add role-specific product naming
+Der Wetteravatar zeigt einen weich gestalteten 3D-Jungen mit passender Kleidung.
+Braune Haare/braune Augen und blonde Haare/grünbraune Augen sind in Home
+Assistant und direkt am Knob umschaltbar. Der Wetterbutton öffnet das Bild
+jederzeit; die einschaltbare Morgenautomatik weckt das unbediente Display von
+06 bis 10 Uhr Ortszeit, auch auf Akku.
 
-## Repository scope
+## Verhalten
 
-- Role: S3, Bridge and Home Assistant implementation.
-- Runtime/channel metadata: `VERSION` and the Control release contract.
-- OIDs, toolchain digests, gate durations and payload hashes: generated release receipt.
+- 52 lokale Bildschlüssel decken beide Identitäten, sechs Temperaturbänder,
+  vier Schutzarten, neutrale Darstellung und Sonnenhut ab.
+- MET-Stundenprognosen liefern die nächsten vier vollständigen Stunden. Der
+  sichtbare Zeitraum, Temperaturen und Wetter-/Schutzhinweise bleiben mit dem
+  Bild konsistent. Andere Anbieter nutzen zunächst den beschrifteten Jetzt-Modus.
+- Nach 20 Minuten ohne gültige Daten verschwindet die Empfehlung. Regen,
+  Schnee, Wind, Gewitter und Hagel haben dokumentierte Prioritäten; unbekannte
+  Niederschlagsphase wird nicht als Regen ausgegeben.
+- S3 besitzt die persistenten Einstellungen. HA wartet auf Bestätigung und
+  spielt keine veralteten Optionen zurück. Dialoge, Alarme und OTA behalten
+  Vorrang; Avatar-Eingaben lösen keine Aktion auf der darunterliegenden Seite aus.
 
-## Weather avatar feature branch
+Bedienung, Wettergrenzen, Speicherbedarf und konkrete Tests stehen in
+[docs/weather-avatar.md](docs/weather-avatar.md).
 
-`codex/feature-weather-avatar-test` uses the coordinated Beta.15 source baseline.
-It adds the weather-avatar design assets, both avatar identities and the
-implementation plan in `docs/weather-avatar.md`. Firmware, integration and build
-sources are unchanged from that baseline; the avatar runtime is not implemented.
+## Validierung und Release
 
-This consolidation does not create new firmware binaries or hardware acceptance
-evidence. The automated and manual evidence below belongs to the Beta.15 baseline.
-Earlier version-mismatch messages in design JSON files remain historical records.
+Vor der Kandidatenqualifikation wurden die nativen C++-Tests für Resolver,
+Scheduler, Transport und Decoder sowie alle 52 Bildschlüssel geprüft. Die
+Integration wurde zusätzlich unter dem installierten Home Assistant 2026.9.3
+getestet. Der offizielle Kandidatenlauf prüft die gepinnte HA-Matrix, alle sechs
+ESPHome-Profile, native Avatar-Tests und die vollständige Web-Distribution.
 
-## Automated evidence
+Die unveränderliche Hosted-CI-Receipt enthält die abschließenden Ergebnisse,
+exakten Quell-OIDs, Werkzeugversionen und vier Payload-Prüfsummen. Lokale
+Builds sind Diagnoseevidenz. Die Installation erfolgt erst aus dem geprüften
+CI-Kandidaten über den dokumentierten HACS-/Staging-Weg.
 
-- The first compressed cover transfer now prepares both the media-page and
-  368×368 fullscreen buffers; fullscreen entry waits for the overscan buffer
-  and keeps the page root black.
-- Config Flow excludes processors owned by another PassionWave entry, rejects
-  stale/live cross-ownership again on submit and confirmation, and shows role,
-  MAC/ID and host before saving.
-- One product/location name creates the logical, Display and Bridge Home
-  Assistant titles, for example `Wohnzimmer_rotaryknob_Display` and
-  `Wohnzimmer_rotaryknob_Bridge`.
-- Focused onboarding/runtime regression suite: 49 passed. Integration and S3
-  fast checks passed before version preparation. The Hosted-CI Beta receipt
-  remains the build and publication authority.
+## Abnahme
 
-## Manual acceptance
-
-Beta.14 Timo evidence established no stale title, artist or cover, no
-`Keine Wiedergabe`, and a seam-free real cover. Beta.15 still requires direct
-Timo verification of the note-fallback/fullscreen transition and the revised
-name/pair confirmation flow. Marco is physically inaccessible and remains an
-open independent device gate. Remote entity state is not visual evidence.
+Direkte visuelle, Touch-, Haptik-, Akku-/Zeitfenster- und Medienabnahme ist
+weiterhin am Gerät erforderlich. Vorhandene automatisierte Tests und Remote-
+Zustände gelten nicht als physische Abnahme. Die allgemeinen Beta-Gates für
+Clean Install und beide Geräte bleiben vor globaler Promotion verbindlich.
