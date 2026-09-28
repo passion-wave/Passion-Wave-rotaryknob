@@ -48,7 +48,7 @@ They are stored persistently on the ESPHome device.
 | Display aus bei Playback | `number` | yes |
 | Offline demo mode | `switch` | yes |
 | Avatar Haare Braun / Avatar Haare Blond | `select` | yes, S3 |
-| Morgenavatar 06–10 | `switch` | yes, S3 |
+| Morgenavatar 06–10 Uhr | `switch` | yes, S3 |
 
 ## PassionWave Integration
 

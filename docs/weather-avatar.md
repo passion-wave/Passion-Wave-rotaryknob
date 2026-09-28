@@ -8,14 +8,17 @@ in [RELEASE.md](../RELEASE.md) und [known-issues.md](known-issues.md) festgehalt
 
 ## Konfiguration und Bedienung
 
-- Home Assistant: **Einstellungen → Geräte & Dienste → PassionWave → Konfigurieren**.
-  Nach den Medienfiltern folgt **Wetteravatar** mit `Avatar Haare Braun` oder
-  `Avatar Haare Blond` und dem Schalter `Morgenavatar 06–10`.
-- Auf der PassionWave-Geräteseite stehen dieselben Optionen als
-  Konfigurationsauswahl und Schalter bereit. Die technischen ESPHome-Entities
-  bleiben verborgen.
-- Am RotaryKnob: **Mehr → Einstellungen → System → Avatar Haare** bzw.
-  **Morgenavatar 06–10**. Die Haarwahl verändert niemals die Wetterregeln.
+- Home Assistant: Auf der **PassionWave-Geräteseite → Konfiguration** stehen
+  `Avatar Haare` mit den Optionen `Avatar Haare Braun` und `Avatar Haare Blond`
+  sowie der Schalter `Morgenavatar 06–10 Uhr` bereit. Die technischen
+  ESPHome-Entities bleiben verborgen.
+- Alternativ: **Einstellungen → Geräte & Dienste → PassionWave → Konfigurieren**.
+  Nach Zuordnung und Bestätigung, Lichtplätzen und Medienfiltern folgt der letzte
+  Schritt **Wetter-Avatar** mit denselben Einstellungen.
+- Am RotaryKnob: **Mehr → Setup** öffnet den Bildschirm **System**. Mit den
+  Pfeilen neben **Feld** `Avatar Haare` (13/14) bzw. `Morgen-Avatar 06-10` (14/14)
+  wählen. Die Pfeile neben **Wert** oder die mittlere Auswahltaste ändern den
+  Wert. Die Haarwahl verändert niemals die Wetterregeln.
 - In der Wetteransicht öffnet **Avatar** das passende Bild jederzeit, auch
   außerhalb des Morgenfensters. Tippen oder Wischen schließt es; das auslösende
   Eingabeereignis wird konsumiert. Drehen hebt nur kurz die Helligkeit an.
@@ -201,6 +204,15 @@ Nach Installation bitte auf **jedem RotaryKnob** prüfen:
 9. Mehrfach schnell Braun/Blond wechseln, danach Mediencover und Radar öffnen:
    keine Bildreste, Abstürze oder verlorenen Eingaben. Abschließend den logischen
    Firmware-Updatestatus und beide Prozessorverbindungen kontrollieren.
+
+Für den Cover-Regressionstest Musik mit verfügbarem Cover starten, die
+Medienansicht öffnen und fünf Titelwechsel prüfen. Nach jeder Bedienung
+mindestens zehn Sekunden unbedient lassen, bis das Vollbildcover erscheint;
+Titel und Cover müssen zusammenpassen, Ränder vollständig sichtbar bleiben.
+Während 06–10 Uhr die Morgenautomatik für diesen Cover-Test vorübergehend
+ausschalten und danach wieder einschalten: Im aktiven Morgenfenster verhindert
+der Avatar-Vorrang das automatische Vollbildcover. Einen manuell geöffneten
+Avatar vor dem Cover-Test schließen.
 
 Zeitgrenzen, DST, fehlerhafte JPEGs und synthetische Extremwetter sind zusätzlich
 in den automatisierten Tests reproduzierbar; Remote-Entities beweisen keine
