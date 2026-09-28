@@ -8,6 +8,17 @@ Release summary: Fix fullscreen cover fallback, prevent cross-product pairing an
 - Runtime/channel metadata: `VERSION` and the Control release contract.
 - OIDs, toolchain digests, gate durations and payload hashes: generated release receipt.
 
+## Weather avatar feature branch
+
+`codex/feature-weather-avatar-test` uses the coordinated Beta.15 source baseline.
+It adds the weather-avatar design assets, both avatar identities and the
+implementation plan in `docs/weather-avatar.md`. Firmware, integration and build
+sources are unchanged from that baseline; the avatar runtime is not implemented.
+
+This consolidation does not create new firmware binaries or hardware acceptance
+evidence. The automated and manual evidence below belongs to the Beta.15 baseline.
+Earlier version-mismatch messages in design JSON files remain historical records.
+
 ## Automated evidence
 
 - The first compressed cover transfer now prepares both the media-page and
