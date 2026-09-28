@@ -9,11 +9,14 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     CONF_MEDIA_PLAYER,
+    CONF_S3_CONFIG_ENTRY_ID,
     LIGHT_SLOT_KEYS,
 )
+from .avatar_config import AVATAR_HAIR, HAIR_OPTIONS, async_set_avatar_setting, native_avatar_state
 from .entity import (
     PassionWaveConfigEntry,
     PassionWaveEntity,
@@ -30,6 +33,7 @@ async def async_setup_entry(
     """Set up customer-editable target selects."""
     async_add_entities(
         [
+            PassionWaveAvatarHairSelect(entry),
             PassionWaveTargetSelect(
                 entry,
                 CONF_MEDIA_PLAYER,
@@ -49,6 +53,41 @@ async def async_setup_entry(
             ],
         ]
     )
+
+
+class PassionWaveAvatarHairSelect(PassionWaveEntity, SelectEntity):
+    """Customer-facing live proxy for the S3's persistent hair selection."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_translation_key = "avatar_hair"
+    _attr_icon = "mdi:face-man"
+    _attr_options = list(HAIR_OPTIONS)
+    # The integration can be updated before the S3 during coordinated OTA.
+    # Polling also discovers the new native entity after that firmware restart.
+    _attr_should_poll = True
+
+    def __init__(self, entry: PassionWaveConfigEntry) -> None:
+        super().__init__(entry, "avatar_hair")
+
+    @property
+    def current_option(self) -> str | None:
+        return native_avatar_state(self.hass, entry_value(self._entry, CONF_S3_CONFIG_ENTRY_ID), AVATAR_HAIR)[1]
+
+    @property
+    def available(self) -> bool:
+        return self.current_option is not None
+
+    async def async_select_option(self, option: str) -> None:
+        await async_set_avatar_setting(self.hass, entry_value(self._entry, CONF_S3_CONFIG_ENTRY_ID), AVATAR_HAIR, option)
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        entity_id, _ = native_avatar_state(self.hass, entry_value(self._entry, CONF_S3_CONFIG_ENTRY_ID), AVATAR_HAIR)
+        if entity_id:
+            self.async_on_remove(async_track_state_change_event(
+                self.hass, [entity_id], lambda event: self.async_write_ha_state(),
+            ))
 
 
 class PassionWaveTargetSelect(PassionWaveEntity, SelectEntity):

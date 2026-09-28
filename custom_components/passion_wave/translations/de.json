@@ -69,12 +69,13 @@
       "invalid_product_name": "Gib einen Produktnamen mit höchstens 32 Zeichen ein.",
       "s3_already_owned": "Dieses Display ist bereits einem anderen PassionWave RotaryKnob zugeordnet.",
       "bridge_already_owned": "Diese Bridge ist bereits einem anderen PassionWave RotaryKnob zugeordnet und wird nicht überschrieben.",
-      "library_unavailable": "Die Music-Assistant-Bibliothek konnte gerade nicht geladen werden. Du kannst mit „Alle automatisch“ fortfahren und die Auswahl später erneut öffnen."
+      "library_unavailable": "Die Music-Assistant-Bibliothek konnte gerade nicht geladen werden. Du kannst mit „Alle automatisch“ fortfahren und die Auswahl später erneut öffnen.",
+      "avatar_unavailable": "Das Display ist offline, die Avatar-Firmware fehlt oder die Änderung wurde nicht bestätigt. Prüfe die Verbindung und versuche es erneut."
     },
     "step": {
       "init": {
         "title": "PassionWave konfigurieren",
-        "description": "Ändere die Zuordnung dieses RotaryKnob. Im nächsten Schritt folgen die vier Lichtplätze und danach die optionalen Medienfilter.",
+        "description": "Ändere die Zuordnung dieses RotaryKnob. Danach folgen die Lichtplätze, Medienfilter und der Wetter-Avatar.",
         "data": {
           "product_name": "Produktname / Standort (z. B. Wohnzimmer)",
           "s3_config_entry_id": "Display / S3",
@@ -105,6 +106,14 @@
           "visible_radios": "Sichtbare Radiosender",
           "visible_podcasts": "Sichtbare Podcasts"
         }
+      },
+      "avatar": {
+        "title": "Wetter-Avatar",
+        "description": "Die Auswahl wird direkt im Display gespeichert. Der Morgenavatar erscheint täglich von 06:00 bis 10:00 Uhr. Ohne Verbindung werden Änderungen nicht bestätigt.",
+        "data": {
+          "avatar_hair": "Avatar Haare",
+          "morning_avatar": "Morgenavatar 06–10 Uhr"
+        }
       }
     }
   },
@@ -124,6 +133,9 @@
       },
       "light_position_4": {
         "name": "Lichtplatz 4"
+      },
+      "avatar_hair": {
+        "name": "Avatar Haare"
       }
     },
     "binary_sensor": {
@@ -145,6 +157,9 @@
     "switch": {
       "support_diagnostics": {
         "name": "Support-Diagnose"
+      },
+      "morning_avatar": {
+        "name": "Morgenavatar 06–10 Uhr"
       }
     },
     "update": {

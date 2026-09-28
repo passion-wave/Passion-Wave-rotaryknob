@@ -4,6 +4,9 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+# HA initializes its schema compatibility layer before loading integrations
+# (2026.9 uses probatio as voluptuous). Match that real application order.
+import homeassistant  # noqa: F401
 import voluptuous as vol
 
 from custom_components.passion_wave import _apply_processor_titles

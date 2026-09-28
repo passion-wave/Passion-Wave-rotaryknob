@@ -33,6 +33,16 @@ MANAGED_COMMON = (ROOT / "esphome" / "managed-common.yaml").read_text()
 
 
 class DualMcuRuntimeContractTests(unittest.TestCase):
+    def test_avatar_native_switch_does_not_reset_the_restored_policy_at_boot(self) -> None:
+        # ESPHome TemplateSwitch's default ALWAYS_OFF invokes the off action at
+        # setup. DISABLED suppresses that startup command; the restoring global
+        # and reporting lambda remain the sole state authority.
+        native = S3.split("id: morning_avatar_switch", 1)[1].split("\nsensor:", 1)[0]
+        self.assertIn("restore_mode: DISABLED", native)
+        self.assertIn("return id(morning_avatar_enabled)", native)
+        policy = S3_UI.split("id: morning_avatar_enabled", 1)[1].split("  - id:", 1)[0]
+        self.assertIn("restore_value: yes", policy)
+
     def test_responsive_power_policy_is_enabled_for_all_customer_profiles(self) -> None:
         self.assertIn('responsive_power_policy_enabled: "true"', MARCO_S3)
         self.assertIn('responsive_power_policy_enabled: "true"', MARCO_BRIDGE)
@@ -148,7 +158,8 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertIn("MEDIA_PRESENTATION_BEGIN", protocol)
         self.assertIn("MEDIA_PRESENTATION_COMMIT", protocol)
         self.assertIn("id: queue_bridge_media_presentation", BRIDGE)
-        self.assertIn("id(bridge_api_connected) ? 0x07 : 0x00", BRIDGE)
+        # Avatar adds bit 3 while preserving the original three capabilities.
+        self.assertIn("id(bridge_api_connected) ? 0x0F : 0x00", BRIDGE)
 
         commit = S3.split(
             "case dual_mcu::MessageType::MEDIA_PRESENTATION_COMMIT:", 1

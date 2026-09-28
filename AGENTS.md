@@ -71,7 +71,7 @@ derived by tooling. Every tracked Markdown object appears exactly once below.
 | `docs/ui-next-framework.md` | `evergreen` | LVGL pages, input, popups and rendering ownership. |
 | `docs/unflashed-customer-onboarding.md` | `evergreen` | Clean-device two-stage browser onboarding. |
 | `docs/ux-assurance-report.md` | `historical` | Frozen static UI audit and remaining physical checks. |
-| `docs/weather-avatar.md` | `evergreen` | Planned avatar identities, morning schedule, weather rules and implementation acceptance. |
+| `docs/weather-avatar.md` | `evergreen` | Avatar identities, configuration, morning schedule, weather rules and acceptance tests. |
 <!-- docs-index:end -->
 
 ## Change handoff

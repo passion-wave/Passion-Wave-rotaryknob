@@ -35,6 +35,7 @@ esphome:
     lib_deps: !remove
   includes:
     - dual_mcu_link.h
+    - weather_avatar_context.h
     - dual_mcu_radar_proxy.h
     - dual_mcu_library_proxy.h
 
@@ -62,6 +63,10 @@ uart:
   rx_buffer_size: 4096
 
 globals:
+  - id: dual_mcu_avatar_capable
+    type: bool
+    restore_value: false
+    initial_value: 'false'
   - id: dual_mcu_bridge_version
     type: std::string
     restore_value: false
@@ -342,8 +347,41 @@ binary_sensor:
     entity_category: diagnostic
     disabled_by_default: true
 
+select:
+  - platform: template
+    id: avatar_hair_select
+    name: "RotaryKnob Avatar Hair"
+    entity_category: config
+    icon: mdi:face-man
+    options:
+      - "Avatar Haare Braun"
+      - "Avatar Haare Blond"
+    lambda: |-
+      return id(avatar_variant) == 1 ? std::string("Avatar Haare Blond") : std::string("Avatar Haare Braun");
+    set_action:
+      - script.execute:
+          id: set_avatar_variant
+          value: !lambda 'return x == "Avatar Haare Blond" ? 1 : 0;'
+
 switch:
   - id: !remove dual_mcu_s3_network_rescue
+  - platform: template
+    id: morning_avatar_switch
+    name: "RotaryKnob Morning Avatar"
+    entity_category: config
+    icon: mdi:weather-sunset-up
+    # The restoring global owns startup state. The switch default ALWAYS_OFF
+    # would call turn_off_action during setup and erase that persisted policy.
+    restore_mode: DISABLED
+    lambda: 'return id(morning_avatar_enabled);'
+    turn_on_action:
+      - script.execute:
+          id: set_morning_avatar_enabled
+          enabled: true
+    turn_off_action:
+      - script.execute:
+          id: set_morning_avatar_enabled
+          enabled: false
 
 sensor:
   # State arrives exclusively over UART. Removing these entities also removes
@@ -1132,7 +1170,7 @@ interval:
               id(media_target_entity_text).publish_state("${ha_player}");
             }
             dual_mcu::link.setup(id(inter_mcu_uart));
-            const uint8_t role[] = {'S', '3'};
+            const uint8_t role[] = {'S', '3', 0x01};
             dual_mcu::link.send(dual_mcu::MessageType::HELLO, role, sizeof(role));
             id(dual_mcu_link_initialized) = true;
             id(dual_mcu_s3_library_fallback_active) = false;
@@ -1162,7 +1200,7 @@ interval:
                 if (id(dual_mcu_s3_status).state != "ESP32 verbunden; EC1 bleibt aktiv")
                   id(dual_mcu_s3_status).publish_state("ESP32 verbunden; EC1 bleibt aktiv");
                 {
-                  const uint8_t role[] = {'S', '3'};
+                  const uint8_t role[] = {'S', '3', 0x01};
                   dual_mcu::link.send(dual_mcu::MessageType::HELLO, role, sizeof(role));
                 }
                 dual_mcu::link.send(dual_mcu::MessageType::SNAPSHOT_REQUEST);
@@ -1350,6 +1388,8 @@ interval:
                   id(dual_mcu_ha_bridge_light_details) =
                     ready && frame.length >= 2 &&
                     (frame.payload[1] & 0x02) != 0;
+                  id(dual_mcu_avatar_capable) = ready && frame.length >= 2 &&
+                    (frame.payload[1] & 0x08) != 0;
                   const bool atomic_media =
                     ready && frame.length >= 2 &&
                     (frame.payload[1] & 0x04) != 0;
@@ -2030,6 +2070,15 @@ interval:
                   }
                 }
                 break;
+              case dual_mcu::MessageType::WEATHER_AVATAR: {
+                weather_avatar::Context context;
+                if (id(dual_mcu_avatar_capable) &&
+                    dual_mcu::Link::decode_weather_avatar(frame, &context) &&
+                    weather_avatar::update_context(context)) {
+                  id(refresh_avatar).execute();
+                }
+                break;
+              }
               case dual_mcu::MessageType::WEATHER_STATE:
                 if (id(dual_mcu_ha_bridge_ready) && id(dual_mcu_ha_bridge_weather)) {
                   dual_mcu::WeatherState weather;

@@ -69,12 +69,13 @@
       "invalid_product_name": "Enter a product name with no more than 32 characters.",
       "s3_already_owned": "This display is already assigned to another PassionWave RotaryKnob.",
       "bridge_already_owned": "This Bridge is already assigned to another PassionWave RotaryKnob and will not be overwritten.",
-      "library_unavailable": "The Music Assistant library could not be loaded. You can continue with “All automatically” and open the selection again later."
+      "library_unavailable": "The Music Assistant library could not be loaded. You can continue with “All automatically” and open the selection again later.",
+      "avatar_unavailable": "The display is offline, avatar firmware is missing, or the setting was not confirmed. Check the connection and try again."
     },
     "step": {
       "init": {
         "title": "Configure PassionWave",
-        "description": "Change this RotaryKnob assignment. The next step contains its four light positions, followed by optional media filters.",
+        "description": "Change this RotaryKnob assignment, followed by light positions, media filters, and the weather avatar.",
         "data": {
           "product_name": "Product name / location (for example Living room)",
           "s3_config_entry_id": "Display / S3",
@@ -105,6 +106,14 @@
           "visible_radios": "Visible radio stations",
           "visible_podcasts": "Visible podcasts"
         }
+      },
+      "avatar": {
+        "title": "Weather avatar",
+        "description": "Settings are stored on the display. The morning avatar appears daily from 06:00 to 10:00. Changes require the display to be online.",
+        "data": {
+          "avatar_hair": "Avatar hair",
+          "morning_avatar": "Morning avatar 06:00–10:00"
+        }
       }
     }
   },
@@ -124,6 +133,9 @@
       },
       "light_position_4": {
         "name": "Light position 4"
+      },
+      "avatar_hair": {
+        "name": "Avatar hair"
       }
     },
     "binary_sensor": {
@@ -145,6 +157,9 @@
     "switch": {
       "support_diagnostics": {
         "name": "Support diagnostics"
+      },
+      "morning_avatar": {
+        "name": "Morning avatar 06:00–10:00"
       }
     },
     "update": {

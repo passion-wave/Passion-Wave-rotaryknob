@@ -27,6 +27,7 @@ esphome:
   min_version: 2026.7.0
   includes:
     - dual_mcu_link.h
+    - weather_avatar_context.h
     - dual_mcu_encoder.h
     - dual_mcu_radar_proxy.h
     - dual_mcu_library_proxy.h
@@ -176,6 +177,14 @@ api:
             then:
               - script.execute:
                   id: cache_bridge_hourly_forecast
+                  entity: !lambda 'return entity;'
+                  payload: !lambda 'return payload;'
+        - if:
+            condition:
+              lambda: 'return period == "avatar";'
+            then:
+              - script.execute:
+                  id: cache_bridge_avatar_weather
                   entity: !lambda 'return entity;'
                   payload: !lambda 'return payload;'
     - action: passion_wave_receive_light_catalog
@@ -402,6 +411,10 @@ time:
     timezone: Europe/Berlin
 
 globals:
+  - id: bridge_s3_avatar_capable
+    type: bool
+    restore_value: false
+    initial_value: 'false'
   - id: bridge_integration_version
     type: std::string
     restore_value: false
@@ -2152,6 +2165,54 @@ script:
           if (presentation_due)
             id(queue_bridge_media_presentation).execute();
 
+  - id: cache_bridge_avatar_weather
+    mode: restart
+    parameters:
+      entity: string
+      payload: string
+    then:
+      - lambda: |-
+          if (entity != "${ha_weather}" || payload.size() > 1024) return;
+          DynamicJsonDocument doc(1536);
+          if (deserializeJson(doc, payload)) return;
+          JsonObjectConst root = doc.as<JsonObjectConst>();
+          if (!root["schema"].is<unsigned int>() ||
+              root["schema"].as<unsigned int>() != 1 ||
+              !root["mode"].is<unsigned int>() ||
+              root["mode"].as<unsigned int>() > 2 ||
+              !root["fetched_at"].is<uint32_t>() ||
+              !root["sequence"].is<uint32_t>() ||
+              !root["start_utc"].is<uint32_t>() ||
+              !root["end_utc"].is<uint32_t>() ||
+              !root["flags"].is<uint16_t>()) return;
+          if ((root["flags"].as<uint16_t>() & weather_avatar::TEMP_VALID) &&
+              (!root["temperature_min_tenths"].is<int16_t>() ||
+               !root["temperature_max_tenths"].is<int16_t>())) return;
+          weather_avatar::Context context;
+          context.schema = root["schema"].as<uint8_t>();
+          context.mode = static_cast<weather_avatar::Mode>(root["mode"].as<uint8_t>());
+          context.flags = root["flags"].as<uint16_t>();
+          context.sequence = root["sequence"].as<uint32_t>();
+          context.fetched_at = root["fetched_at"].as<uint32_t>();
+          context.provider_at = root["provider_at"].as<uint32_t>();
+          context.start_utc = root["start_utc"].as<uint32_t>();
+          context.end_utc = root["end_utc"].as<uint32_t>();
+          context.temperature_min_tenths = root["temperature_min_tenths"].as<int16_t>();
+          context.temperature_max_tenths = root["temperature_max_tenths"].as<int16_t>();
+          context.conditions = root["conditions"].as<uint16_t>();
+          context.first_condition = root["first_condition"].as<uint8_t>();
+          context.precipitation_probability = root["precipitation_probability"].as<uint8_t>();
+          context.wind_tenths = root["wind_tenths"].as<uint16_t>();
+          context.gust_tenths = root["gust_tenths"].as<uint16_t>();
+          context.precipitation_tenths = root["precipitation_tenths"].as<uint16_t>();
+          if (weather_avatar::update_context(context)) {
+            // A successful response may legitimately have no supported daily
+            // forecast. Do not request it again every ten seconds forever.
+            id(bridge_forecast_received) = true;
+            if (id(bridge_s3_avatar_capable))
+              dual_mcu::link.send_weather_avatar(weather_avatar::current_context);
+          }
+
   - id: cache_bridge_daily_forecast
     mode: restart
     parameters:
@@ -2467,8 +2528,8 @@ script:
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
             static_cast<uint8_t>(
               // bit 0: paged library requests, bit 1: light details,
-              // bit 2: sequence-bound atomic media presentation
-              id(bridge_api_connected) ? 0x07 : 0x00),
+              // bit 2: atomic media, bit 3: versioned weather avatar
+              id(bridge_api_connected) ? 0x0F : 0x00),
           };
           dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS, status, sizeof(status));
           dual_mcu::MediaState media;
@@ -2523,6 +2584,8 @@ script:
               dual_mcu::bridge_forecast_cache.hourly_valid_mask != 0) {
             dual_mcu::link.send_weather_forecast(dual_mcu::bridge_forecast_cache);
           }
+          if (id(bridge_s3_avatar_capable) && weather_avatar::current_context.fetched_at != 0)
+            dual_mcu::link.send_weather_avatar(weather_avatar::current_context);
       - delay: 8ms
       - lambda: |-
           dual_mcu::RadarMeta radar;
@@ -2701,6 +2764,9 @@ interval:
             }
             switch (frame.type) {
               case dual_mcu::MessageType::HELLO:
+                id(bridge_s3_avatar_capable) = frame.length >= 3 &&
+                  frame.payload[0] == 'S' && frame.payload[1] == '3' &&
+                  (frame.payload[2] & 0x01) != 0;
                 id(last_s3_heartbeat_ms) = millis();
                 // A rebooted peer cannot acknowledge a transfer ID from its
                 // previous session. Keep the caches, but abandon the frozen
@@ -3331,8 +3397,8 @@ interval:
             static_cast<uint8_t>(id(bridge_api_connected) ? 0xFF : 0x7E),
             static_cast<uint8_t>(
               // bit 0: paged library requests, bit 1: light details,
-              // bit 2: sequence-bound atomic media presentation
-              id(bridge_api_connected) ? 0x07 : 0x00),
+              // bit 2: atomic media, bit 3: versioned weather avatar
+              id(bridge_api_connected) ? 0x0F : 0x00),
           };
           dual_mcu::link.send(dual_mcu::MessageType::BRIDGE_STATUS,
                               status, sizeof(status));

@@ -48,6 +48,10 @@ from .identity import (
     s3_product_unique_id,
 )
 from .media import normalize_library_page
+from .avatar_config import (
+    AVATAR_HAIR, MORNING_AVATAR, HAIR_OPTIONS,
+    async_set_avatar_setting, native_avatar_state,
+)
 from .pairing import (
     DiscoveredEndpoint,
     PairingError,
@@ -788,6 +792,7 @@ class PassionWaveOptionsFlow(config_entries.OptionsFlow):
         self._pending_data: dict[str, Any] = {}
         self._catalogs: dict[str, list[dict[str, str]]] = {}
         self._library_error = False
+        self._avatar_initial: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -882,15 +887,51 @@ class PassionWaveOptionsFlow(config_entries.OptionsFlow):
         """Update the visible Music Assistant entries."""
         defaults = {**self._entry.data, **self._entry.options}
         if user_input is not None:
-            return self.async_create_entry(
-                title="",
-                data={
-                    **self._pending_data,
-                    **_normalize_visibility(user_input),
-                },
-            )
+            self._pending_data.update(_normalize_visibility(user_input))
+            return await self.async_step_avatar()
         return self.async_show_form(
             step_id="library",
             data_schema=_library_schema(self._catalogs, defaults),
             errors={"base": "library_unavailable"} if self._library_error else {},
         )
+
+    async def async_step_avatar(
+        self, user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Edit the live display state, never persist desired state in HA."""
+        s3_entry_id = self._pending_data.get(CONF_S3_CONFIG_ENTRY_ID) or self._entry.options.get(
+            CONF_S3_CONFIG_ENTRY_ID, self._entry.data.get(CONF_S3_CONFIG_ENTRY_ID)
+        )
+        values = {key: native_avatar_state(self.hass, s3_entry_id, key)[1]
+                  for key in (AVATAR_HAIR, MORNING_AVATAR)}
+        errors: dict[str, str] = {}
+        if not self._avatar_initial:
+            self._avatar_initial = values
+        if user_input is not None:
+            try:
+                for key, value in user_input.items():
+                    # If another user changed the S3 while this form was open,
+                    # submitting an untouched control must preserve that change.
+                    if key in values and value != self._avatar_initial.get(key):
+                        await async_set_avatar_setting(self.hass, s3_entry_id, key, value)
+                        self._avatar_initial[key] = value
+            except HomeAssistantError:
+                # A preceding field may already have been acknowledged. Read
+                # that actual state again instead of redisplaying stale values
+                # or treating the successful change as still pending on retry.
+                values = {key: native_avatar_state(self.hass, s3_entry_id, key)[1]
+                          for key in (AVATAR_HAIR, MORNING_AVATAR)}
+                self._avatar_initial = dict(values)
+                errors["base"] = "avatar_unavailable"
+            else:
+                return self.async_create_entry(title="", data=self._pending_data)
+        if any(value is None for value in values.values()):
+            errors["base"] = "avatar_unavailable"
+        fields: dict[Any, Any] = {}
+        for key in (AVATAR_HAIR, MORNING_AVATAR):
+            marker = vol.Optional(key, default=values[key]) if values[key] is not None else vol.Optional(key)
+            fields[marker] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=list(HAIR_OPTIONS)))
+                if key == AVATAR_HAIR else selector.BooleanSelector()
+            )
+        return self.async_show_form(step_id="avatar", data_schema=vol.Schema(fields), errors=errors)

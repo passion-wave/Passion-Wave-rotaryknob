@@ -235,6 +235,35 @@ hold.
 
 ## Weather and assets
 
+The weather avatar uses an additional schema-1 `WEATHER_AVATAR` frame (type 60,
+38 bytes), leaving the existing 42-byte weather forecast record unchanged.
+S3 advertises support using bit 0 of HELLO's third byte; the Bridge advertises
+it using bit 3 of the second `BRIDGE_STATUS` byte. An older processor therefore
+continues to use the existing weather display during a Bridge-first update.
+The HA broker supplies UTC fetch/observation timestamps, the next complete
+four-hour forecast window (starting within one hour of fetch), Celsius
+temperature minimum/maximum, all original condition bits,
+km/h wind/gust maxima and mm precipitation. Missing optional quantities retain
+separate validity bits. A UART snapshot preserves the original fetch time and
+cannot renew the twenty-minute data lifetime. Without complete hourly
+temperature coverage, the broker explicitly uses `Jetzt` with a sufficiently
+recent current observation, or sends an unavailable context. Four-hour
+aggregation is enabled only for the verified `met` entity-registry platform:
+MET's `next_1_hours` describes the hour beginning at its timestamp. The view
+prints that actual window; it does not claim coverage from the present moment.
+Temperatures are hourly point estimates. Other providers use `Jetzt` until their interval
+semantics have a verified adapter; generic HA `datetime` alone is insufficient.
+The source contract is [MET's forecast JSON model](https://docs.api.met.no/doc/ForecastJSON.html).
+
+`RotaryKnob Avatar Hair` and `RotaryKnob Morning Avatar` are hidden native S3
+configuration transports. The logical PassionWave hair selector and morning
+switch, and the last Configure step, read the current S3 values and wait for
+S3 acknowledgement when writing them. Their values are never stored as HA
+Config Entry desired state, so a reconnect cannot undo a local change. A form
+left open while the device changes only writes fields the user actually edited.
+Unavailable firmware or a missing acknowledgement produces a visible error.
+The detailed rule table and hardware checks live in [weather-avatar.md](weather-avatar.md).
+
 The Bridge owns current weather, daily forecasts and the retry for a missed
 startup forecast. Radar, floorplan, photos and media covers share one bounded
 asset transport. Control and state frames have priority over bulk chunks; URL,

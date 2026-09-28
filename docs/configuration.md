@@ -47,6 +47,8 @@ They are stored persistently on the ESPHome device.
 | Display aus ohne Playback | `number` | yes |
 | Display aus bei Playback | `number` | yes |
 | Offline demo mode | `switch` | yes |
+| Avatar Haare Braun / Avatar Haare Blond | `select` | yes, S3 |
+| Morgenavatar 06–10 | `switch` | yes, S3 |
 
 ## PassionWave Integration
 
@@ -67,7 +69,8 @@ any assignment later. The integration writes entity IDs and current friendly
 names to the selected display and follows Home Assistant entity renames.
 
 The customer-facing PassionWave device deliberately exposes only the combined
-firmware update, `Systemproblem` and `Supportdiagnose`. Structural assignment of
+firmware update, `Systemproblem`, `Supportdiagnose` and the two avatar
+configuration controls. Structural assignment of
 S3, Bridge, Music Assistant, player, light slots and media filters remains in
 the guided **Configure** flow. The former quick selects, individual connection
 sensors and integration-version sensor are disabled by default; existing
@@ -86,6 +89,28 @@ immediately. Independently of events, Home Assistant sends the current runtime
 and target snapshot every 15 minutes; Bridge and S3 also republish their
 authoritative snapshots on the same cadence. This bounded fallback heals a
 missed event without restoring high-frequency polling.
+
+## Weather Avatar
+
+The S3 owns the persistent hair selection and morning enable state. Home
+Assistant exposes a configuration selector and switch and the final step of
+**Configure** reads the live S3 values. It does not store/replay desired state.
+The local System menu uses the same setters. Unavailable native controls or a
+missing device acknowledgement produce an explicit error.
+
+The display restores both values before publishing its boot snapshot. Normal
+restarts and deep sleep flush pending preferences. ESPHome batches flash writes
+every 60 seconds, so a hard power cut immediately after changing a setting can
+lose that last change; wait at least 65 seconds before testing persistence with
+power removal. Home Assistant's acknowledgement confirms the display state,
+not an immediate flash commit.
+
+The morning window wakes and keeps the idle display visible from local 06:00
+until 10:00, including on battery; it takes priority over automatic media/photo
+covers and the DEV screensaver veto. Active interaction, modals, OTA and
+alerts retain priority. Outside this window the normal power policy below
+applies. See [weather-avatar.md](weather-avatar.md) for the exact scheduling,
+weather rules, runtime artwork and device test list.
 
 ## Offline / Promo Demo Mode
 

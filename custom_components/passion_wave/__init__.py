@@ -726,6 +726,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: PassionWaveConfigEntry) 
     @callback
     def async_entity_registry_updated(event: Event[dict[str, Any]]) -> None:
         """Keep renamed customer targets and their labels in sync."""
+        # A coordinated update installs the integration before S3 OTA. Hide
+        # native controls discovered by that later reboot just like boot-time
+        # entities, while the logical PassionWave controls remain visible.
+        if event.data.get("action") == "create":
+            _hide_native_entities(hass, entry)
         old_entity_id = event.data.get("old_entity_id")
         entity_id = event.data.get("entity_id")
         configured_keys = (CONF_MEDIA_PLAYER, *LIGHT_SLOT_KEYS)

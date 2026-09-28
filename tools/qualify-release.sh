@@ -130,6 +130,8 @@ run_managed_group() {
 for command in docker git jq python3 shasum; do require_command "${command}"; done
 cd "${repo_dir}"
 git diff --check
+run_logged "avatar-native" "${log_dir}/avatar-native.log" \
+  "${repo_dir}/tools/test-weather-avatar-native.sh"
 if git ls-files --error-unmatch esphome/secrets.yaml >/dev/null 2>&1; then
   echo "Tracked esphome/secrets.yaml is forbidden." >&2
   exit 3
