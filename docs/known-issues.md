@@ -13,8 +13,33 @@ state is not direct visual evidence.
 | PW-MEDIA-011 | Beta-14 Timo physical retest passed; Marco open | During rapid title changes, media page and cover screensaver must show the same current title, artist and cover from the selected-player presentation. No previous cover may appear first. |
 | PW-QA-001 | open | Complete the full interaction, restart, network-loss, update/recovery and endurance matrix on each physical product. |
 | PW-QA-002 | open | Record the same complete evidence independently for the second customer device. |
+| PW-AVATAR-001 | implemented; physical acceptance open | On both products verify both identities, outfit/text agreement, circle edges, touch/rotation, persistence and the 06–10 window on battery and mains. See the weather-avatar test list. |
 
 ## Active technical follow-up
+
+### PW-AVATAR-001: Weather avatar acceptance
+
+Automated on 2026-09-28 for the Beta-16 sources: the complete integration suite
+under the installed Home Assistant 2026.9.3 passed 125 tests and 56 subtests.
+Four native C++ tests are skipped inside that image because it has no compiler;
+the separate host-native gate executes the actual resolver, transport,
+scheduler and renderer headers and passed. All 52 JPEG keys, source/export
+hashes and embedded bytes were verified. Clock/DST boundaries, stale data,
+missing observations, decoder failures and held-touch transitions have
+automated coverage.
+
+Remote, before installation: the configured MET provider returned the next
+complete hourly forecast; the adapter produced a four-hour, correctly labelled
+window. Both existing processor pairs were authenticated and matched to their
+logical products; OTA authentication was probed without sending firmware.
+This proves adapter/transport readiness, not a displayed avatar or successful
+device update. Final candidate qualification and installation evidence belongs
+to the immutable release receipt and deployment journal.
+
+Physical acceptance remains open. Follow [the avatar test list](weather-avatar.md)
+on each installed product, including the next real morning window. A hard
+power-cut persistence test must wait at least 65 seconds after changing a
+setting; normal restart/deep sleep flush pending preferences.
 
 ### PW-MEDIA-012: Fullscreen fallback seams and delayed real cover
 
