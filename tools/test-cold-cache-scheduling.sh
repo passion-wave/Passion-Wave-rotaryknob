@@ -27,8 +27,13 @@ if grep -Fq 'rm -rf -- "${build_dir}"' "${script}"; then
   exit 1
 fi
 grep -Fq 'PASS cleanup-${build_id}' "${script}"
-grep -Fq 'PW_PARALLEL_FACTORY_BUILDS=1' "${script}"
-grep -Fq 'wait_factory_pair' "${public_builder}"
-grep -Fq 'PW_PARALLEL_FACTORY_BUILDS:-0' "${public_builder}"
+s3_factory_line="$(grep -n '"${repo_dir}/tools/build.sh" esphome/factory-s3.yaml' "${public_builder}" | cut -d: -f1)"
+esp32_factory_line="$(grep -n '"${repo_dir}/tools/build.sh" esphome/factory-esp32.yaml' "${public_builder}" | cut -d: -f1)"
+[[ -n "${s3_factory_line}" && -n "${esp32_factory_line}" ]]
+[[ ${s3_factory_line} -lt ${esp32_factory_line} ]]
+if grep -Eq 'PW_PARALLEL_FACTORY_BUILDS|wait_factory_pair' "${script}" "${public_builder}"; then
+  echo "Deterministic factory builds must not race on the shared ESPHome cache." >&2
+  exit 1
+fi
 
-echo "PASS cold-cache warmup, bounded parallel builds and root-safe cleanup."
+echo "PASS cold-cache warmup, bounded managed parallelism, serial factory cache setup and root-safe cleanup."

@@ -12,6 +12,31 @@ from .const import CONF_S3_CONFIG_ENTRY_ID
 _NORMALIZED_MAC = re.compile(r"^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$")
 
 
+def normalized_product_name(value: object) -> str:
+    """Return one bounded customer label without changing its meaning."""
+    normalized = " ".join(str(value or "").strip().split())
+    if not normalized:
+        raise ValueError("product name must not be empty")
+    if len(normalized) > 32:
+        raise ValueError("product name must not exceed 32 characters")
+    return normalized
+
+
+def processor_titles(product_name: str) -> tuple[str, str]:
+    """Return deterministic Home Assistant titles for both product processors."""
+    prefix = normalized_product_name(product_name).replace(" ", "_")
+    return (
+        f"{prefix}_rotaryknob_Display",
+        f"{prefix}_rotaryknob_Bridge",
+    )
+
+
+def logical_product_title(product_name: str) -> str:
+    """Return the customer-facing Home Assistant product title."""
+    prefix = normalized_product_name(product_name).replace(" ", "_")
+    return f"{prefix}_rotaryknob"
+
+
 def entry_value(entry, key: str):
     """Read config data while respecting options-flow overrides."""
     return entry.options.get(key, entry.data.get(key))

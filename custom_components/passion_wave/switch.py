@@ -10,10 +10,12 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import slugify
+from homeassistant.helpers.event import async_track_state_change_event
 
 from .broker import bridge_config_entry_id
 from .const import CONF_S3_CONFIG_ENTRY_ID
 from .entity import PassionWaveConfigEntry, PassionWaveEntity, entry_value
+from .avatar_config import MORNING_AVATAR, async_set_avatar_setting, native_avatar_state
 
 SUPPORT_ON_ACTION = "support_diagnostics_on"
 SUPPORT_OFF_ACTION = "support_diagnostics_off"
@@ -25,7 +27,43 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the bounded support-mode control."""
-    async_add_entities([PassionWaveSupportDiagnosticsSwitch(entry)])
+    async_add_entities([PassionWaveSupportDiagnosticsSwitch(entry), PassionWaveMorningAvatarSwitch(entry)])
+
+
+class PassionWaveMorningAvatarSwitch(PassionWaveEntity, SwitchEntity):
+    """Read and change the S3's persistent morning policy without HA replay."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:weather-sunset-up"
+    _attr_translation_key = "morning_avatar"
+    _attr_should_poll = True
+
+    def __init__(self, entry: PassionWaveConfigEntry) -> None:
+        super().__init__(entry, "morning_avatar")
+
+    @property
+    def is_on(self) -> bool | None:
+        return native_avatar_state(self.hass, entry_value(self._entry, CONF_S3_CONFIG_ENTRY_ID), MORNING_AVATAR)[1]
+
+    @property
+    def available(self) -> bool:
+        return self.is_on is not None
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        await async_set_avatar_setting(self.hass, entry_value(self._entry, CONF_S3_CONFIG_ENTRY_ID), MORNING_AVATAR, True)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        await async_set_avatar_setting(self.hass, entry_value(self._entry, CONF_S3_CONFIG_ENTRY_ID), MORNING_AVATAR, False)
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        entity_id, _ = native_avatar_state(self.hass, entry_value(self._entry, CONF_S3_CONFIG_ENTRY_ID), MORNING_AVATAR)
+        if entity_id:
+            self.async_on_remove(async_track_state_change_event(
+                self.hass, [entity_id], lambda event: self.async_write_ha_state(),
+            ))
 
 
 class PassionWaveSupportDiagnosticsSwitch(PassionWaveEntity, SwitchEntity):

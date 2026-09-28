@@ -16,6 +16,13 @@ tools/fast-check.sh --scope bridge
 tools/fast-check.sh --scope integration,s3
 ```
 
+`tools/test-weather-avatar-native.sh` executes the production C++ outfit,
+UTC/replay, scheduling/DST and asynchronous-renderer policies on the host.
+This gate requires a C++17 compiler and runs in both repository CI and candidate
+qualification; it cannot silently skip because the Home Assistant test image
+lacks a host compiler. The HA suite separately validates the JPEG pack and
+configuration/forecast integration.
+
 The integration scope runs the current Home Assistant container. S3 and Bridge
 each validate Factory, Managed Production and Managed Test configuration, then
 compile one representative Factory profile. `--scope all` covers all three

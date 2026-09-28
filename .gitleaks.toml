@@ -1,0 +1,23 @@
+title = "PassionWave secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+# Historical image-generation records use `key` for a weather/identity group.
+# Keep the default detector; exclude only the reviewed JSON match at its path.
+[[rules.allowlists]]
+description = "Reviewed blond-avatar design group identifiers"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^docs/design/weather-outfit-boy/avatar-identities-v1/prompts\.json$''']
+regexes = ['''^key"\s*:\s*"(?:blond-01-sonne-alltag|blond-02-kaelte-wind|blond-04-schnee-nebel-morgen|blond-05-gewitter-sonderlagen)"$''']
+
+[[rules.allowlists]]
+description = "Reviewed clay-series weather group identifiers"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^docs/design/weather-outfit-boy/clay-series-v1/prompts\.json$''']
+regexes = ['''^key"\s*:\s*"(?:02-kaelte-wind|05-gewitter-sonderlagen)"$''']

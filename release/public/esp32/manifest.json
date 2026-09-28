@@ -1,19 +1,19 @@
 {
   "name": "PassionWave RotaryKnob Bridge",
-  "version": "3.0.1-beta.6",
+  "version": "3.0.1-beta.15",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 120,
   "builds": [
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "passion-wave-rotaryknob-esp32-3.0.1-beta.6.factory.bin", "offset": 0 }
+        { "path": "passion-wave-rotaryknob-esp32-3.0.1-beta.15.factory.bin", "offset": 0 }
       ],
       "ota": {
-        "md5": "eca291d96a419538d7d0242c8b41ac4c",
-        "path": "passion-wave-rotaryknob-esp32-3.0.1-beta.6.ota.bin",
-        "release_url": "https://github.com/Passion-Wave/Passion-Wave-rotaryknob/releases/tag/v3.0.1-beta.6",
-        "summary": "PassionWave RotaryKnob Bridge 3.0.1-beta.6"
+        "md5": "adcd6d195f8153544aee1f42c07b278c",
+        "path": "passion-wave-rotaryknob-esp32-3.0.1-beta.15.ota.bin",
+        "release_url": "https://github.com/passion-wave/Passion-Wave-rotaryknob/releases/tag/v3.0.1-beta.15",
+        "summary": "PassionWave RotaryKnob Bridge 3.0.1-beta.15"
       }
     }
   ]

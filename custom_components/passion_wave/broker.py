@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -41,6 +42,7 @@ from .const import (
 )
 from .entity import PassionWaveConfigEntry, entry_value, entity_by_original_name
 from .media import LatestPlaybackQueue, PlaybackCommand
+from .weather_avatar import build_avatar_context
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -441,14 +443,22 @@ async def _async_forecast_request(
     weather_entity = str(command.get("entity", ""))
     if not weather_entity.startswith("weather."):
         raise HomeAssistantError("The requested weather entity is invalid")
+    weather_registry_entry = er.async_get(hass).async_get(weather_entity)
+    hourly = []
+    hourly_fetched_at = None
     for period in ("daily", "hourly"):
-        response = await hass.services.async_call(
-            "weather",
-            "get_forecasts",
-            {CONF_ENTITY_ID: weather_entity, "type": period},
-            blocking=True,
-            return_response=True,
-        )
+        try:
+            response = await hass.services.async_call(
+                "weather", "get_forecasts",
+                {CONF_ENTITY_ID: weather_entity, "type": period},
+                blocking=True, return_response=True,
+            )
+        except HomeAssistantError as err:
+            # A provider can support only one forecast type. Missing hourly data
+            # still produces the explicitly labelled current-weather fallback.
+            _LOGGER.debug("%s forecast unavailable for %s: %s", period, weather_entity, err)
+            continue
+        received_at = int(time.time())
         root = response or {}
         weather_data = (
             root.get(weather_entity, root) if isinstance(root, Mapping) else {}
@@ -458,6 +468,11 @@ async def _async_forecast_request(
             if isinstance(weather_data, Mapping)
             else []
         )
+        if not isinstance(forecasts, list):
+            forecasts = []
+        if period == "hourly":
+            hourly = forecasts[:48]
+            hourly_fetched_at = received_at
         maximum = 5 if period == "daily" else 48
         compact = {
             "forecast": [
@@ -489,6 +504,19 @@ async def _async_forecast_request(
                 ),
             },
         )
+    avatar = build_avatar_context(
+        hourly, hass.states.get(weather_entity),
+        fetched_at=hourly_fetched_at or int(time.time()),
+        sequence=int(command.get("seq", 0)),
+        forecast_provider=getattr(weather_registry_entry, "platform", None),
+    )
+    # Use the existing action with a new period so an older Bridge harmlessly
+    # ignores this context during the official Bridge-first rolling update.
+    await _async_send_to_bridge(
+        hass, entry, BRIDGE_RECEIVE_FORECAST_ACTION,
+        {"period": "avatar", "entity": weather_entity,
+         "payload": json.dumps(avatar, separators=(",", ":"))},
+    )
 
 
 def _light_catalog(

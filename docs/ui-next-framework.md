@@ -388,3 +388,44 @@ This makes UI Next testable without changing the online production device.
 - light toggle, timer, alarm, radar, photos, house and settings work;
 - screensaver, dimming, sleep and wake behavior remain intact;
 - EC1 read errors and both UART protocol-error counters remain zero.
+
+## Morning weather avatar
+
+The Weather view includes a dedicated 120 × 46 px `Avatar` button. Its LVGL
+`WEATHER_AVATAR` action and CST816 release fallback use the same bounds. The
+manual view is available all day and returns to the originating view after a
+touch or swipe. The exit gesture is consumed through release, including the
+coordinate fallback; it cannot activate a light or media control underneath.
+Rotary input retains the screensaver's brightness boost and consumes the batch.
+
+Page 7 owns a preallocated, opaque avatar layer above the existing photographic
+screensaver. It contains a local 368 × 368 image, digital clock, weather symbol,
+optional shelter symbol, temperature range and clothing/forecast caption. It
+does not share the analog clock or photo labels. Returning to photo mode hides
+the complete avatar layer, preserving the original photo layout. JPEG decoding
+uses the renderer's inactive buffer; an incomplete image never replaces the
+visible image. The main task polls the renderer every 100 ms while UI Next is
+active, and the one-second scheduler also supports the inherited interface.
+
+`avatar_variant` and `morning_avatar_enabled` are S3 preferences. The native
+configuration selector and the local System fields expose `Avatar Haare Braun`
+and `Avatar Haare Blond`; the morning switch defaults to enabled. The setters
+publish the authoritative S3 state. Changing appearance updates a visible avatar
+without leaving its page. Automatic entry respects the configured screensaver
+idle delay and runs only from local 06:00 inclusive to 10:00 exclusive. It wakes
+a sleeping display and takes priority over automatic media artwork. Open
+popups, finished-timer alerts, alarms, initial setup, updates and current user
+interaction take precedence. A timer may continue counting in the background. A manually opened avatar remains open after 10:00.
+
+During the morning window the display remains available, using the configured
+screensaver fade duration and display dim percentage. On battery, deep sleep
+outside the window sets a timed wake for the next local 06:00. This uses local
+calendar conversion with automatic DST selection rather than adding 24 hours;
+a clock that has not synchronized retries after 15 minutes. Disabling the
+morning feature restores the normal battery deep-sleep behavior.
+
+The pure policy in `weather_avatar_schedule.h` is exercised by
+`tests/test_weather_avatar_schedule.py`, including the 06:00/10:00 boundaries,
+manual/automatic ownership, idle threshold, monotonic counter rollover and
+23/25-hour Europe/Berlin days. Weather thresholds, fallback behavior and manual
+acceptance steps belong to `docs/weather-avatar.md`.

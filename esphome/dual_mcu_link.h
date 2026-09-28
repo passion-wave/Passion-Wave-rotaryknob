@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "esphome/components/uart/uart.h"
+#include "weather_avatar_context.h"
 
 namespace dual_mcu {
 
@@ -86,6 +87,7 @@ enum class MessageType : uint8_t {
   VERSION_STATE = 57,
   MEDIA_PRESENTATION_BEGIN = 58,
   MEDIA_PRESENTATION_COMMIT = 59,
+  WEATHER_AVATAR = 60,
 };
 
 enum class HAAction : uint8_t {
@@ -640,6 +642,17 @@ class Link {
       offset += 3;
     }
     return this->send(MessageType::WEATHER_FORECAST, payload, sizeof(payload));
+  }
+
+  bool send_weather_avatar(const weather_avatar::Context &state) {
+    uint8_t payload[weather_avatar::CONTEXT_WIRE_SIZE]{};
+    weather_avatar::pack_context(state, payload);
+    return this->send(MessageType::WEATHER_AVATAR, payload, sizeof(payload));
+  }
+
+  static bool decode_weather_avatar(const Frame &frame, weather_avatar::Context *state) {
+    return frame.type == MessageType::WEATHER_AVATAR &&
+      weather_avatar::unpack_context(frame.payload.data(), frame.length, state);
   }
 
   bool send_radar_meta(const RadarMeta &state) {

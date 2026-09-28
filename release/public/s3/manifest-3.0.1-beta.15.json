@@ -1,0 +1,20 @@
+{
+  "name": "PassionWave RotaryKnob",
+  "version": "3.0.1-beta.15",
+  "new_install_prompt_erase": false,
+  "new_install_improv_wait_time": 120,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "passion-wave-rotaryknob-s3-3.0.1-beta.15.factory.bin", "offset": 0 }
+      ],
+      "ota": {
+        "md5": "ff7948c8ca8bd994bdf566161fe22e03",
+        "path": "passion-wave-rotaryknob-s3-3.0.1-beta.15.ota.bin",
+        "release_url": "https://github.com/passion-wave/Passion-Wave-rotaryknob/releases/tag/v3.0.1-beta.15",
+        "summary": "PassionWave RotaryKnob 3.0.1-beta.15"
+      }
+    }
+  ]
+}
