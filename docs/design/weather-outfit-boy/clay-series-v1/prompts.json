@@ -1,0 +1,197 @@
+[
+  {
+    "key": "01-sonne-alltag",
+    "title": "01 / SONNE & ALLTAG",
+    "states": [
+      {
+        "id": "01",
+        "label": "HITZE",
+        "ha": "sunny",
+        "temp": "32°",
+        "caption": "Sonnenhut + Shorts",
+        "outfit": "An airy pale-ivory short-sleeved T-shirt, ochre shorts, cream closed breathable sneakers, and a soft light sand-colored sun hat with a visible brim. Small sun icon."
+      },
+      {
+        "id": "02",
+        "label": "WARM",
+        "ha": "sunny",
+        "temp": "24°",
+        "caption": "T-Shirt + Shorts",
+        "outfit": "Exactly the reference warm outfit: aqua short-sleeved T-shirt, ochre shorts and ivory sneakers, no hat. Small sun icon."
+      },
+      {
+        "id": "03",
+        "label": "MILD",
+        "ha": "partlycloudy",
+        "temp": "18°",
+        "caption": "Pullover + lange Hose",
+        "outfit": "A light aqua long-sleeved cotton crewneck sweater, long sand-colored trousers and ivory sneakers. No jacket, scarf or hat. Small partly-cloudy icon with visible sun."
+      },
+      {
+        "id": "04",
+        "label": "KÜHL",
+        "ha": "cloudy",
+        "temp": "12°",
+        "caption": "Leichte Jacke",
+        "outfit": "An open lightweight rust-orange jacket over ivory shirt, long navy trousers, closed ivory sneakers. No winter accessories. Small solid cloud icon."
+      }
+    ],
+    "prompt": "Use case: ui-mockup. Create an ORIGINAL EXTENSION of the attached approved \"WEICHER 3D-BEGLEITER\" concept. Input image is the CHARACTER IDENTITY, MATERIAL, LIGHTING and UI STYLE reference, not a layout to copy. Keep exactly the same friendly little boy, approx age six, warm light-medium skin, large brown eyes, rounded cheeks, short wavy sculpted brown hair, same soft matte premium 3D animation-film/clay-like rendering, same head-to-body proportions and same full-body front-facing slightly relaxed pose. All panels must look like one coherent character wardrobe, not different children. Fully clothed throughout. Produce a beautiful square 2048x2048 presentation board with precisely FOUR equally sized circular display mockups in a spacious symmetrical 2-by-2 grid on the same warm pale-gray background as the reference. Board title centered above all four circles. Every circular screen has near-black #07090B background, a very thin charcoal bezel, and restrained soft ground shadow, no detailed landscape. Each circle contains one full boy, shoes fully visible, a large off-white temperature above the head, one small sculpted weather icon to the upper right, and one short off-white clothing/action caption under his feet inside the circle. Add the scenario label immediately OUTSIDE each circle, centered underneath, with a small two-digit number. Keep all inside text comfortably away from the curved edges, and keep title and all four exterior labels fully visible. Text should be accurate simple German sans-serif. Quiet professional UI presentation with strong small-display readability. Full bodies large enough that garments are the focus. Same centered camera, figure scale, lighting and 3D quality across all panels. Weather icon secondary. Do not bake excessive patterns into fabrics. No logos, watermarks, extra characters or unrelated controls. Use the exact specified panel order: upper left, upper right, lower left, lower right.\nTitle exact: \"01 / SONNE & ALLTAG\".\nPANEL 1 (UPPER LEFT): Exterior scenario label exact \"01 / HITZE\". Inside top text exact \"32°\". Inside bottom caption exact \"Sonnenhut + Shorts\". Outfit and weather icon: An airy pale-ivory short-sleeved T-shirt, ochre shorts, cream closed breathable sneakers, and a soft light sand-colored sun hat with a visible brim. Small sun icon.\nPANEL 2 (UPPER RIGHT): Exterior scenario label exact \"02 / WARM\". Inside top text exact \"24°\". Inside bottom caption exact \"T-Shirt + Shorts\". Outfit and weather icon: Exactly the reference warm outfit: aqua short-sleeved T-shirt, ochre shorts and ivory sneakers, no hat. Small sun icon.\nPANEL 3 (LOWER LEFT): Exterior scenario label exact \"03 / MILD\". Inside top text exact \"18°\". Inside bottom caption exact \"Pullover + lange Hose\". Outfit and weather icon: A light aqua long-sleeved cotton crewneck sweater, long sand-colored trousers and ivory sneakers. No jacket, scarf or hat. Small partly-cloudy icon with visible sun.\nPANEL 4 (LOWER RIGHT): Exterior scenario label exact \"04 / KÜHL\". Inside top text exact \"12°\". Inside bottom caption exact \"Leichte Jacke\". Outfit and weather icon: An open lightweight rust-orange jacket over ivory shirt, long navy trousers, closed ivory sneakers. No winter accessories. Small solid cloud icon.\nAll temperatures are example display values, not clothing-rule thresholds. Maintain the approved reference boy's precise identity and soft three-dimensional look, avoiding any flattening into 2D cartoon. IMPORTANT: exactly four separate complete circles, with all exterior labels and the board title legible; no cropping."
+  },
+  {
+    "key": "02-kaelte-wind",
+    "title": "02 / KÄLTE & WIND",
+    "states": [
+      {
+        "id": "05",
+        "label": "FRISCH",
+        "ha": "sunny",
+        "temp": "6°",
+        "caption": "Warme Jacke",
+        "outfit": "A medium-weight quilted rust-orange jacket fully zipped over a sweater, long dark trousers and sturdy tan closed ankle shoes. Bare head and hands, no scarf. Small pale sun icon. Clearly warmer jacket than a light spring jacket."
+      },
+      {
+        "id": "06",
+        "label": "FROST",
+        "ha": "sunny",
+        "temp": "−6°",
+        "caption": "Mütze + Handschuhe",
+        "outfit": "Thick rust-red padded winter coat, aqua knitted beanie, short aqua scarf tucked snugly into coat, clearly visible aqua mittens at his sides, dark lined long trousers and sturdy tan insulated winter boots. Small sun with a frost crystal icon, not falling snow."
+      },
+      {
+        "id": "07",
+        "label": "WIND",
+        "ha": "windy",
+        "temp": "15°",
+        "caption": "Windjacke",
+        "outfit": "A lightweight aqua windbreaker fully zipped, long sand trousers, ivory closed sneakers. No hat, scarf or gloves. Small airflow curls combined with a little sun. Minimal movement in hair. Hands at sides so jacket silhouette is visible."
+      },
+      {
+        "id": "08",
+        "label": "KALTER WIND",
+        "ha": "windy-variant",
+        "temp": "3°",
+        "caption": "Windschutz + Mütze",
+        "outfit": "A medium insulated navy windproof jacket with mustard zipper detail, aqua knitted hat, short aqua neck warmer tucked into collar, long dark trousers, tan ankle boots and thin gloves. Small gray cloud with airflow curls, not a snowstorm. No long fluttering scarf."
+      }
+    ],
+    "prompt": "Use case: ui-mockup. Create an ORIGINAL EXTENSION of the attached approved \"WEICHER 3D-BEGLEITER\" concept. Input image is the CHARACTER IDENTITY, MATERIAL, LIGHTING and UI STYLE reference, not a layout to copy. Keep exactly the same friendly little boy, approx age six, warm light-medium skin, large brown eyes, rounded cheeks, short wavy sculpted brown hair, same soft matte premium 3D animation-film/clay-like rendering, same head-to-body proportions and same full-body front-facing slightly relaxed pose. All panels must look like one coherent character wardrobe, not different children. Fully clothed throughout. Produce a beautiful square 2048x2048 presentation board with precisely FOUR equally sized circular display mockups in a spacious symmetrical 2-by-2 grid on the same warm pale-gray background as the reference. Board title centered above all four circles. Every circular screen has near-black #07090B background, a very thin charcoal bezel, and restrained soft ground shadow, no detailed landscape. Each circle contains one full boy, shoes fully visible, a large off-white temperature above the head, one small sculpted weather icon to the upper right, and one short off-white clothing/action caption under his feet inside the circle. Add the scenario label immediately OUTSIDE each circle, centered underneath, with a small two-digit number. Keep all inside text comfortably away from the curved edges, and keep title and all four exterior labels fully visible. Text should be accurate simple German sans-serif. Quiet professional UI presentation with strong small-display readability. Full bodies large enough that garments are the focus. Same centered camera, figure scale, lighting and 3D quality across all panels. Weather icon secondary. Do not bake excessive patterns into fabrics. No logos, watermarks, extra characters or unrelated controls. Use the exact specified panel order: upper left, upper right, lower left, lower right.\nTitle exact: \"02 / KÄLTE & WIND\".\nPANEL 1 (UPPER LEFT): Exterior scenario label exact \"05 / FRISCH\". Inside top text exact \"6°\". Inside bottom caption exact \"Warme Jacke\". Outfit and weather icon: A medium-weight quilted rust-orange jacket fully zipped over a sweater, long dark trousers and sturdy tan closed ankle shoes. Bare head and hands, no scarf. Small pale sun icon. Clearly warmer jacket than a light spring jacket.\nPANEL 2 (UPPER RIGHT): Exterior scenario label exact \"06 / FROST\". Inside top text exact \"−6°\". Inside bottom caption exact \"Mütze + Handschuhe\". Outfit and weather icon: Thick rust-red padded winter coat, aqua knitted beanie, short aqua scarf tucked snugly into coat, clearly visible aqua mittens at his sides, dark lined long trousers and sturdy tan insulated winter boots. Small sun with a frost crystal icon, not falling snow.\nPANEL 3 (LOWER LEFT): Exterior scenario label exact \"07 / WIND\". Inside top text exact \"15°\". Inside bottom caption exact \"Windjacke\". Outfit and weather icon: A lightweight aqua windbreaker fully zipped, long sand trousers, ivory closed sneakers. No hat, scarf or gloves. Small airflow curls combined with a little sun. Minimal movement in hair. Hands at sides so jacket silhouette is visible.\nPANEL 4 (LOWER RIGHT): Exterior scenario label exact \"08 / KALTER WIND\". Inside top text exact \"3°\". Inside bottom caption exact \"Windschutz + Mütze\". Outfit and weather icon: A medium insulated navy windproof jacket with mustard zipper detail, aqua knitted hat, short aqua neck warmer tucked into collar, long dark trousers, tan ankle boots and thin gloves. Small gray cloud with airflow curls, not a snowstorm. No long fluttering scarf.\nAll temperatures are example display values, not clothing-rule thresholds. Maintain the approved reference boy's precise identity and soft three-dimensional look, avoiding any flattening into 2D cartoon. IMPORTANT: exactly four separate complete circles, with all exterior labels and the board title legible; no cropping."
+  },
+  {
+    "key": "03-regen",
+    "title": "03 / REGEN & NÄSSE",
+    "states": [
+      {
+        "id": "09",
+        "label": "WARMER REGEN",
+        "ha": "rainy",
+        "temp": "21°",
+        "caption": "Dünne Regenjacke",
+        "outfit": "Thin lightweight mustard-yellow waterproof rain jacket with hood down, a hint of short-sleeved aqua shirt under the slightly open zipper, lightweight long gray-blue trousers, teal rubber boots. No knitwear or insulation. Small cloud with two raindrops."
+      },
+      {
+        "id": "10",
+        "label": "KÜHLER REGEN",
+        "ha": "rainy",
+        "temp": "10°",
+        "caption": "Regenjacke + Stiefel",
+        "outfit": "Mustard-yellow raincoat over clearly visible warm aqua sweater at collar and cuffs, hood down, long navy trousers and tall teal rubber boots, matching the reference rainy boy but visibly layered. Small cloud with three raindrops."
+      },
+      {
+        "id": "11",
+        "label": "DAUERREGEN",
+        "ha": "pouring",
+        "temp": "7°",
+        "caption": "Kapuze + Regenhose",
+        "outfit": "Mustard-yellow waterproof coat zipped up with hood UP around face, navy waterproof overtrousers worn over boot tops and tall teal rubber boots, all clearly waterproof matte material. No umbrella. Small dark cloud with dense rain strokes."
+      },
+      {
+        "id": "12",
+        "label": "SCHNEEREGEN",
+        "ha": "snowy-rainy",
+        "temp": "1°",
+        "caption": "Warm + wasserdicht",
+        "outfit": "Rust-orange insulated waterproof jacket with raised hood around aqua beanie, navy waterproof winter overtrousers, aqua gloves and clearly insulated waterproof tan winter boots. Small cloud with BOTH a raindrop and snowflake."
+      }
+    ],
+    "prompt": "Use case: ui-mockup. Create an ORIGINAL EXTENSION of the attached approved \"WEICHER 3D-BEGLEITER\" concept. Input image is the CHARACTER IDENTITY, MATERIAL, LIGHTING and UI STYLE reference, not a layout to copy. Keep exactly the same friendly little boy, approx age six, warm light-medium skin, large brown eyes, rounded cheeks, short wavy sculpted brown hair, same soft matte premium 3D animation-film/clay-like rendering, same head-to-body proportions and same full-body front-facing slightly relaxed pose. All panels must look like one coherent character wardrobe, not different children. Fully clothed throughout. Produce a beautiful square 2048x2048 presentation board with precisely FOUR equally sized circular display mockups in a spacious symmetrical 2-by-2 grid on the same warm pale-gray background as the reference. Board title centered above all four circles. Every circular screen has near-black #07090B background, a very thin charcoal bezel, and restrained soft ground shadow, no detailed landscape. Each circle contains one full boy, shoes fully visible, a large off-white temperature above the head, one small sculpted weather icon to the upper right, and one short off-white clothing/action caption under his feet inside the circle. Add the scenario label immediately OUTSIDE each circle, centered underneath, with a small two-digit number. Keep all inside text comfortably away from the curved edges, and keep title and all four exterior labels fully visible. Text should be accurate simple German sans-serif. Quiet professional UI presentation with strong small-display readability. Full bodies large enough that garments are the focus. Same centered camera, figure scale, lighting and 3D quality across all panels. Weather icon secondary. Do not bake excessive patterns into fabrics. No logos, watermarks, extra characters or unrelated controls. Use the exact specified panel order: upper left, upper right, lower left, lower right.\nTitle exact: \"03 / REGEN & NÄSSE\".\nPANEL 1 (UPPER LEFT): Exterior scenario label exact \"09 / WARMER REGEN\". Inside top text exact \"21°\". Inside bottom caption exact \"Dünne Regenjacke\". Outfit and weather icon: Thin lightweight mustard-yellow waterproof rain jacket with hood down, a hint of short-sleeved aqua shirt under the slightly open zipper, lightweight long gray-blue trousers, teal rubber boots. No knitwear or insulation. Small cloud with two raindrops.\nPANEL 2 (UPPER RIGHT): Exterior scenario label exact \"10 / KÜHLER REGEN\". Inside top text exact \"10°\". Inside bottom caption exact \"Regenjacke + Stiefel\". Outfit and weather icon: Mustard-yellow raincoat over clearly visible warm aqua sweater at collar and cuffs, hood down, long navy trousers and tall teal rubber boots, matching the reference rainy boy but visibly layered. Small cloud with three raindrops.\nPANEL 3 (LOWER LEFT): Exterior scenario label exact \"11 / DAUERREGEN\". Inside top text exact \"7°\". Inside bottom caption exact \"Kapuze + Regenhose\". Outfit and weather icon: Mustard-yellow waterproof coat zipped up with hood UP around face, navy waterproof overtrousers worn over boot tops and tall teal rubber boots, all clearly waterproof matte material. No umbrella. Small dark cloud with dense rain strokes.\nPANEL 4 (LOWER RIGHT): Exterior scenario label exact \"12 / SCHNEEREGEN\". Inside top text exact \"1°\". Inside bottom caption exact \"Warm + wasserdicht\". Outfit and weather icon: Rust-orange insulated waterproof jacket with raised hood around aqua beanie, navy waterproof winter overtrousers, aqua gloves and clearly insulated waterproof tan winter boots. Small cloud with BOTH a raindrop and snowflake.\nAll temperatures are example display values, not clothing-rule thresholds. Maintain the approved reference boy's precise identity and soft three-dimensional look, avoiding any flattening into 2D cartoon. IMPORTANT: exactly four separate complete circles, with all exterior labels and the board title legible; no cropping."
+  },
+  {
+    "key": "04-schnee-nebel-morgen",
+    "title": "04 / WINTER & FRÜHER MORGEN",
+    "states": [
+      {
+        "id": "13",
+        "label": "SCHNEE",
+        "ha": "snowy",
+        "temp": "−2°",
+        "caption": "Winterjacke + Stiefel",
+        "outfit": "Rust-red padded winter jacket, aqua knitted beanie and short scarf, aqua mittens clearly visible, long dark winter trousers, tan winter boots. Small snowflake with two tiny snow crystals."
+      },
+      {
+        "id": "14",
+        "label": "NEBEL",
+        "ha": "fog",
+        "temp": "5°",
+        "caption": "Warm + gut sichtbar",
+        "outfit": "Warm mustard-yellow jacket with subtle clear silver reflective bands on sleeves and chest, long navy trousers, tan ankle boots, aqua knit hat. No safety vest covering the jacket. Small fog icon made of a low cloud and three horizontal mist lines."
+      },
+      {
+        "id": "15",
+        "label": "KLARER FRÜHER MORGEN",
+        "ha": "clear-night",
+        "temp": "7°",
+        "caption": "Jacke + lange Hose",
+        "outfit": "Midweight rust-orange jacket over aqua sweater, long navy trousers, tan closed shoes, no winter hat or scarf. This is a child dressed to leave home before dawn, NOT bedtime: no pajamas. Small crescent moon and two tiny stars."
+      },
+      {
+        "id": "16",
+        "label": "HAGEL",
+        "ha": "hail",
+        "temp": "4°",
+        "caption": "Schutz suchen",
+        "outfit": "Mustard-yellow hooded weatherproof jacket with hood up, long navy trousers and teal boots. Place the fully visible boy just within a very simplified protective dark doorway/overhang, subtle enough that outfit remains the focus. Small separate cloud icon with clearly round hail pellets, not snowflakes. No umbrella, no exposed outdoor scene."
+      }
+    ],
+    "prompt": "Use case: ui-mockup. Create an ORIGINAL EXTENSION of the attached approved \"WEICHER 3D-BEGLEITER\" concept. Input image is the CHARACTER IDENTITY, MATERIAL, LIGHTING and UI STYLE reference, not a layout to copy. Keep exactly the same friendly little boy, approx age six, warm light-medium skin, large brown eyes, rounded cheeks, short wavy sculpted brown hair, same soft matte premium 3D animation-film/clay-like rendering, same head-to-body proportions and same full-body front-facing slightly relaxed pose. All panels must look like one coherent character wardrobe, not different children. Fully clothed throughout. Produce a beautiful square 2048x2048 presentation board with precisely FOUR equally sized circular display mockups in a spacious symmetrical 2-by-2 grid on the same warm pale-gray background as the reference. Board title centered above all four circles. Every circular screen has near-black #07090B background, a very thin charcoal bezel, and restrained soft ground shadow, no detailed landscape. Each circle contains one full boy, shoes fully visible, a large off-white temperature above the head, one small sculpted weather icon to the upper right, and one short off-white clothing/action caption under his feet inside the circle. Add the scenario label immediately OUTSIDE each circle, centered underneath, with a small two-digit number. Keep all inside text comfortably away from the curved edges, and keep title and all four exterior labels fully visible. Text should be accurate simple German sans-serif. Quiet professional UI presentation with strong small-display readability. Full bodies large enough that garments are the focus. Same centered camera, figure scale, lighting and 3D quality across all panels. Weather icon secondary. Do not bake excessive patterns into fabrics. No logos, watermarks, extra characters or unrelated controls. Use the exact specified panel order: upper left, upper right, lower left, lower right.\nTitle exact: \"04 / WINTER & FRÜHER MORGEN\".\nPANEL 1 (UPPER LEFT): Exterior scenario label exact \"13 / SCHNEE\". Inside top text exact \"−2°\". Inside bottom caption exact \"Winterjacke + Stiefel\". Outfit and weather icon: Rust-red padded winter jacket, aqua knitted beanie and short scarf, aqua mittens clearly visible, long dark winter trousers, tan winter boots. Small snowflake with two tiny snow crystals.\nPANEL 2 (UPPER RIGHT): Exterior scenario label exact \"14 / NEBEL\". Inside top text exact \"5°\". Inside bottom caption exact \"Warm + gut sichtbar\". Outfit and weather icon: Warm mustard-yellow jacket with subtle clear silver reflective bands on sleeves and chest, long navy trousers, tan ankle boots, aqua knit hat. No safety vest covering the jacket. Small fog icon made of a low cloud and three horizontal mist lines.\nPANEL 3 (LOWER LEFT): Exterior scenario label exact \"15 / KLARER FRÜHER MORGEN\". Inside top text exact \"7°\". Inside bottom caption exact \"Jacke + lange Hose\". Outfit and weather icon: Midweight rust-orange jacket over aqua sweater, long navy trousers, tan closed shoes, no winter hat or scarf. This is a child dressed to leave home before dawn, NOT bedtime: no pajamas. Small crescent moon and two tiny stars.\nPANEL 4 (LOWER RIGHT): Exterior scenario label exact \"16 / HAGEL\". Inside top text exact \"4°\". Inside bottom caption exact \"Schutz suchen\". Outfit and weather icon: Mustard-yellow hooded weatherproof jacket with hood up, long navy trousers and teal boots. Place the fully visible boy just within a very simplified protective dark doorway/overhang, subtle enough that outfit remains the focus. Small separate cloud icon with clearly round hail pellets, not snowflakes. No umbrella, no exposed outdoor scene.\nAll temperatures are example display values, not clothing-rule thresholds. Maintain the approved reference boy's precise identity and soft three-dimensional look, avoiding any flattening into 2D cartoon. IMPORTANT: exactly four separate complete circles, with all exterior labels and the board title legible; no cropping."
+  },
+  {
+    "key": "05-gewitter-sonderlagen",
+    "title": "05 / GEWITTER & SONDERLAGEN",
+    "states": [
+      {
+        "id": "17",
+        "label": "GEWITTER",
+        "ha": "lightning",
+        "temp": "22°",
+        "caption": "Drinnen bleiben",
+        "outfit": "Aqua short-sleeved T-shirt, long sand trousers, ivory sneakers. Show the fully visible child protected just inside a very simple dark doorway outline. Small cloud and lightning bolt icon without raindrops. No umbrella, outdoor trees, rain gear, or scary expression."
+      },
+      {
+        "id": "18",
+        "label": "GEWITTER MIT REGEN",
+        "ha": "lightning-rainy",
+        "temp": "16°",
+        "caption": "Drinnen bleiben",
+        "outfit": "Mustard-yellow rain jacket with hood down, long navy trousers and teal boots; fully visible boy just inside a minimal protective dark doorway outline. Small cloud icon with lightning bolt AND blue raindrops. No umbrella or exposed outdoor scene."
+      },
+      {
+        "id": "19",
+        "label": "BESONDERE WETTERLAGE",
+        "ha": "exceptional",
+        "temp": "—",
+        "caption": "Vorhersage prüfen",
+        "outfit": "Neutral aqua long-sleeved top, plain sand trousers and ivory closed shoes, no weather-specific accessories. The figure should be rendered gently desaturated but still friendly and clear, with a small neutral circle containing an exclamation mark as the upper-right status icon. No invented sun, storm, temperature, official warning badge or supposed protective outfit."
+      },
+      {
+        "id": "20",
+        "label": "KEINE WETTERDATEN",
+        "ha": "unknown",
+        "temp": "—",
+        "caption": "Noch keine Empfehlung",
+        "outfit": "The SAME neutral aqua long-sleeved top, plain sand trousers and ivory closed shoes as previous panel, gently desaturated, with a small neutral circle containing a question mark in place of a weather symbol. No invented weather, temperature or extra weather-specific clothing. A calm fallback UI, no error drama."
+      }
+    ],
+    "prompt": "Use case: ui-mockup. Create an ORIGINAL EXTENSION of the attached approved \"WEICHER 3D-BEGLEITER\" concept. Input image is the CHARACTER IDENTITY, MATERIAL, LIGHTING and UI STYLE reference, not a layout to copy. Keep exactly the same friendly little boy, approx age six, warm light-medium skin, large brown eyes, rounded cheeks, short wavy sculpted brown hair, same soft matte premium 3D animation-film/clay-like rendering, same head-to-body proportions and same full-body front-facing slightly relaxed pose. All panels must look like one coherent character wardrobe, not different children. Fully clothed throughout. Produce a beautiful square 2048x2048 presentation board with precisely FOUR equally sized circular display mockups in a spacious symmetrical 2-by-2 grid on the same warm pale-gray background as the reference. Board title centered above all four circles. Every circular screen has near-black #07090B background, a very thin charcoal bezel, and restrained soft ground shadow, no detailed landscape. Each circle contains one full boy, shoes fully visible, a large off-white temperature above the head, one small sculpted weather icon to the upper right, and one short off-white clothing/action caption under his feet inside the circle. Add the scenario label immediately OUTSIDE each circle, centered underneath, with a small two-digit number. Keep all inside text comfortably away from the curved edges, and keep title and all four exterior labels fully visible. Text should be accurate simple German sans-serif. Quiet professional UI presentation with strong small-display readability. Full bodies large enough that garments are the focus. Same centered camera, figure scale, lighting and 3D quality across all panels. Weather icon secondary. Do not bake excessive patterns into fabrics. No logos, watermarks, extra characters or unrelated controls. Use the exact specified panel order: upper left, upper right, lower left, lower right.\nTitle exact: \"05 / GEWITTER & SONDERLAGEN\".\nPANEL 1 (UPPER LEFT): Exterior scenario label exact \"17 / GEWITTER\". Inside top text exact \"22°\". Inside bottom caption exact \"Drinnen bleiben\". Outfit and weather icon: Aqua short-sleeved T-shirt, long sand trousers, ivory sneakers. Show the fully visible child protected just inside a very simple dark doorway outline. Small cloud and lightning bolt icon without raindrops. No umbrella, outdoor trees, rain gear, or scary expression.\nPANEL 2 (UPPER RIGHT): Exterior scenario label exact \"18 / GEWITTER MIT REGEN\". Inside top text exact \"16°\". Inside bottom caption exact \"Drinnen bleiben\". Outfit and weather icon: Mustard-yellow rain jacket with hood down, long navy trousers and teal boots; fully visible boy just inside a minimal protective dark doorway outline. Small cloud icon with lightning bolt AND blue raindrops. No umbrella or exposed outdoor scene.\nPANEL 3 (LOWER LEFT): Exterior scenario label exact \"19 / BESONDERE WETTERLAGE\". Inside top text exact \"—\". Inside bottom caption exact \"Vorhersage prüfen\". Outfit and weather icon: Neutral aqua long-sleeved top, plain sand trousers and ivory closed shoes, no weather-specific accessories. The figure should be rendered gently desaturated but still friendly and clear, with a small neutral circle containing an exclamation mark as the upper-right status icon. No invented sun, storm, temperature, official warning badge or supposed protective outfit.\nPANEL 4 (LOWER RIGHT): Exterior scenario label exact \"20 / KEINE WETTERDATEN\". Inside top text exact \"—\". Inside bottom caption exact \"Noch keine Empfehlung\". Outfit and weather icon: The SAME neutral aqua long-sleeved top, plain sand trousers and ivory closed shoes as previous panel, gently desaturated, with a small neutral circle containing a question mark in place of a weather symbol. No invented weather, temperature or extra weather-specific clothing. A calm fallback UI, no error drama.\nAll temperatures are example display values, not clothing-rule thresholds. Maintain the approved reference boy's precise identity and soft three-dimensional look, avoiding any flattening into 2D cartoon. IMPORTANT: exactly four separate complete circles, with all exterior labels and the board title legible; no cropping."
+  }
+]
