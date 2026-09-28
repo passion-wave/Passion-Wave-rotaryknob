@@ -6,7 +6,8 @@
 
 namespace weather_avatar {
 
-enum class Thermal : uint8_t { HOT, WARM, MILD, COOL, COLD, FROST };
+// ESPHome defines HOT as a function attribute macro.
+enum class Thermal : uint8_t { HOT_WEATHER, WARM, MILD, COOL, COLD, FROST };
 enum class Protection : uint8_t { DRY, WIND, WET, SNOW };
 enum class Scene : uint8_t {
   EVERYDAY, WIND, RAIN, POURING, SNOW, MIX, FOG, NIGHT,
@@ -20,7 +21,7 @@ constexpr bool has_condition(const Context &c, uint8_t code) {
   return (c.conditions & condition_bit(code)) != 0;
 }
 constexpr Thermal thermal_band(int16_t temperature_tenths) {
-  return temperature_tenths >= 280 ? Thermal::HOT :
+  return temperature_tenths >= 280 ? Thermal::HOT_WEATHER :
          temperature_tenths >= 220 ? Thermal::WARM :
          temperature_tenths >= 160 ? Thermal::MILD :
          temperature_tenths >= 100 ? Thermal::COOL :
@@ -111,7 +112,7 @@ inline Outfit resolve(const Context &c, uint32_t now) {
   } else if (has_condition(c, 4)) { out.scene = Scene::FOG; out.reference_motif = 14; }
   else if (c.first_condition == 1) { out.scene = Scene::NIGHT; out.reference_motif = 15; }
 
-  out.sun_hat = out.scene == Scene::EVERYDAY && out.thermal == Thermal::HOT &&
+  out.sun_hat = out.scene == Scene::EVERYDAY && out.thermal == Thermal::HOT_WEATHER &&
                 (has_condition(c, 13) || has_condition(c, 8));
   return out;
 }
@@ -148,7 +149,7 @@ inline const char *outfit_label(const Outfit &o) {
   if (o.scene == Scene::FOG) return "Gut sichtbar kleiden";
   if (o.sun_hat) return "Sonnenhut + Shorts";
   switch (o.thermal) {
-    case Thermal::HOT: case Thermal::WARM: return "T-Shirt + Shorts";
+    case Thermal::HOT_WEATHER: case Thermal::WARM: return "T-Shirt + Shorts";
     case Thermal::MILD: return "Pullover + lange Hose";
     case Thermal::COOL: return "Leichte Jacke";
     case Thermal::COLD: return "Warme Jacke";

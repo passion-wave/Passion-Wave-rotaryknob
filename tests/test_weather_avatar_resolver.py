@@ -14,7 +14,9 @@ class AvatarResolverTests(unittest.TestCase):
         if compiler is None:
             self.skipTest("Native C++ compiler required; exercised separately on build host")
         source = r'''
+#define HOT __attribute__((hot))
 #include "weather_avatar.h"
+HOT void esphome_hot_attribute_still_works() {}
 #include <cassert>
 using namespace weather_avatar;
 constexpr uint32_t now=1790575200;
@@ -30,7 +32,7 @@ int main() {
   for (auto b: {Boundary{-1,Thermal::FROST}, {0,Thermal::COLD},
       {99,Thermal::COLD}, {100,Thermal::COOL}, {159,Thermal::COOL},
       {160,Thermal::MILD}, {219,Thermal::MILD}, {220,Thermal::WARM},
-      {279,Thermal::WARM}, {280,Thermal::HOT}}) {
+      {279,Thermal::WARM}, {280,Thermal::HOT_WEATHER}}) {
     auto o=resolve(weather(b.t,13),now); assert(o.valid && o.thermal==b.band);
   }
   auto c=weather(320,13); auto o=resolve(c,now);
