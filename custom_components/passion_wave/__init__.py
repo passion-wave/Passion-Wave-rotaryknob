@@ -81,6 +81,7 @@ from .const import (
 )
 from .entity import entity_by_original_name
 from .media import (
+    PlaylistBrowseCache,
     bounded_page,
     filter_library_page,
     normalize_browse_page,
@@ -380,6 +381,7 @@ async def async_rehydrate_runtime_snapshot(
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Register the bounded PassionWave service API."""
+    playlist_browse_cache = PlaylistBrowseCache()
 
     async def async_get_library(call: ServiceCall) -> ServiceResponse:
         entry = _get_loaded_entry(hass, call.data[ATTR_CONFIG_ENTRY_ID])
@@ -424,16 +426,30 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         offset, limit = bounded_page(
             call.data[ATTR_OFFSET], call.data[ATTR_LIMIT], MAX_TRACK_PAGE_SIZE
         )
-        response = await hass.services.async_call(
-            "media_player",
-            "browse_media",
-            {
-                "entity_id": entity_id,
-                "media_content_type": "playlist",
-                "media_content_id": call.data[ATTR_PLAYLIST_ID],
-            },
-            blocking=True,
-            return_response=True,
+        playlist_id = call.data[ATTR_PLAYLIST_ID]
+
+        async def fetch() -> Any:
+            return await hass.services.async_call(
+                "media_player",
+                "browse_media",
+                {
+                    "entity_id": entity_id,
+                    "media_content_type": "playlist",
+                    "media_content_id": playlist_id,
+                },
+                blocking=True,
+                return_response=True,
+            )
+
+        response = await playlist_browse_cache.get(
+            (
+                entry.entry_id,
+                str(_entry_value(entry, CONF_MA_CONFIG_ENTRY_ID)),
+                entity_id,
+                playlist_id,
+            ),
+            fetch,
+            refresh=offset == 0,
         )
         return normalize_browse_page(response, entity_id, offset, limit)
 

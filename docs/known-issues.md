@@ -17,6 +17,42 @@ state is not direct visual evidence.
 
 ## Active technical follow-up
 
+### PW-MEDIA-013: Playlist start latency and repeated complete browsing
+
+On 2026-10-16, remotely traced a physical playlist selection on the production
+device running integration/S3/Bridge Beta 16 with Music Assistant 2.10.4.
+Home Assistant dispatched `music_assistant.play_media` within one millisecond
+of the Bridge command event (16:50:48 Europe/Berlin). The selected AirPlay
+player reported `playing` after 25.5 seconds; the user confirmed audible
+playback separately. Spotify logged repeated rate-limit backoffs during queue
+resolution. AirPlay streaming setup began about 19 seconds after dispatch.
+This run establishes the slow section, not an exact audible-start timestamp.
+
+The same selection caused twelve complete `browse_media` calls while the S3
+requested successive 16-track pages. The local integration fix shares one
+bounded browse snapshot across those pages, refreshes on a new first page and
+coalesces concurrent fetches. Regression tests reproduce 39 full requests for
+620 tracks before the fix and require one afterwards. Device, Music Assistant
+instance, selected player and provider-specific URI remain separate cache
+identities; four Spotify accounts must not be collapsed into one provider.
+
+Local implementation and automated checks do not prove a live speedup. A
+read-only prototype using real Music Assistant data served twelve pages (192
+of 620 tracks) from one full browse in 1.5 seconds. The complete integration
+suite passed 131 tests and 56 subtests under Home Assistant 2026.9.3; four
+unrelated native C++ tests were skipped because that image has no compiler.
+A separate warm direct-service comparison reached `playing` in 8.4 seconds; it
+changed both cache warmth and paging traffic and is not an after-fix result.
+The fix has not been installed. Retest physical selection after qualified
+deployment, including separate Spotify accounts, cold/warm starts and changed
+playlist contents.
+
+The Bridge also sends result 6 after eight seconds, before this legitimate
+slow Music Assistant call finishes, then discards its eventual final callback.
+That timeout/progress mismatch remains open; increasing a timeout alone would
+not fix the provider delay. Do not retry a still-running playlist start merely
+because the display has timed out.
+
 ### PW-AVATAR-001: Weather avatar acceptance
 
 Automated on 2026-09-28 for the Beta-16 sources: the complete integration suite

@@ -175,6 +175,13 @@ PassionWave provides bounded playlist, radio, podcast and playlist-track pages.
 The S3 prefetches with five rows remaining; one request-in-flight guard and
 generation-tagged responses prevent duplicate or stale page commits.
 
+Playlist-track paging reuses the complete Home Assistant browse response for
+up to two minutes instead of browsing the complete playlist for every small
+page. A new first-page request refreshes it; concurrent requests share one
+fetch. The bounded cache keys include the logical device, Music Assistant
+instance, selected player and exact playlist URI, including its provider
+instance. It does not merge Spotify accounts or change playback routing.
+
 Media controls use compact commands for previous, play/pause, next, volume,
 shuffle, repeat and library selection. The Bridge never accepts an arbitrary
 entity ID from the S3; targets come from the Config Entry and authoritative
