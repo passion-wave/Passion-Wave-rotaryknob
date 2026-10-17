@@ -381,6 +381,23 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertIn("900000UL", S3)
         self.assertIn("900000UL", BRIDGE)
 
+    def test_playback_progress_retains_bridge_and_display_callback(self) -> None:
+        callback = BRIDGE.split("- action: passion_wave_complete_media", 1)[1]
+        callback = callback.split("wifi:", 1)[0]
+        self.assertIn("if (result == 0x7F)", callback)
+        self.assertIn("id(bridge_play_started_us) = micros()", callback)
+        self.assertIn("else\n              id(bridge_play_pending) = false", callback)
+        settle = S3_UI.split("- id: media_selection_accept_settle", 1)[1]
+        settle = settle.split("- id: prepare_media_picker_layout", 1)[0]
+        self.assertIn("id(media_selection_loading) = false", settle)
+        self.assertNotIn("id(media_selection_pending_kind) = -1", settle)
+        self.assertNotIn("id(media_selection_started_ms) = 0", settle)
+        callback = S3.split("case dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT:", 1)[1]
+        callback = callback.split("case dual_mcu::MessageType::LIBRARY_PAGE_FETCH_RESULT:", 1)[0]
+        match = callback.split("const bool matches_pending =", 1)[1].split(";", 1)[0]
+        self.assertNotIn("media_selection_loading", match)
+        self.assertIn("media_selection_pending_index", match)
+
     def test_support_mode_controls_both_processors(self) -> None:
         self.assertIn("service: support_diagnostics_on", S3_UI)
         self.assertIn("service: support_diagnostics_off", S3_UI)

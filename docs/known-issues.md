@@ -49,9 +49,16 @@ playlist contents.
 
 The Bridge also sends result 6 after eight seconds, before this legitimate
 slow Music Assistant call finishes, then discards its eventual final callback.
-That timeout/progress mismatch remains open; increasing a timeout alone would
-not fix the provider delay. Do not retry a still-running playlist start merely
-because the display has timed out.
+The candidate now renews progress every two seconds, retains Bridge/S3 callback
+ownership after modal dismissal, and bounds the HA wait to 120 seconds. Quiet
+watchdogs detect missing progress separately. No playlist replay is generated
+by those progress updates. This corrects the timeout/progress mismatch in
+source; deployment and physical acceptance remain pending.
+
+On 2026-10-17 the current-HA fast gate passed 136 tests and 56 subtests,
+including slow provider progress, terminal timeout, superseding selections
+while an older request drains, and unload cleanup. Four native C++ tests remain
+separate from the HA image. These checks do not establish an audible speedup.
 
 ### PW-AVATAR-001: Weather avatar acceptance
 

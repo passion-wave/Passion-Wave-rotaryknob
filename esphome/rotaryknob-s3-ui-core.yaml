@@ -7805,21 +7805,12 @@ script:
   - id: media_selection_accept_settle
     mode: restart
     then:
-      # Some Home Assistant actions acknowledge queue admission but never
-      # deliver ESPHome's optional final callback. The bridge acceptance is a
-      # reliable transport confirmation, so release the modal after a short
-      # settling window unless a real error arrived in the meantime.
-      # Cold Music Assistant starts completed in about 1.6 s on the current
-      # player. Keep margin for HA jitter, but do not trap the UI for four
-      # seconds if the optional final callback is lost.
+      # Release the modal after admission, retaining callback ownership until
+      # HA returns success/error. Progress renews the separate quiet watchdog.
       - delay: 2500ms
       - lambda: |-
           if (!id(media_selection_loading) || !id(media_selection_bridge_accepted)) return;
           id(media_selection_loading) = false;
-          id(media_selection_started_ms) = 0;
-          id(media_selection_pending_kind) = -1;
-          id(media_selection_pending_index) = -1;
-          id(media_selection_bridge_accepted) = false;
           id(media_picker_visible) = false;
           id(touch_swipe_nav_suppress_until_ms) = millis() + 350;
           id(control_mode) = 1;
@@ -7961,9 +7952,6 @@ script:
           id(media_last_activity_ms) = millis();
           id(media_picker_visible) = false;
           id(media_selection_loading) = false;
-          id(media_selection_started_ms) = 0;
-          id(media_selection_pending_kind) = -1;
-          id(media_selection_pending_index) = -1;
           id(touch_swipe_nav_suppress_until_ms) = millis() + 350;
           id(control_mode) = 1;
           if (media_picker_popup != nullptr) {
@@ -10485,9 +10473,8 @@ interval:
       - if:
           condition:
             lambda: |-
-              return id(media_selection_loading) &&
-                     id(media_selection_started_ms) != 0 &&
-                     millis() - id(media_selection_started_ms) >= 15000;
+              return id(media_selection_started_ms) != 0 &&
+                     millis() - id(media_selection_started_ms) >= 20000;
           then:
             - lambda: |-
                 id(media_selection_loading) = false;
@@ -10497,7 +10484,7 @@ interval:
                 id(media_selection_bridge_accepted) = false;
                 id(media_selection_feedback_text) = "START UNKLAR";
                 id(media_selection_feedback_until_ms) = millis() + 5000;
-                id(control_mode) = 2;
+                if (id(media_picker_visible)) id(control_mode) = 2;
                 id(media_picker_fast_refresh_requested) = false;
             - script.execute: refresh_media_picker_popup
   - interval: 50ms

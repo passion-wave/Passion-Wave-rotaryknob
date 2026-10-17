@@ -902,6 +902,7 @@ button:
           constexpr uint16_t probe_index = 9;
           id(music_latency_probe_pending) = true;
           id(music_latency_probe_started_us) = micros();
+          id(music_latency_bridge_accept_sensor).publish_state(NAN);
           // Exercise the same UI acknowledgement state as a real selection,
           // using a non-zero playlist index to guard against index-correlation
           // regressions.
@@ -1798,10 +1799,11 @@ interval:
                       index == 9) {
                     const uint32_t elapsed_us =
                       micros() - id(music_latency_probe_started_us);
-                    if (result == 0x7F) {
+                    if (result == 0x7F &&
+                        !std::isfinite(id(music_latency_bridge_accept_sensor).state)) {
                       id(music_latency_bridge_accept_sensor).publish_state(
                         elapsed_us / 1000.0f);
-                    } else {
+                    } else if (result != 0x7F) {
                       id(music_latency_probe_pending) = false;
                       if (result == 0) {
                         id(music_latency_total_sensor).publish_state(
@@ -1817,26 +1819,29 @@ interval:
                     }
                   }
                   const bool matches_pending =
-                    id(media_selection_loading) &&
+                    id(media_selection_started_ms) != 0 &&
                     id(media_selection_pending_kind) == kind &&
                     id(media_selection_pending_index) == index;
                   id(dual_mcu_media_selection_status).publish_state(
-                    std::string(result == 0 ? "Gestartet" : result == 0x7F ? "Angenommen" : "Fehler") +
+                    std::string(result == 0 ? "HA bestätigt" : result == 0x7F ? "Start läuft" : "Fehler") +
                     " kind=" + std::to_string(kind) +
                     " index=" + std::to_string(index) +
                     " code=" + std::to_string(result) +
                     " match=" + (matches_pending ? "1" : "0"));
                   if (matches_pending && result == 0x7F) {
                     id(media_selection_started_ms) = millis();
-                    id(media_selection_bridge_accepted) = true;
-                    id(media_selection_accept_settle).execute();
+                    if (!id(media_selection_bridge_accepted)) {
+                      id(media_selection_bridge_accepted) = true;
+                      id(media_selection_accept_settle).execute();
+                    }
                   } else if (matches_pending) {
+                    const bool modal_waiting = id(media_selection_loading);
                     id(media_selection_loading) = false;
                     id(media_selection_started_ms) = 0;
                     id(media_selection_pending_kind) = -1;
                     id(media_selection_pending_index) = -1;
                     id(media_selection_bridge_accepted) = false;
-                    if (result == 0) {
+                    if (result == 0 && modal_waiting) {
                       id(media_picker_visible) = false;
                       id(touch_swipe_nav_suppress_until_ms) = millis() + 350;
                       id(control_mode) = 1;
@@ -1844,11 +1849,11 @@ interval:
                         lv_obj_add_flag(media_picker_popup, LV_OBJ_FLAG_HIDDEN);
                       if (id(ui_next_enabled) && ui_next::framework.built())
                         ui_next::framework.set_navigation_visible(true);
-                    } else {
+                    } else if (result != 0) {
                       id(media_selection_feedback_text) =
                         std::string("Startfehler ") + std::to_string(result) + " – erneut wählen";
                       id(media_selection_feedback_until_ms) = millis() + 5000;
-                      id(control_mode) = 2;
+                      if (id(media_picker_visible)) id(control_mode) = 2;
                       id(media_picker_fast_refresh_requested) = false;
                       id(refresh_media_picker_popup).execute();
                     }

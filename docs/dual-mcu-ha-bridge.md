@@ -198,6 +198,19 @@ confirmation loop within the 100-ms poll interval. This keeps the final player
 state deterministic even when a previous playlist is still preparing its
 queue.
 
+While Music Assistant is preparing a selection, the integration renews result
+`127` every two seconds for the newest desired command, including a command
+queued behind an older service call. This is progress, not audible playback.
+The Bridge retains the callback and reports a quiet timeout after fifteen
+seconds without progress. The S3 releases the modal after 2.5 seconds but keeps
+kind/index correlation until the terminal callback; its independent quiet
+watchdog expires after twenty seconds. A late result cannot close a reopened
+picker. The integration bounds each provider wait to 120 seconds and reports
+result `6` on timeout without retrying a playlist merely because it was slow.
+This bounds local waiting; cancellation does not prove that Music Assistant or
+Spotify cancelled their already submitted work. Result `0` acknowledges the HA
+action/track confirmation, while actual sound requires separate observation.
+
 ## Cover pipeline
 
 The integration sends the selected player's state, title, artist and resolved
