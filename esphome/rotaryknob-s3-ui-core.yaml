@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "Passion Wave RotaryKnob"
   device_description: "ESP32S3-1.8-inch JC3636K518C"
   project_name: "passion-wave.rotaryknob"
-  project_version: "3.0.1-beta.10"
+  project_version: "3.0.1-beta.17"
   ui_next_enabled: "false"
   dual_mcu_ha_bridge_enabled: "true"
   # V3 has no direct S3 application-network fallback. The classic ESP32 owns
@@ -75,6 +75,10 @@ esphome:
     - scrollwheel_dynamic_targets.h
     - squareline_font_bridge.h
     - ui_next_framework.h
+    - weather_avatar_schedule.h
+    - weather_avatar.h
+    - weather_avatar_assets.h
+    - weather_avatar_render.h
     - round_Temp/fonts/ui_font_Number.c
   platformio_options:
     lib_deps:
@@ -1311,6 +1315,26 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: '0'
+  - id: avatar_variant
+    type: int
+    restore_value: yes
+    initial_value: '0'
+  - id: morning_avatar_enabled
+    type: bool
+    restore_value: yes
+    initial_value: 'true'
+  - id: morning_avatar_window_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: screensaver_avatar_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: screensaver_avatar_automatic
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: screensaver_return_page
     type: int
     restore_value: no
@@ -1612,6 +1636,10 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: touch_avatar_exit_pending
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: touch_swipe_started_sleeping
     type: bool
     restore_value: no
@@ -1638,6 +1666,16 @@ touchscreen:
         id(touch_swipe_direction) = 0;
         id(touch_swipe_handled) = false;
         id(touch_swipe_started_sleeping) = id(display_sleeping);
+        id(touch_avatar_exit_pending) = false;
+        id(ui_last_activity_ms) = millis();
+        // Consume the complete gesture before exposing any underlying page.
+        if (id(current_page) == 7 && id(screensaver_avatar_active) &&
+            !id(display_sleeping)) {
+          id(touch_swipe_handled) = true;
+          id(touch_swipe_nav_suppress_until_ms) = millis() + 450;
+          id(touch_avatar_exit_pending) = true;
+          return;
+        }
         if (id(ui_next_enabled) && !id(display_sleeping) &&
             id(current_page) >= 20 && id(current_page) <= 24 &&
             !id(media_picker_visible)) {
@@ -1670,6 +1708,12 @@ touchscreen:
           id(handle_fast_touch_swipe).execute();
         }
   on_release:
+    - if:
+        condition:
+          lambda: 'return id(touch_avatar_exit_pending);'
+        then:
+          - lambda: 'id(touch_avatar_exit_pending) = false;'
+          - script.execute: return_from_screensaver
     - if:
         condition:
           lambda: 'return id(display_sleeping);'
@@ -3360,6 +3404,9 @@ script:
     mode: restart
     then:
       - lambda: |-
+          id(avatar_hair_select).publish_state(id(avatar_variant) == 1
+            ? "Avatar Haare Blond" : "Avatar Haare Braun");
+          id(morning_avatar_switch).publish_state(id(morning_avatar_enabled));
           id(haptic_effect_number).publish_state(id(haptic_effect_index));
           id(timer_done_haptic_effect_number).publish_state(
             id(timer_done_haptic_effect_index));
@@ -3584,7 +3631,7 @@ script:
     then:
       - script.execute: refresh_control_time
       - lambda: |-
-          const int focus_count = 12;
+          const int focus_count = 14;
           id(settings_focus_index) = scrollwheel_targets::clamp_index(id(settings_focus_index), focus_count);
           const char *focus_names[focus_count] = {
             "Haptik",
@@ -3599,6 +3646,8 @@ script:
             "Licht 4",
             "DEV: Wach halten",
             "Versionen",
+            "Avatar Haare",
+            "Morgen-Avatar 06-10",
           };
           std::string value;
           const bool demo = id(demo_mode_active);
@@ -3641,6 +3690,12 @@ script:
               break;
             case 10:
               value = id(display_keep_awake) ? "Wach halten EIN" : "Wach halten AUS";
+              break;
+            case 12:
+              value = id(avatar_variant) == 1 ? "Avatar Haare Blond" : "Avatar Haare Braun";
+              break;
+            case 13:
+              value = id(morning_avatar_enabled) ? "Morgen-Avatar EIN" : "Morgen-Avatar AUS";
               break;
             default:
               value = "S3 ${project_version}";
@@ -3691,7 +3746,7 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(settings_focus_index) -= 1;
-          if (id(settings_focus_index) < 0) id(settings_focus_index) = 11;
+          if (id(settings_focus_index) < 0) id(settings_focus_index) = 13;
       - script.execute: refresh_settings_ui
   - id: settings_focus_next
     mode: restart
@@ -3700,7 +3755,7 @@ script:
       - lambda: |-
           id(ui_last_activity_ms) = millis();
           id(settings_focus_index) += 1;
-          if (id(settings_focus_index) > 11) id(settings_focus_index) = 0;
+          if (id(settings_focus_index) > 13) id(settings_focus_index) = 0;
       - script.execute: refresh_settings_ui
   - id: settings_value_prev
     mode: restart
@@ -3759,6 +3814,12 @@ script:
             case 10:
               id(display_keep_awake) = !id(display_keep_awake);
               id(display_keep_awake_switch).publish_state(id(display_keep_awake));
+              break;
+            case 12:
+              id(set_avatar_variant).execute(id(avatar_variant) == 1 ? 0 : 1);
+              break;
+            case 13:
+              id(set_morning_avatar_enabled).execute(!id(morning_avatar_enabled));
               break;
             default:
               break;
@@ -3833,6 +3894,12 @@ script:
             case 10:
               id(display_keep_awake) = !id(display_keep_awake);
               id(display_keep_awake_switch).publish_state(id(display_keep_awake));
+              break;
+            case 12:
+              id(set_avatar_variant).execute(id(avatar_variant) == 1 ? 0 : 1);
+              break;
+            case 13:
+              id(set_morning_avatar_enabled).execute(!id(morning_avatar_enabled));
               break;
             default:
               break;
@@ -5185,12 +5252,177 @@ script:
               id(dual_mcu_asset_pending_force) = false;
             }
           }
+  - id: set_avatar_variant
+    mode: restart
+    parameters:
+      value: int
+    then:
+      - lambda: |-
+          if (value != 0 && value != 1) return;
+          if (id(avatar_variant) != value) {
+            id(avatar_variant) = value;
+            id(refresh_avatar).execute();
+          }
+          id(publish_configuration_snapshot).execute();
+          id(refresh_settings_ui).execute();
+  - id: set_morning_avatar_enabled
+    mode: restart
+    parameters:
+      enabled: bool
+    then:
+      - lambda: |-
+          if (id(morning_avatar_enabled) != enabled) {
+            id(morning_avatar_enabled) = enabled;
+            id(morning_avatar_tick).execute();
+          }
+          id(publish_configuration_snapshot).execute();
+          id(refresh_settings_ui).execute();
+  - id: refresh_avatar
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(current_page) != 7 || !id(screensaver_avatar_active) ||
+              avatar_host == nullptr) return;
+          auto now = id(ha_time).now();
+          if (!now.is_valid()) now = id(sntp_time).now();
+          const std::string variant = id(avatar_variant) == 1
+            ? "blond_hazel" : "brown_brown";
+          const bool avatar_ready = weather_avatar::render(avatar_image, avatar_title_label,
+                                 avatar_detail_label, variant,
+                                 now.is_valid() ? now.timestamp : 0);
+          const auto outfit = weather_avatar::resolve(weather_avatar::current_context,
+            now.is_valid() ? now.timestamp : 0);
+          const char *symbol = "\U0000E2BD";
+          switch (outfit.scene) {
+            case weather_avatar::Scene::WIND: symbol = "\U0000EFD8"; break;
+            case weather_avatar::Scene::RAIN:
+              symbol = outfit.liquid_rain ? "\U0000F176" : "\U0000E8FD";
+              break;
+            case weather_avatar::Scene::POURING: symbol = "\U0000F176"; break;
+            case weather_avatar::Scene::SNOW:
+            case weather_avatar::Scene::MIX:
+            case weather_avatar::Scene::HAIL: symbol = "\U0000EB3B"; break;
+            case weather_avatar::Scene::FOG: symbol = "\U0000E818"; break;
+            case weather_avatar::Scene::NIGHT: symbol = "\U0000E51C"; break;
+            case weather_avatar::Scene::LIGHTNING:
+            case weather_avatar::Scene::LIGHTNING_RAIN: symbol = "\U0000EBDB"; break;
+            case weather_avatar::Scene::EXCEPTIONAL:
+            case weather_avatar::Scene::UNAVAILABLE: symbol = "\U0000E8FD"; break;
+            default:
+              if (weather_avatar::current_context.first_condition == 13)
+                symbol = "\U0000E430";
+              else if (weather_avatar::current_context.first_condition == 8)
+                symbol = "\U0000F172";
+              break;
+          }
+          // Hazard flags remain independently valid even when temperatures are
+          // missing and no clothing recommendation can be made.
+          if (outfit.lightning) symbol = "\U0000EBDB";
+          else if (outfit.hail) symbol = "\U0000EB3B";
+          // Keep symbols coherent with the renderer's retained image/caption
+          // during an asynchronous outfit change. Invalid data hides the old
+          // image immediately and may immediately show the unknown symbol.
+          if (avatar_ready || lv_obj_has_flag(avatar_image, LV_OBJ_FLAG_HIDDEN)) {
+            if (strcmp(lv_label_get_text(avatar_weather_icon), symbol) != 0)
+              lv_label_set_text(avatar_weather_icon, symbol);
+            const bool shelter = outfit.hail || outfit.lightning;
+            if (shelter) lv_obj_clear_flag(avatar_shelter_icon, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(avatar_shelter_icon, LV_OBJ_FLAG_HIDDEN);
+          }
+          char clock_text[8];
+          if (now.is_valid())
+            snprintf(clock_text, sizeof(clock_text), "%02d:%02d", now.hour, now.minute);
+          else
+            snprintf(clock_text, sizeof(clock_text), "--:--");
+          if (strcmp(lv_label_get_text(avatar_clock_label), clock_text) != 0)
+            lv_label_set_text(avatar_clock_label, clock_text);
+          if (lv_obj_has_flag(avatar_host, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_clear_flag(avatar_host, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_move_foreground(avatar_host);
+            lv_obj_move_foreground(screensaver_exit_button);
+          }
+  - id: show_weather_avatar
+    mode: restart
+    parameters:
+      automatic: bool
+    then:
+      - script.stop: boost_screensaver_brightness
+      - if:
+          condition:
+            lambda: 'return id(display_sleeping);'
+          then:
+            - script.execute: wake_display
+      - lambda: |-
+          if (id(current_page) != 7) id(screensaver_return_page) = id(current_page);
+          id(screensaver_avatar_active) = true;
+          id(screensaver_avatar_automatic) = automatic;
+          id(screensaver_brightness_boost_until_ms) = 0;
+          id(display_charge_dimmed) = false;
+          if (id(ui_next_enabled) && ui_next::framework.built()) {
+            ui_next::framework.show_legacy(ui_next::framework.view());
+            ui_next::framework.set_suspended(true);
+          }
+          id(current_page) = 7;
+          // Prepare the complete overlay before page reveal. The renderer
+          // retains its previous decoded image until the next is complete.
+          id(refresh_avatar).execute();
+      - lvgl.page.show:
+          id: page_7
+          animation: FADE_IN
+          time: 35ms
+      - light.turn_on:
+          id: display_backlight
+          brightness: 100%
+          transition_length: 0ms
+      - script.execute: start_screensaver_fade
+  - id: morning_avatar_tick
+    mode: restart
+    then:
+      - lambda: |-
+          auto now = id(ha_time).now();
+          if (!now.is_valid()) now = id(sntp_time).now();
+          const bool window = weather_avatar::morning_window(
+            id(morning_avatar_enabled), now.is_valid(), now.hour);
+          id(morning_avatar_window_active) = window;
+          if (id(current_page) != 7) {
+            id(screensaver_avatar_active) = false;
+            id(screensaver_avatar_automatic) = false;
+          }
+          const std::string update_status = id(firmware_update_status).state;
+          const bool ota_active = update_status == "ota_started" ||
+            update_status == "ota_complete" ||
+            update_status.rfind("ota_progress:", 0) == 0 ||
+            update_status.rfind("checking:", 0) == 0 ||
+            update_status.rfind("manifest_ready:", 0) == 0;
+          const bool blocked = ota_active ||
+            (${factory_onboarding_guard} && !id(factory_onboarding_completed)) ||
+            id(timer_finished) || id(alarm_alert_active) ||
+            id(media_picker_visible) || id(track_select_active) ||
+            id(extra_menu_visible) ||
+            (id(touch_swipe_start_ms) != 0 && !id(screensaver_avatar_active)) ||
+            (id(ui_next_enabled) && ui_next::framework.built() &&
+             ui_next::framework.modal_visible()) ||
+            (weather_radar_popup != nullptr &&
+             !lv_obj_has_flag(weather_radar_popup, LV_OBJ_FLAG_HIDDEN));
+          const auto action = weather_avatar::morning_action(
+            window, blocked, id(screensaver_avatar_active),
+            id(screensaver_avatar_automatic), millis() - id(ui_last_activity_ms),
+            static_cast<uint32_t>(id(screensaver_timeout_seconds)) * 1000U);
+          if (action == weather_avatar::MorningAction::ENTER)
+            id(show_weather_avatar).execute(true);
+          else if (action == weather_avatar::MorningAction::LEAVE)
+            id(return_from_screensaver).execute();
+          if (id(current_page) == 7 && id(screensaver_avatar_active) &&
+              !id(display_sleeping)) id(refresh_avatar).execute();
   - id: start_screensaver_fade
     mode: restart
     then:
       - light.turn_on:
           id: display_backlight
-          brightness: 10%
+          brightness: !lambda |-
+            return id(screensaver_avatar_active)
+              ? static_cast<float>(std::clamp(id(display_dim_brightness_percent), 5, 30)) / 100.0f
+              : 0.10f;
           transition_length: !lambda |-
             return static_cast<uint32_t>(id(screensaver_fade_seconds)) * 1000U;
   - id: show_weather_screensaver
@@ -5199,6 +5431,9 @@ script:
       - script.stop: boost_screensaver_brightness
       - lambda: |-
           const int source_page = id(current_page);
+          id(screensaver_avatar_active) = false;
+          id(screensaver_avatar_automatic) = false;
+          if (avatar_host != nullptr) lv_obj_add_flag(avatar_host, LV_OBJ_FLAG_HIDDEN);
           if (id(current_page) != 7) {
             // Radar and settings are transient workspaces. Once idle mode has
             // started they are considered closed and wake returns to weather.
@@ -5265,7 +5500,23 @@ script:
     mode: restart
     then:
       - script.stop: boost_screensaver_brightness
-      - lambda: 'id(ui_last_activity_ms) = millis();'
+      - lambda: |-
+          // A clock boundary or remote setting can close the automatic view
+          // while a finger is still down. Consume LVGL's complete gesture too.
+          if (id(screensaver_avatar_active) && id(touch_swipe_start_ms) != 0) {
+            for (auto *input = lv_indev_get_next(nullptr); input != nullptr;
+                 input = lv_indev_get_next(input)) {
+              if (lv_indev_get_type(input) == LV_INDEV_TYPE_POINTER)
+                lv_indev_wait_release(input);
+            }
+          }
+          id(ui_last_activity_ms) = millis();
+          id(screensaver_avatar_active) = false;
+          id(screensaver_avatar_automatic) = false;
+          id(touch_swipe_nav_suppress_until_ms) = millis() + 450;
+          if (avatar_host != nullptr) lv_obj_add_flag(avatar_host, LV_OBJ_FLAG_HIDDEN);
+          if (id(ui_next_enabled) && ui_next::framework.built())
+            ui_next::framework.set_suspended(false);
       - lambda: 'id(screensaver_brightness_boost_until_ms) = 0;'
       - light.turn_on:
           id: display_backlight
@@ -6297,6 +6548,11 @@ script:
     mode: restart
     then:
       - lambda: |-
+          if (id(screensaver_avatar_active)) {
+            id(refresh_avatar).execute();
+            return;
+          }
+          if (avatar_host != nullptr) lv_obj_add_flag(avatar_host, LV_OBJ_FLAG_HIDDEN);
           auto now = id(ha_time).now();
           if (!now.is_valid()) {
             now = id(sntp_time).now();
@@ -7549,21 +7805,12 @@ script:
   - id: media_selection_accept_settle
     mode: restart
     then:
-      # Some Home Assistant actions acknowledge queue admission but never
-      # deliver ESPHome's optional final callback. The bridge acceptance is a
-      # reliable transport confirmation, so release the modal after a short
-      # settling window unless a real error arrived in the meantime.
-      # Cold Music Assistant starts completed in about 1.6 s on the current
-      # player. Keep margin for HA jitter, but do not trap the UI for four
-      # seconds if the optional final callback is lost.
+      # Release the modal after admission, retaining callback ownership until
+      # HA returns success/error. Progress renews the separate quiet watchdog.
       - delay: 2500ms
       - lambda: |-
           if (!id(media_selection_loading) || !id(media_selection_bridge_accepted)) return;
           id(media_selection_loading) = false;
-          id(media_selection_started_ms) = 0;
-          id(media_selection_pending_kind) = -1;
-          id(media_selection_pending_index) = -1;
-          id(media_selection_bridge_accepted) = false;
           id(media_picker_visible) = false;
           id(touch_swipe_nav_suppress_until_ms) = millis() + 350;
           id(control_mode) = 1;
@@ -7705,9 +7952,6 @@ script:
           id(media_last_activity_ms) = millis();
           id(media_picker_visible) = false;
           id(media_selection_loading) = false;
-          id(media_selection_started_ms) = 0;
-          id(media_selection_pending_kind) = -1;
-          id(media_selection_pending_index) = -1;
           id(touch_swipe_nav_suppress_until_ms) = millis() + 350;
           id(control_mode) = 1;
           if (media_picker_popup != nullptr) {
@@ -9137,6 +9381,10 @@ interval:
       - lambda: |-
           static uint32_t last_stage1_diagnostic_ms = 0;
           const uint32_t now_ms = millis();
+          auto avatar_now = id(ha_time).now();
+          if (!avatar_now.is_valid()) avatar_now = id(sntp_time).now();
+          id(morning_avatar_window_active) = weather_avatar::morning_window(
+            id(morning_avatar_enabled), avatar_now.is_valid(), avatar_now.hour);
           const bool stage1_diagnostic_window =
             !id(dual_mcu_stage1_performance_enabled) ||
             ((id(display_sleeping) || id(ui_last_activity_ms) == 0 ||
@@ -9161,6 +9409,7 @@ interval:
           condition:
             lambda: |-
               return id(display_sleeping) &&
+                     !id(morning_avatar_window_active) &&
                      !id(external_power_detected) &&
                      !id(display_keep_awake) &&
                      (!${factory_onboarding_guard} ||
@@ -9171,9 +9420,22 @@ interval:
                      (millis() - id(ui_last_activity_ms)) >=
                        ${battery_deep_sleep_after_inactivity_ms}UL;
           then:
-            - deep_sleep.enter: battery_deep_sleep
+            - if:
+                condition:
+                  lambda: 'return id(morning_avatar_enabled);'
+                then:
+                  - deep_sleep.enter:
+                      id: battery_deep_sleep
+                      sleep_duration: !lambda |-
+                        auto now = id(ha_time).now();
+                        if (!now.is_valid()) now = id(sntp_time).now();
+                        return weather_avatar::next_morning_wake_seconds(
+                          now.is_valid() ? now.timestamp : 0) * 1000U;
+                else:
+                  - deep_sleep.enter: battery_deep_sleep
       - script.execute: timer_tick
       - script.execute: alarm_tick
+      - script.execute: morning_avatar_tick
       - if:
           condition:
             lambda: |-
@@ -9256,13 +9518,15 @@ interval:
                 (id(current_page) >= 20 && id(current_page) <= 24);
               const bool media_list_active = id(current_page) == 2 && id(control_mode) == 2;
               return cover_allowed_page &&
+                     !id(morning_avatar_window_active) &&
+                     !id(screensaver_avatar_active) &&
                      !id(display_sleeping) &&
                      !media_list_active &&
                      !id(media_picker_visible) &&
                      !id(track_select_active) &&
                      id(music_state_cache) == "playing" &&
                      !id(media_cover_url_cache).empty() &&
-                     (id(media_cover_ready) || id(media_page_cover_ready)) &&
+                     id(media_cover_ready) &&
                      id(media_cover_fullscreen_due_ms) != 0 &&
                      millis() >= id(media_cover_fullscreen_due_ms) &&
                      (millis() - id(ui_last_activity_ms)) >= 10000;
@@ -9272,6 +9536,7 @@ interval:
           condition:
             lambda: |-
               return id(current_page) != 7 &&
+                     !id(morning_avatar_window_active) &&
                      !id(display_sleeping) &&
                      !id(display_keep_awake) &&
                      id(battery_percentage_cache) >= 100 &&
@@ -9286,6 +9551,7 @@ interval:
           condition:
             lambda: |-
               return id(battery_percentage_cache) < 100 &&
+                     !id(screensaver_avatar_active) &&
                      !id(display_keep_awake) &&
                      !id(display_sleeping) &&
                      !id(display_charge_dimmed) &&
@@ -9303,6 +9569,7 @@ interval:
                 ? id(display_sleep_playback_seconds)
                 : id(display_sleep_no_playback_seconds);
               return id(battery_percentage_cache) < 100 &&
+                     !id(morning_avatar_window_active) &&
                      !id(display_keep_awake) &&
                      !id(display_sleeping) &&
                      !id(timer_running) &&
@@ -9387,6 +9654,7 @@ interval:
               const std::string raw = id(weather_condition_raw);
               return !id(display_sleeping) &&
                      id(current_page) == 7 &&
+                     !id(screensaver_avatar_active) &&
                      (raw == "rainy" || raw == "pouring" || raw == "lightning-rainy" || raw == "hail" ||
                       raw == "snowy" || raw == "snowy-rainy" || raw == "fog");
           then:
@@ -9598,6 +9866,9 @@ interval:
                 case ui_next::Action::NAV_MORE:
                   id(current_page) = 24;
                   break;
+                case ui_next::Action::WEATHER_AVATAR:
+                  id(show_weather_avatar).execute(false);
+                  break;
                 case ui_next::Action::WEATHER_RADAR:
                   ui_next::framework.show_legacy(ui_next::View::WEATHER);
                   id(show_rain_radar_page).execute();
@@ -9733,6 +10004,8 @@ interval:
                 id(ui_next_last_refresh_ms) = millis();
                 const bool screensaver_active = id(current_page) == 7;
                 ui_next::framework.set_suspended(screensaver_active);
+                if (screensaver_active && id(screensaver_avatar_active) &&
+                    !id(display_sleeping)) id(refresh_avatar).execute();
                 if (!screensaver_active && !ui_next::framework.legacy_visible()) {
                   const int expected_page = 20 + static_cast<int>(ui_next::framework.view());
                   if (id(current_page) != expected_page) {
@@ -10200,9 +10473,8 @@ interval:
       - if:
           condition:
             lambda: |-
-              return id(media_selection_loading) &&
-                     id(media_selection_started_ms) != 0 &&
-                     millis() - id(media_selection_started_ms) >= 15000;
+              return id(media_selection_started_ms) != 0 &&
+                     millis() - id(media_selection_started_ms) >= 20000;
           then:
             - lambda: |-
                 id(media_selection_loading) = false;
@@ -10212,7 +10484,7 @@ interval:
                 id(media_selection_bridge_accepted) = false;
                 id(media_selection_feedback_text) = "START UNKLAR";
                 id(media_selection_feedback_until_ms) = millis() + 5000;
-                id(control_mode) = 2;
+                if (id(media_picker_visible)) id(control_mode) = 2;
                 id(media_picker_fast_refresh_requested) = false;
             - script.execute: refresh_media_picker_popup
   - interval: 50ms
@@ -13930,6 +14202,16 @@ lvgl:
             id(current_page) = 6;
             id(control_mode) = 1;
             id(media_cover_fullscreen_active) = true;
+            // A page root can retain the theme background outside a child
+            // object's content box. Make the complete root black so a
+            // temporary note fallback can never expose white edge columns.
+            lv_obj_t *cover_root = lv_obj_get_parent(media_cover_fallback);
+            if (cover_root != nullptr) {
+              lv_obj_set_style_bg_color(cover_root, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_bg_opa(cover_root, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_border_width(cover_root, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+              lv_obj_set_style_pad_all(cover_root, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
             lv_label_set_long_mode(media_cover_title_label, LV_LABEL_LONG_CLIP);
             lv_label_set_long_mode(media_cover_artist_label, LV_LABEL_LONG_CLIP);
             lv_obj_set_style_text_align(media_cover_title_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -14135,10 +14417,17 @@ lvgl:
               static bool screensaver_exit_press_handler_added = false;
               if (!screensaver_exit_press_handler_added) {
                 lv_obj_add_event_cb(screensaver_exit_button, [](lv_event_t *event) {
+                  if (id(current_page) != 7 || id(screensaver_avatar_active)) return;
+                  id(touch_swipe_handled) = true;
+                  id(touch_swipe_nav_suppress_until_ms) = millis() + 450;
                   id(return_from_screensaver).execute();
                 }, LV_EVENT_PRESSED, nullptr);
                 screensaver_exit_press_handler_added = true;
               }
+            }
+            if (id(screensaver_avatar_active)) {
+              lv_obj_move_foreground(avatar_host);
+              lv_obj_move_foreground(screensaver_exit_button);
             }
         - script.execute: refresh_weather_screensaver
       widgets:
@@ -14650,6 +14939,85 @@ lvgl:
             text: "\U0000E3E7"
             text_font: media_icon_12
             text_color: 0xFFFFFF
+        - obj:
+            id: avatar_host
+            hidden: true
+            x: 0
+            y: 0
+            width: 360
+            height: 360
+            bg_color: 0x07090B
+            bg_opa: 100%
+            border_width: 0
+            pad_all: 0
+            widgets:
+              - image:
+                  id: avatar_image
+                  hidden: true
+                  align: center
+                  src: screensaver_weather_partlycloudy_image
+              - label:
+                  id: avatar_clock_label
+                  align: top_mid
+                  y: 20
+                  width: 100
+                  height: 26
+                  text: "--:--"
+                  text_font: roboto_20
+                  text_align: center
+                  text_color: 0xF2F1EE
+                  bg_color: 0x07090B
+                  bg_opa: 80%
+                  radius: 12
+              - label:
+                  id: avatar_weather_icon
+                  x: 59
+                  y: 66
+                  width: 38
+                  height: 36
+                  text: "\U0000E8FD"
+                  text_font: media_icon_28
+                  text_align: center
+                  text_color: 0x899297
+                  bg_color: 0x07090B
+                  bg_opa: 80%
+                  radius: 16
+              - label:
+                  id: avatar_shelter_icon
+                  hidden: true
+                  x: 263
+                  y: 66
+                  width: 38
+                  height: 36
+                  text: "\U0000E88A"
+                  text_font: media_icon_28
+                  text_align: center
+                  text_color: 0xE59B8B
+                  bg_color: 0x07090B
+                  bg_opa: 90%
+                  radius: 16
+              - label:
+                  id: avatar_title_label
+                  align: top_mid
+                  y: 48
+                  width: 232
+                  height: 40
+                  text: "Wetter wird geladen"
+                  text_font: roboto_16
+                  text_align: center
+                  text_color: 0xF2F1EE
+                  long_mode: WRAP
+              - label:
+                  id: avatar_detail_label
+                  align: top_mid
+                  y: 285
+                  width: 220
+                  height: 50
+                  text: "Bitte Wetterdaten prüfen"
+                  text_font: roboto_12
+                  text_align: center
+                  text_color: 0xB0B6BC
+                  long_mode: WRAP
         - button:
             id: screensaver_exit_button
             x: 0
@@ -14661,7 +15029,11 @@ lvgl:
             border_width: 0
             pad_all: 0
             on_click:
-              - script.execute: return_from_screensaver
+              - if:
+                  condition:
+                    lambda: 'return id(current_page) == 7;'
+                  then:
+                    - script.execute: return_from_screensaver
 
     # Wetterseite nach dem runden Referenzlayout
     - id: page_4

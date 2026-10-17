@@ -33,6 +33,16 @@ MANAGED_COMMON = (ROOT / "esphome" / "managed-common.yaml").read_text()
 
 
 class DualMcuRuntimeContractTests(unittest.TestCase):
+    def test_avatar_native_switch_does_not_reset_the_restored_policy_at_boot(self) -> None:
+        # ESPHome TemplateSwitch's default ALWAYS_OFF invokes the off action at
+        # setup. DISABLED suppresses that startup command; the restoring global
+        # and reporting lambda remain the sole state authority.
+        native = S3.split("id: morning_avatar_switch", 1)[1].split("\nsensor:", 1)[0]
+        self.assertIn("restore_mode: DISABLED", native)
+        self.assertIn("return id(morning_avatar_enabled)", native)
+        policy = S3_UI.split("id: morning_avatar_enabled", 1)[1].split("  - id:", 1)[0]
+        self.assertIn("restore_value: yes", policy)
+
     def test_responsive_power_policy_is_enabled_for_all_customer_profiles(self) -> None:
         self.assertIn('responsive_power_policy_enabled: "true"', MARCO_S3)
         self.assertIn('responsive_power_policy_enabled: "true"', MARCO_BRIDGE)
@@ -148,7 +158,8 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertIn("MEDIA_PRESENTATION_BEGIN", protocol)
         self.assertIn("MEDIA_PRESENTATION_COMMIT", protocol)
         self.assertIn("id: queue_bridge_media_presentation", BRIDGE)
-        self.assertIn("id(bridge_api_connected) ? 0x07 : 0x00", BRIDGE)
+        # Avatar adds bit 3 while preserving the original three capabilities.
+        self.assertIn("id(bridge_api_connected) ? 0x0F : 0x00", BRIDGE)
 
         commit = S3.split(
             "case dual_mcu::MessageType::MEDIA_PRESENTATION_COMMIT:", 1
@@ -194,6 +205,34 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertIn('set_query_value(url, "size", "512")', S3_UI)
         self.assertGreaterEqual(BRIDGE.count('"512"'), 2)
         self.assertNotIn('const std::string desired_size = "256"', BRIDGE)
+
+    def test_cover_fullscreen_never_opens_on_the_page_thumbnail(self) -> None:
+        guard = S3_UI.split("const bool cover_allowed_page", 1)[1]
+        guard = guard.split("script.execute: show_media_cover_page", 1)[0]
+        self.assertIn("id(media_cover_ready)", guard)
+        self.assertNotIn(
+            "id(media_cover_ready) || id(media_page_cover_ready)", guard
+        )
+
+        page = S3_UI.split("- id: page_6", 1)[1].split("widgets:", 1)[0]
+        self.assertIn("lv_obj_get_parent(media_cover_fallback)", page)
+        self.assertIn("lv_color_hex(0x000000)", page)
+        self.assertIn("lv_obj_set_style_bg_opa(cover_root, LV_OPA_COVER", page)
+
+    def test_one_cover_transfer_populates_page_and_fullscreen_surfaces(self) -> None:
+        decode = S3.split(
+            "else if (kind == dual_mcu::AssetKind::MEDIA_COVER)", 1
+        )[1].split("else if (kind == dual_mcu::AssetKind::PHOTO)", 1)[0]
+        self.assertIn("id(media_page_cover_image).begin_decode", decode)
+        self.assertIn("id(media_cover_image).begin_decode", decode)
+        self.assertIn("asset_decode_media_fullscreen_success", decode)
+
+        completion = S3.split("const bool page =", 1)[1].split(
+            "else if (kind == dual_mcu::AssetKind::PHOTO)", 1
+        )[0]
+        self.assertIn("asset_decode_media_fullscreen_success", completion)
+        self.assertIn("id(media_cover_ready) = true", completion)
+        self.assertIn("id(media_full_cover_loaded_url)", completion)
 
     def test_track_selection_does_not_replace_runtime_metadata(self) -> None:
         selection = S3_UI.split("- id: start_selected_track", 1)[1].split(
@@ -341,6 +380,23 @@ class DualMcuRuntimeContractTests(unittest.TestCase):
         self.assertNotIn("update_interval: 1s", number_section)
         self.assertIn("900000UL", S3)
         self.assertIn("900000UL", BRIDGE)
+
+    def test_playback_progress_retains_bridge_and_display_callback(self) -> None:
+        callback = BRIDGE.split("- action: passion_wave_complete_media", 1)[1]
+        callback = callback.split("wifi:", 1)[0]
+        self.assertIn("if (result == 0x7F)", callback)
+        self.assertIn("id(bridge_play_started_us) = micros()", callback)
+        self.assertIn("else\n              id(bridge_play_pending) = false", callback)
+        settle = S3_UI.split("- id: media_selection_accept_settle", 1)[1]
+        settle = settle.split("- id: prepare_media_picker_layout", 1)[0]
+        self.assertIn("id(media_selection_loading) = false", settle)
+        self.assertNotIn("id(media_selection_pending_kind) = -1", settle)
+        self.assertNotIn("id(media_selection_started_ms) = 0", settle)
+        callback = S3.split("case dual_mcu::MessageType::MEDIA_LIBRARY_PLAY_RESULT:", 1)[1]
+        callback = callback.split("case dual_mcu::MessageType::LIBRARY_PAGE_FETCH_RESULT:", 1)[0]
+        match = callback.split("const bool matches_pending =", 1)[1].split(";", 1)[0]
+        self.assertNotIn("media_selection_loading", match)
+        self.assertIn("media_selection_pending_index", match)
 
     def test_support_mode_controls_both_processors(self) -> None:
         self.assertIn("service: support_diagnostics_on", S3_UI)

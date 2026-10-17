@@ -2,9 +2,60 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import asyncio
+from collections import OrderedDict
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
+
+
+class PlaylistBrowseCache:
+    """Reuse a full browse tree while paging one device's playlist selection."""
+
+    def __init__(self, *, ttl: float = 120.0, maximum: int = 8) -> None:
+        self._ttl = ttl
+        self._maximum = maximum
+        self._snapshots: OrderedDict[tuple[str, ...], tuple[float, Any]] = OrderedDict()
+        self._pending: dict[tuple[str, ...], asyncio.Task[Any]] = {}
+
+    async def get(
+        self,
+        key: tuple[str, ...],
+        fetch: Callable[[], Awaitable[Any]],
+        *,
+        refresh: bool = False,
+    ) -> Any:
+        """Coalesce concurrent fetches; a new first page refreshes the snapshot."""
+        now = asyncio.get_running_loop().time()
+        for expired in [k for k, (until, _) in self._snapshots.items() if until <= now]:
+            del self._snapshots[expired]
+        if key in self._pending:
+            return await asyncio.shield(self._pending[key])
+        if not refresh and key in self._snapshots:
+            self._snapshots.move_to_end(key)
+            return self._snapshots[key][1]
+        # A failed refresh must not leave an older snapshot available.
+        self._snapshots.pop(key, None)
+
+        async def load() -> Any:
+            try:
+                result = await fetch()
+                self._snapshots[key] = (
+                    asyncio.get_running_loop().time() + self._ttl, result
+                )
+                self._snapshots.move_to_end(key)
+                while len(self._snapshots) > self._maximum:
+                    self._snapshots.popitem(last=False)
+                return result
+            finally:
+                self._pending.pop(key, None)
+
+        task = asyncio.create_task(load())
+        if not task.done():
+            self._pending[key] = task
+        # Retrieve failures even when the requesting device disconnects.
+        task.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+        return await asyncio.shield(task)
 
 
 @dataclass(frozen=True, slots=True)

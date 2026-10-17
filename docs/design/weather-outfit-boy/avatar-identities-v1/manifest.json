@@ -1,0 +1,50 @@
+{
+  "title": "Zwei Identitäten für den Wetteravatar",
+  "status": "Designvorlagen und Implementierungsplanung; noch keine Firmwareaktivierung.",
+  "comparison": "avatar-comparison.png",
+  "generation": {
+    "tool": "built-in image_gen",
+    "prompts": "prompts.json",
+    "brown": "Bestehende freigegebene braune Serie unverändert referenziert.",
+    "blond": "Alle fünf braunen Tafeln durch Imagegen gezielt in Haar-/Augenfarbe geändert.",
+    "limitation": "Generierte Vorschauen, keine Garantie pixelidentischer Geometrie; bei Produktion gleiche Geometrie/IDs und 360-Pixel-Lesbarkeit qualifizieren."
+  },
+  "variants": [
+    {
+      "id": "brown_brown",
+      "hair": "braun",
+      "eyes": "braun",
+      "boards": [
+        "../clay-series-v1/01-sonne-alltag.png",
+        "../clay-series-v1/02-kaelte-wind.png",
+        "../clay-series-v1/03-regen.png",
+        "../clay-series-v1/04-schnee-nebel-morgen.png",
+        "../clay-series-v1/05-gewitter-sonderlagen.png"
+      ]
+    },
+    {
+      "id": "blond_hazel",
+      "hair": "honigblond",
+      "eyes": "beide grünbraun; olivgrüner Irisrand, braun/bernsteinfarbener Bereich zur Pupille",
+      "boards": [
+        "blond-hazel/01-sonne-alltag.png",
+        "blond-hazel/02-kaelte-wind.png",
+        "blond-hazel/03-regen.png",
+        "blond-hazel/04-schnee-nebel-morgen.png",
+        "blond-hazel/05-gewitter-sonderlagen.png"
+      ]
+    }
+  ],
+  "outfit_definitions": "../clay-series-v1/manifest.json",
+  "reference_motifs_per_variant": 20,
+  "total_reference_motifs": 40,
+  "implementation_plan": "../../../weather-avatar.md",
+  "runtime_asset_status": "20 Referenzmotive sind nicht das vollständige Wetter×Temperatur-Crossprodukt. Separate temperaturgerechte Produktionsassets und dynamische Wetter-/Textoverlays sind geplant.",
+  "validation": {
+    "visual": "Beide Farbvarianten und alle fünf bearbeiteten Tafeln geprüft. Beschriftungen, Kleidung und Gruppierung erhalten; Augenunterschied im Vergleich vergrößert sichtbar.",
+    "hardware": "Keine physische Displayprüfung; nur Plan und Bilder.",
+    "files": "Alle sechs neuen PNGs: Signatur und Chunk-Prüfsummen gültig. Beide Familien enthalten Referenzen für alle 20 Motive; Dateiverweise vollständig.",
+    "documentation": "validate_docs.py --repo erfolgreich; git diff --check erfolgreich. Unabhängige Architektur- und Wetterregelprüfung abgeschlossen, Präzisierungen eingearbeitet.",
+    "repository_check": "tools/release check stoppt am bestehenden Versionsversatz: Firmwarebasis beta.10, Control-Vertrag beta.11. Für die Design-/Planungsarbeit keine Versionen geändert."
+  }
+}

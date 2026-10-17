@@ -1,24 +1,19 @@
-# Firmware and integration 3.0.1-beta.10
+# Firmware and integration 3.0.1-beta.17
 
-Release summary: Canonical linux/amd64 builder platform and customer-visible update acceptance flow
+Playlist-track pages reuse one bounded browse snapshot instead of retrieving
+the complete playlist for every 16 tracks. Exact provider URIs, logical devices,
+Music Assistant instances and selected players remain isolated, supporting
+playlists from multiple Spotify accounts.
 
-Public Factory and OTA binaries are now always built by the digest-pinned
-`linux/amd64` ESPHome image, including on Apple Silicon. Build metadata and the
-SBOM record this platform so local and hosted receipts qualify identical bytes.
+Slow starts retain their Bridge and S3 callback after the picker closes.
+Two-second progress acknowledgements keep quiet watchdogs alive without a new
+Music Assistant playback call. Provider waiting is bounded to 120 seconds;
+progress, HA confirmation and audible sound are separate observations.
 
-## Repository scope
+## Validation and rollout
 
-- Role: S3, Bridge and Home Assistant implementation.
-- Runtime/channel metadata: `VERSION` and the Control release contract.
-- OIDs, toolchain digests, gate durations and payload hashes: generated release receipt.
-
-## Automated evidence
-
-Run the channel pipeline and attach the resulting receipt. Do not paste or
-manually transcribe checksums; promotion verifies the receipt bytes directly.
-
-## Manual acceptance
-
-Record only directly observed clean-install, update, rollback and physical UI
-results required by the selected channel. Remote entity state is not visual
-evidence.
+The current Home Assistant fast suite passed 136 tests and 56 subtests.
+Full channel qualification and the immutable Hosted-CI receipt remain required.
+Install the integration before Bridge, then S3. Physical cold/warm playlist
+starts, rapid changed selections and both-device UI acceptance remain pending.
+The receipt owns all source OIDs, toolchain and artifact hashes.

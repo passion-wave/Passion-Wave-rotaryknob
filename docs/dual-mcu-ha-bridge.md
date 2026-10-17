@@ -175,6 +175,13 @@ PassionWave provides bounded playlist, radio, podcast and playlist-track pages.
 The S3 prefetches with five rows remaining; one request-in-flight guard and
 generation-tagged responses prevent duplicate or stale page commits.
 
+Playlist-track paging reuses the complete Home Assistant browse response for
+up to two minutes instead of browsing the complete playlist for every small
+page. A new first-page request refreshes it; concurrent requests share one
+fetch. The bounded cache keys include the logical device, Music Assistant
+instance, selected player and exact playlist URI, including its provider
+instance. It does not merge Spotify accounts or change playback routing.
+
 Media controls use compact commands for previous, play/pause, next, volume,
 shuffle, repeat and library selection. The Bridge never accepts an arbitrary
 entity ID from the S3; targets come from the Config Entry and authoritative
@@ -190,6 +197,19 @@ choice nor send its final callback. Individual tracks use the Music Assistant
 confirmation loop within the 100-ms poll interval. This keeps the final player
 state deterministic even when a previous playlist is still preparing its
 queue.
+
+While Music Assistant is preparing a selection, the integration renews result
+`127` every two seconds for the newest desired command, including a command
+queued behind an older service call. This is progress, not audible playback.
+The Bridge retains the callback and reports a quiet timeout after fifteen
+seconds without progress. The S3 releases the modal after 2.5 seconds but keeps
+kind/index correlation until the terminal callback; its independent quiet
+watchdog expires after twenty seconds. A late result cannot close a reopened
+picker. The integration bounds each provider wait to 120 seconds and reports
+result `6` on timeout without retrying a playlist merely because it was slow.
+This bounds local waiting; cancellation does not prove that Music Assistant or
+Spotify cancelled their already submitted work. Result `0` acknowledges the HA
+action/track confirmation, while actual sound requires separate observation.
 
 ## Cover pipeline
 
@@ -234,6 +254,35 @@ converge back to the display without overwriting an active local brightness
 hold.
 
 ## Weather and assets
+
+The weather avatar uses an additional schema-1 `WEATHER_AVATAR` frame (type 60,
+38 bytes), leaving the existing 42-byte weather forecast record unchanged.
+S3 advertises support using bit 0 of HELLO's third byte; the Bridge advertises
+it using bit 3 of the second `BRIDGE_STATUS` byte. An older processor therefore
+continues to use the existing weather display during a Bridge-first update.
+The HA broker supplies UTC fetch/observation timestamps, the next complete
+four-hour forecast window (starting within one hour of fetch), Celsius
+temperature minimum/maximum, all original condition bits,
+km/h wind/gust maxima and mm precipitation. Missing optional quantities retain
+separate validity bits. A UART snapshot preserves the original fetch time and
+cannot renew the twenty-minute data lifetime. Without complete hourly
+temperature coverage, the broker explicitly uses `Jetzt` with a sufficiently
+recent current observation, or sends an unavailable context. Four-hour
+aggregation is enabled only for the verified `met` entity-registry platform:
+MET's `next_1_hours` describes the hour beginning at its timestamp. The view
+prints that actual window; it does not claim coverage from the present moment.
+Temperatures are hourly point estimates. Other providers use `Jetzt` until their interval
+semantics have a verified adapter; generic HA `datetime` alone is insufficient.
+The source contract is [MET's forecast JSON model](https://docs.api.met.no/doc/ForecastJSON.html).
+
+`RotaryKnob Avatar Hair` and `RotaryKnob Morning Avatar` are hidden native S3
+configuration transports. The logical PassionWave hair selector and morning
+switch, and the last Configure step, read the current S3 values and wait for
+S3 acknowledgement when writing them. Their values are never stored as HA
+Config Entry desired state, so a reconnect cannot undo a local change. A form
+left open while the device changes only writes fields the user actually edited.
+Unavailable firmware or a missing acknowledgement produces a visible error.
+The detailed rule table and hardware checks live in [weather-avatar.md](weather-avatar.md).
 
 The Bridge owns current weather, daily forecasts and the retry for a missed
 startup forecast. Radar, floorplan, photos and media covers share one bounded

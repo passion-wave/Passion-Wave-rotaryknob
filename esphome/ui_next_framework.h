@@ -32,6 +32,7 @@ enum class Action : uint8_t {
   NAV_MORE,
   WEATHER_DETAILS,
   WEATHER_RADAR,
+  WEATHER_AVATAR,
   WEATHER_CONTEXT_CLOSE,
   LIGHT_TOGGLE,
   LIGHT_CYCLE,
@@ -148,6 +149,9 @@ class Framework {
   }
   bool light_popup_is_preset() const { return light_popup_preset_mode_; }
   bool light_popup_visible() const { return light_popup_visible_; }
+  bool modal_visible() const {
+    return weather_context_visible_ || media_context_visible_ || light_popup_visible_;
+  }
   LightDetailKind light_detail_kind() const { return light_detail_kind_; }
 
   bool scroll_light_popup(int steps) {
@@ -301,6 +305,7 @@ class Framework {
       switch (current_view_) {
         case View::WEATHER:
           if (inside_(x, y, 58, 58, 236, 183)) action = Action::WEATHER_DETAILS;
+          else if (inside_(x, y, 84, 274, 204, 320)) action = Action::WEATHER_AVATAR;
           break;
         case View::LIGHT:
           if (inside_(x, y, 93, 82, 240, 136)) action = Action::LIGHT_CYCLE;
@@ -845,6 +850,10 @@ class Framework {
     weather_wind_ = make_label_(view, 176, 231, 62, 20, "-- km/h", fonts_.body,
                                 kWhite, LV_TEXT_ALIGN_LEFT);
 
+    auto *avatar = make_button_(view, 84, 274, 120, 46, Action::WEATHER_AVATAR,
+                                kPanel, kWhite, 23);
+    make_label_(avatar, 0, 12, 120, 22, "Avatar", fonts_.body, kWhite,
+                LV_TEXT_ALIGN_CENTER);
     build_weather_context_(view);
   }
 

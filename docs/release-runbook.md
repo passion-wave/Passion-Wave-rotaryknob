@@ -152,13 +152,32 @@ source plus generated manifest/route text required by the Web registry.
    a HACS version.
 5. Push draft PRs and require their checks. Web CI hydrates ignored candidate
    binaries only from that immutable asset release and verifies `SHA256SUMS`.
-6. Record physical and Home Assistant acceptance as append-only events. After
+6. Install the candidate on explicitly selected test products through Control
+   `tools/release stage --stage-targets /private/local-stage-targets.json` with
+   the same CI run, receipt/hash, HACS entity and repeated `--test-device`
+   arguments. First use `--dry-run` to verify the receipt-bound two-chip
+   registry/MAC bindings, authenticated Native API identities and separate OTA
+   authentication. Never substitute an API encryption key for an OTA password.
+   Explicit `factory_unprotected` is permitted only after that endpoint's OTA
+   handshake confirms it; a password failure never falls back to no password.
+   The executor creates the exact-OID `v<version>` non-draft **prerelease**,
+   installs that exact version through HACS, restarts HA and checks the loaded
+   integration. It then uploads the receipt's immutable OTA bytes by Native
+   ESPHome transport, Bridge first with reconnect/version verification, then
+   S3, one product at a time. This is the isolated bootstrap exception to the
+   normal logical update path: existing firmware reads the global stable
+   manifest and therefore cannot use it for isolated candidate staging.
+   Stable firmware/Web pointers stay unchanged. A successful stage means the
+   selected processors run the candidate; it does not claim the normal update
+   entity phase `complete` or physical acceptance.
+7. Record physical and Home Assistant acceptance as append-only events. After
    every required gate passes, create the separate immutable authorization with
    `tools/release authorize --ci-run-id … --receipt … --confirm-receipt …`.
    Never rebuild or rewrite the candidate receipt after manual testing.
-7. During final promotion Control creates `v<version>` as a normal, not
-   prerelease, GitHub release at the same exact firmware OID. Only this release
-   is HACS-visible.
+8. During final promotion Control creates `v<version>` as a normal, not
+   prerelease, GitHub release, or converts the staged prerelease at the same
+   exact firmware OID. The normal release is offered to stable HACS clients;
+   the prerelease is only installed through the explicit candidate path.
 
 ## 8. Website import and production verification
 

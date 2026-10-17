@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -41,6 +43,7 @@ from .const import (
 )
 from .entity import PassionWaveConfigEntry, entry_value, entity_by_original_name
 from .media import LatestPlaybackQueue, PlaybackCommand
+from .weather_avatar import build_avatar_context
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +62,8 @@ _PLAYBACK_COORDINATORS: dict[str, _PlaybackCoordinator] = {}
 _TRACK_CONFIRM_TIMEOUT_SECONDS = 10.0
 _TRACK_CONFIRM_POLL_SECONDS = 0.1
 _TRACK_CONFIRM_STABLE_SECONDS = 0.4
+_PLAYBACK_PROGRESS_SECONDS = 2.0
+_PLAYBACK_TIMEOUT_SECONDS = 120.0
 
 _ACTION_KIND_TO_SERVICE: dict[int, tuple[str, str]] = {
     1: ("media_player", "media_previous_track"),
@@ -441,14 +446,22 @@ async def _async_forecast_request(
     weather_entity = str(command.get("entity", ""))
     if not weather_entity.startswith("weather."):
         raise HomeAssistantError("The requested weather entity is invalid")
+    weather_registry_entry = er.async_get(hass).async_get(weather_entity)
+    hourly = []
+    hourly_fetched_at = None
     for period in ("daily", "hourly"):
-        response = await hass.services.async_call(
-            "weather",
-            "get_forecasts",
-            {CONF_ENTITY_ID: weather_entity, "type": period},
-            blocking=True,
-            return_response=True,
-        )
+        try:
+            response = await hass.services.async_call(
+                "weather", "get_forecasts",
+                {CONF_ENTITY_ID: weather_entity, "type": period},
+                blocking=True, return_response=True,
+            )
+        except HomeAssistantError as err:
+            # A provider can support only one forecast type. Missing hourly data
+            # still produces the explicitly labelled current-weather fallback.
+            _LOGGER.debug("%s forecast unavailable for %s: %s", period, weather_entity, err)
+            continue
+        received_at = int(time.time())
         root = response or {}
         weather_data = (
             root.get(weather_entity, root) if isinstance(root, Mapping) else {}
@@ -458,6 +471,11 @@ async def _async_forecast_request(
             if isinstance(weather_data, Mapping)
             else []
         )
+        if not isinstance(forecasts, list):
+            forecasts = []
+        if period == "hourly":
+            hourly = forecasts[:48]
+            hourly_fetched_at = received_at
         maximum = 5 if period == "daily" else 48
         compact = {
             "forecast": [
@@ -489,6 +507,19 @@ async def _async_forecast_request(
                 ),
             },
         )
+    avatar = build_avatar_context(
+        hourly, hass.states.get(weather_entity),
+        fetched_at=hourly_fetched_at or int(time.time()),
+        sequence=int(command.get("seq", 0)),
+        forecast_provider=getattr(weather_registry_entry, "platform", None),
+    )
+    # Use the existing action with a new period so an older Bridge harmlessly
+    # ignores this context during the official Bridge-first rolling update.
+    await _async_send_to_bridge(
+        hass, entry, BRIDGE_RECEIVE_FORECAST_ACTION,
+        {"period": "avatar", "entity": weather_entity,
+         "payload": json.dumps(avatar, separators=(",", ":"))},
+    )
 
 
 def _light_catalog(
@@ -621,7 +652,7 @@ async def _async_complete_media(
     command: PlaybackCommand,
     result: int,
 ) -> None:
-    """Send a final result only for the generation still owned by the device."""
+    """Send progress (127) or a final result for the currently owned command."""
     await _async_send_to_bridge(
         hass,
         entry,
@@ -699,6 +730,45 @@ async def _async_execute_playback(
     return False
 
 
+async def _async_playback_progress(
+    hass: HomeAssistant,
+    entry: PassionWaveConfigEntry,
+    coordinator: _PlaybackCoordinator,
+) -> None:
+    """Keep the device callback alive without submitting another MA request."""
+    while True:
+        await asyncio.sleep(_PLAYBACK_PROGRESS_SECONDS)
+        async with coordinator.mutation_lock:
+            # A newer selection can be queued behind a slow MA service call.
+            # Its callback must remain alive while that older call drains.
+            command = coordinator.queue.latest_after(0)
+            if command is None:
+                return
+            try:
+                await _async_complete_media(hass, entry, command, 127)
+            except Exception as err:  # noqa: BLE001 - progress is best effort
+                _LOGGER.debug("PassionWave playback progress unavailable: %s", err)
+
+
+async def _async_execute_playback_with_progress(
+    hass: HomeAssistant,
+    entry: PassionWaveConfigEntry,
+    coordinator: _PlaybackCoordinator,
+    command: PlaybackCommand,
+) -> bool:
+    """Bound the provider wait and always stop progress before its final result."""
+    progress = asyncio.create_task(
+        _async_playback_progress(hass, entry, coordinator)
+    )
+    try:
+        async with asyncio.timeout(_PLAYBACK_TIMEOUT_SECONDS):
+            return await _async_execute_playback(hass, entry, coordinator, command)
+    finally:
+        progress.cancel()
+        with suppress(asyncio.CancelledError):
+            await progress
+
+
 async def _async_run_playback_coordinator(
     hass: HomeAssistant,
     entry: PassionWaveConfigEntry,
@@ -711,14 +781,22 @@ async def _async_run_playback_coordinator(
             command := coordinator.queue.latest_after(handled_generation)
         ) is not None:
             handled_generation = command.generation
+            result = 5
             try:
-                succeeded = await _async_execute_playback(
+                succeeded = await _async_execute_playback_with_progress(
                     hass, entry, coordinator, command
                 )
+                result = 0 if succeeded else 5
             except asyncio.CancelledError:
                 raise
+            except TimeoutError:
+                result = 6
+                _LOGGER.warning(
+                    "PassionWave playback generation %s timed out after %s seconds",
+                    command.generation,
+                    _PLAYBACK_TIMEOUT_SECONDS,
+                )
             except Exception as err:  # noqa: BLE001 - isolate external providers
-                succeeded = False
                 _LOGGER.warning(
                     "PassionWave playback generation %s failed: %s",
                     command.generation,
@@ -728,9 +806,7 @@ async def _async_run_playback_coordinator(
             async with coordinator.mutation_lock:
                 if not coordinator.queue.is_current(command.generation):
                     continue
-                await _async_complete_media(
-                    hass, entry, command, 0 if succeeded else 5
-                )
+                await _async_complete_media(hass, entry, command, result)
                 coordinator.queue.complete(command.generation)
     finally:
         coordinator.task = None

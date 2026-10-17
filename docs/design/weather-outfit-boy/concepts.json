@@ -1,0 +1,90 @@
+{
+  "title": "Morgendlicher Wetterjunge – drei visuelle Designsysteme",
+  "date": "2026-09-28",
+  "status": "Designrecherche und KI-generierte Konzepttafeln; keine Firmware-Implementierung, keine Hardwarequalifizierung.",
+  "branch": "codex/feature-weather-outfit-boy",
+  "base_oid": "1583d387e675bbc430036859e35fe53350993be5",
+  "terminology": "Framework bezeichnet hier ein visuelles Designsystem mit Produktionsweg, nicht drei alternative Firmware-Runtimes. Vorhandene Laufzeit: LVGL.",
+  "display": {
+    "width": 360,
+    "height": 360,
+    "shape": "round"
+  },
+  "generation": {
+    "tool": "built-in image_gen",
+    "prompts": "prompts.json",
+    "provenance": "Eigenständige generierte Entwürfe. Keine Screenshots oder exportierten Assets der genannten Bibliotheken.",
+    "production_ready": false
+  },
+  "concepts": [
+    {
+      "id": 1,
+      "name": "Klarer 2D-Avatar",
+      "image": "01-flat-avatar.png",
+      "basis": "Modularer Vektor-Baukasten nach dem Prinzip von Humaaans; eigener Kindercharakter und eigene Wetterkleidung.",
+      "workflow": "Vektorteile gestalten, Outfitvarianten offline rasterisieren, lokal mit LVGL anzeigen.",
+      "strength": "Schnelle Outfit-Erkennung, klare Konturen, leicht erweiterbar.",
+      "tradeoff": "Für eine eigene Identität Charakterdetails sorgfältig gestalten.",
+      "reference": "https://www.humaaans.com/",
+      "reference_license": "Die Originalbibliothek steht unter CC0; im Konzept wurden keine Bibliotheksassets übernommen."
+    },
+    {
+      "id": 2,
+      "name": "Weicher 3D-Begleiter",
+      "image": "02-clay-companion.png",
+      "basis": "Eigener weich modellierter Charakter; GUUULP als visuelle Referenz für plastische Figuren.",
+      "workflow": "Eigenen Jungen mit konsistenten Outfitvarianten modellieren und offline rendern, etwa mit Blender; gerasterte Bilder über LVGL anzeigen.",
+      "strength": "Sympathischer täglicher Begleiter, hochwertiger plastischer Eindruck.",
+      "tradeoff": "Höherer Gestaltungsaufwand; feine Materialdetails reduzieren und dunkle Schuhe gegen Hintergrund absetzen.",
+      "reference": "https://products.ls.graphics/guuulp/",
+      "reference_license": "Visuelle Referenz, keine Assets übernommen; kommerzielle Bibliothek ist kein fertiger Kinder-Outfitgenerator."
+    },
+    {
+      "id": 3,
+      "name": "Kleines Bilderbuch",
+      "image": "03-storybook.png",
+      "basis": "Eigenständige Illustration mit Papiertextur und reduzierten Konturen. Open Peeps als modularer handgezeichneter Ansatz, Brother & Co als Bilderbuchreferenz.",
+      "workflow": "Eigene Figur und Outfitserie illustrieren, offline rasterisieren, lokal über LVGL anzeigen.",
+      "strength": "Warm, wohnlich und kindgerecht.",
+      "tradeoff": "Textur sparsam einsetzen; helle Fläche nachts dimmen, Beschriftung als klare Laufzeitschrift statt handgezeichneter Schrift.",
+      "references": [
+        "https://www.openpeeps.com/",
+        "https://www.brotherandco.com/work/childrens-book-illustrations/"
+      ],
+      "reference_license": "Open Peeps: CC0. Brother & Co: nur visuelle Referenz. Keine Fremdassets übernommen."
+    }
+  ],
+  "recommendation": "3D-Begleiter als ästhetischer Favorit; 2D-Avatar als funktional stärkste Alternative. Vor Auswahl echte 360-Pixel-Assets im physischen Display vergleichen.",
+  "ux": {
+    "principle": "Derselbe Junge, gleichbleibende Haltung, kompletter Körper einschließlich Schuhe. Kleidung trägt die Information.",
+    "layout": "Temperatur oberhalb der Figur, kleines Wetterzeichen seitlich, maximal zwei Kleidungsbegriffe unterhalb. Kreisrand freihalten.",
+    "weather_examples": "24 °C sonnig: T-Shirt und Shorts; 11 °C Regen: Regenjacke und Stiefel; −2 °C: Winterjacke, Mütze, Schal und Winterstiefel. Illustrative Beispiele, keine festgelegten Schwellen.",
+    "future_logic": "Morgenzeitfenster und individuelle Wärmepräferenz berücksichtigen; Temperatur, gefühlte Temperatur, Wind und Niederschlag getrennt bewerten. Bei fehlender/alter Vorhersage keine erfundene Empfehlung zeigen.",
+    "motion": "Erster Test statisch; optional später eine kurze Begrüßungsbewegung, ruhiger Stand im Alltag.",
+    "reference": "https://developer.android.com/design/ui/wear/guides/get-started/design-for-wearables",
+    "reference_scope": "Prinzipien für runde, auf einen Blick erfassbare Anzeigen übertragen; eigene Designbewertung, keine Wear-OS-Laufzeit vorgesehen."
+  },
+  "technical": {
+    "current_forecast": "S3 hat Temperatur + normalisierte Condition für Slots nahe 08/13/19/23 Uhr und fünf tägliche Min/Max/Conditions, keine vollständige stündliche Zeitreihe.",
+    "missing_forecast": "Slot-Zeitstempel/Alter, stündlicher Wind, Feuchte/gefühlte Temperatur und genaue Niederschlagswerte fehlen im ForecastState.",
+    "current_apparent_temperature": "Aus aktuellen Temperatur-, Feuchte- und Windwerten lokal berechnet; keine gefühlte Vorhersage.",
+    "precipitation": "Bridge verarbeitet stündlichen Niederschlag zu Condition/Regenbeginn. Gemeinsame Tages-Regenwahrscheinlichkeit kann ein 80/0-Fallback sein; nicht als präzise Morgenwahrscheinlichkeit darstellen.",
+    "future_rendering": "Bridge liefert Wetter, S3 wählt vorbereitete Bildassets. LVGL-Objekte vorab anlegen. Dynamische Temperatur und Kleidungstext getrennt vom Artwork rendern.",
+    "existing_fullscreen_asset_contract": "368×368 offline vorbereitet, 360×360 Viewport schneidet 4 Pixel pro Rand ab, RGB565. Konzepttafeln sind keine direkt einbindbaren Laufzeitassets.",
+    "source_files": [
+      "esphome/dual_mcu_link.h:221",
+      "esphome/ui_next_framework.h:361",
+      "esphome/dual-mcu-esp32-core.yaml:2198",
+      "esphome/dual-mcu-esp32-core.yaml:2282",
+      "assets/screensaver/README.md:14",
+      "docs/ui-next-framework.md:243"
+    ]
+  },
+  "validation": {
+    "visual": "Alle drei generierten Tafeln geprüft: drei Wetterzustände, vollständige Figuren, erkennbare Kleidung, richtige Beispielbeschriftungen.",
+    "hardware": "Nicht durchgeführt; nur Designkonzepte.",
+    "runtime_changes": false,
+    "assets": "Alle PNG-Dateien sind 1536×1024 Pixel; PNG-Signatur und Chunk-Prüfsummen geprüft.",
+    "repository_check": "Control tools/release check --channel beta --version 3.0.1-beta.11 stoppt am unveränderten Basis-Versionsversatz: Firmware auf origin/main ist 3.0.1-beta.10, aktueller Control-Vertrag erwartet 3.0.1-beta.11. Keine Versionen für eine Designrecherche geändert."
+  }
+}

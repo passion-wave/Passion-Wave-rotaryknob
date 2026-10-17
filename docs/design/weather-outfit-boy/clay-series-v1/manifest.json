@@ -1,0 +1,205 @@
+{
+  "title": "Weicher 3D-Begleiter – vollständige Konzeptserie",
+  "status": "20 illustrative Wetter-/Outfitvarianten auf fünf Vergleichstafeln. Designvorschau, keine Laufzeitassets.",
+  "reference": "../02-clay-companion.png",
+  "tool": "built-in image_gen",
+  "branch": "codex/feature-weather-outfit-boy",
+  "coverage": {
+    "supported_weather_states": [
+      "clear-night",
+      "cloudy",
+      "exceptional",
+      "fog",
+      "hail",
+      "lightning",
+      "lightning-rainy",
+      "partlycloudy",
+      "pouring",
+      "rainy",
+      "snowy",
+      "snowy-rainy",
+      "sunny",
+      "windy",
+      "windy-variant"
+    ],
+    "missing": [],
+    "variants": 20,
+    "additional": "Temperaturabstufungen für Sonne, warmer Regen und Daten-Fallback."
+  },
+  "interpretation": "Beispieltemperaturen illustrieren die Kleidungsvarianten und sind keine festgelegten Schaltschwellen. HA-Wetterlage allein bestimmt kein Outfit. windy/windy-variant erzwingen keine Temperaturdifferenz; hier bewusst unterschiedliche Beispielszenarien.",
+  "exceptional": "Besondere Wetterlage ist keine bestätigte amtliche Wetterwarnung.",
+  "unknown": "Ohne gültige Wetterdaten keine konkrete Kleiderempfehlung; neutrale Figur mit ausdrücklichem Hinweis.",
+  "production_followup": "Nach visueller Auswahl einzelne Artwork-Assets erzeugen; Werte, Symbole und Texte separat in LVGL anzeigen. Vorhandenen 368×368-Overscan-/360×360-Viewportvertrag beachten. Keine Firmware verändert.",
+  "boards": [
+    {
+      "file": "01-sonne-alltag.png",
+      "title": "01 / SONNE & ALLTAG",
+      "variants": [
+        {
+          "id": "01",
+          "label": "HITZE",
+          "ha": "sunny",
+          "temp": "32°",
+          "caption": "Sonnenhut + Shorts"
+        },
+        {
+          "id": "02",
+          "label": "WARM",
+          "ha": "sunny",
+          "temp": "24°",
+          "caption": "T-Shirt + Shorts"
+        },
+        {
+          "id": "03",
+          "label": "MILD",
+          "ha": "partlycloudy",
+          "temp": "18°",
+          "caption": "Pullover + lange Hose"
+        },
+        {
+          "id": "04",
+          "label": "KÜHL",
+          "ha": "cloudy",
+          "temp": "12°",
+          "caption": "Leichte Jacke"
+        }
+      ]
+    },
+    {
+      "file": "02-kaelte-wind.png",
+      "title": "02 / KÄLTE & WIND",
+      "variants": [
+        {
+          "id": "05",
+          "label": "FRISCH",
+          "ha": "sunny",
+          "temp": "6°",
+          "caption": "Warme Jacke"
+        },
+        {
+          "id": "06",
+          "label": "FROST",
+          "ha": "sunny",
+          "temp": "−6°",
+          "caption": "Mütze + Handschuhe"
+        },
+        {
+          "id": "07",
+          "label": "WIND",
+          "ha": "windy",
+          "temp": "15°",
+          "caption": "Windjacke"
+        },
+        {
+          "id": "08",
+          "label": "KALTER WIND",
+          "ha": "windy-variant",
+          "temp": "3°",
+          "caption": "Windschutz + Mütze"
+        }
+      ]
+    },
+    {
+      "file": "03-regen.png",
+      "title": "03 / REGEN & NÄSSE",
+      "variants": [
+        {
+          "id": "09",
+          "label": "WARMER REGEN",
+          "ha": "rainy",
+          "temp": "21°",
+          "caption": "Dünne Regenjacke"
+        },
+        {
+          "id": "10",
+          "label": "KÜHLER REGEN",
+          "ha": "rainy",
+          "temp": "10°",
+          "caption": "Regenjacke + Stiefel"
+        },
+        {
+          "id": "11",
+          "label": "DAUERREGEN",
+          "ha": "pouring",
+          "temp": "7°",
+          "caption": "Kapuze + Regenhose"
+        },
+        {
+          "id": "12",
+          "label": "SCHNEEREGEN",
+          "ha": "snowy-rainy",
+          "temp": "1°",
+          "caption": "Warm + wasserdicht"
+        }
+      ]
+    },
+    {
+      "file": "04-schnee-nebel-morgen.png",
+      "title": "04 / WINTER & FRÜHER MORGEN",
+      "variants": [
+        {
+          "id": "13",
+          "label": "SCHNEE",
+          "ha": "snowy",
+          "temp": "−2°",
+          "caption": "Winterjacke + Stiefel"
+        },
+        {
+          "id": "14",
+          "label": "NEBEL",
+          "ha": "fog",
+          "temp": "5°",
+          "caption": "Warm + gut sichtbar"
+        },
+        {
+          "id": "15",
+          "label": "KLARER FRÜHER MORGEN",
+          "ha": "clear-night",
+          "temp": "7°",
+          "caption": "Jacke + lange Hose"
+        },
+        {
+          "id": "16",
+          "label": "HAGEL",
+          "ha": "hail",
+          "temp": "4°",
+          "caption": "Schutz suchen"
+        }
+      ]
+    },
+    {
+      "file": "05-gewitter-sonderlagen.png",
+      "title": "05 / GEWITTER & SONDERLAGEN",
+      "variants": [
+        {
+          "id": "17",
+          "label": "GEWITTER",
+          "ha": "lightning",
+          "temp": "22°",
+          "caption": "Drinnen bleiben"
+        },
+        {
+          "id": "18",
+          "label": "GEWITTER MIT REGEN",
+          "ha": "lightning-rainy",
+          "temp": "16°",
+          "caption": "Drinnen bleiben"
+        },
+        {
+          "id": "19",
+          "label": "BESONDERE WETTERLAGE",
+          "ha": "exceptional",
+          "temp": "—",
+          "caption": "Vorhersage prüfen"
+        },
+        {
+          "id": "20",
+          "label": "KEINE WETTERDATEN",
+          "ha": "unknown",
+          "temp": "—",
+          "caption": "Noch keine Empfehlung"
+        }
+      ]
+    }
+  ]
+}

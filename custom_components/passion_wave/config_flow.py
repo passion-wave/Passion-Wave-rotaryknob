@@ -26,6 +26,7 @@ from .const import (
     CONF_BRIDGE_REGISTRATION_UNIQUE_ID,
     CONF_MA_CONFIG_ENTRY_ID,
     CONF_MEDIA_PLAYER,
+    CONF_PRODUCT_NAME,
     CONF_S3_CONFIG_ENTRY_ID,
     CONF_S3_HOST,
     DOMAIN,
@@ -40,8 +41,17 @@ from .const import (
     canonical_original_name,
     original_name_matches,
 )
-from .identity import s3_product_unique_id
+from .identity import (
+    logical_product_title,
+    normalized_product_name,
+    processor_titles,
+    s3_product_unique_id,
+)
 from .media import normalize_library_page
+from .avatar_config import (
+    AVATAR_HAIR, MORNING_AVATAR, HAIR_OPTIONS,
+    async_set_avatar_setting, native_avatar_state,
+)
 from .pairing import (
     DiscoveredEndpoint,
     PairingError,
@@ -55,7 +65,10 @@ from .pairing import (
 
 
 def _connection_schema(
-    hass: HomeAssistant, defaults: dict[str, Any] | None = None
+    hass: HomeAssistant,
+    defaults: dict[str, Any] | None = None,
+    *,
+    owner_entry_id: str | None = None,
 ) -> vol.Schema:
     values = defaults or {}
 
@@ -76,11 +89,54 @@ def _connection_schema(
             return str(friendly_name)
         return entry.name or entry.original_name or entry.entity_id
 
+    def entry_host(entry: config_entries.ConfigEntry | None) -> str:
+        if entry is None:
+            return "host unbekannt / unknown"
+        return str(
+            getattr(entry, "data", {}).get("host") or "host unbekannt / unknown"
+        )
+
+    def identity_suffix(value: str | None) -> str:
+        compact = "".join(
+            character for character in str(value or "") if character.isalnum()
+        )
+        return compact[-6:].upper() if compact else "UNKNOWN"
+
+    def endpoint_label(
+        role: str,
+        name: str,
+        identity: str | None,
+        host: str,
+    ) -> str:
+        return f"{role} — {name} — ID {identity_suffix(identity)} — {host}"
+
     registration_options: list[selector.SelectOptionDict] = [
-        {"value": entry.entity_id, "label": entity_label(entry)}
+        {
+            "value": entry.entity_id,
+            "label": endpoint_label(
+                "BRIDGE / ESP32",
+                entity_label(entry),
+                getattr(
+                    hass.config_entries.async_get_entry(entry.config_entry_id),
+                    "unique_id",
+                    None,
+                )
+                or getattr(entry, "unique_id", None),
+                entry_host(
+                    hass.config_entries.async_get_entry(entry.config_entry_id)
+                ),
+            ),
+        }
         for entry in registry.entities.values()
         if entry.platform == "esphome"
         and entry.original_name == BRIDGE_REGISTRATION_ORIGINAL_NAME
+        and _assignment_owner(
+            hass,
+            CONF_BRIDGE_REGISTRATION_ENTITY,
+            entry.entity_id,
+            owner_entry_id=owner_entry_id,
+        )
+        is None
     ]
     s3_entry_ids = {
         entry.config_entry_id
@@ -92,9 +148,24 @@ def _connection_schema(
         and entry.config_entry_id
     }
     s3_entry_options: list[selector.SelectOptionDict] = [
-        {"value": entry.entry_id, "label": entry.title}
+        {
+            "value": entry.entry_id,
+            "label": endpoint_label(
+                "DISPLAY / S3",
+                entry.title,
+                getattr(entry, "unique_id", None),
+                entry_host(entry),
+            ),
+        }
         for entry in hass.config_entries.async_entries("esphome")
         if entry.entry_id in s3_entry_ids
+        and _assignment_owner(
+            hass,
+            CONF_S3_CONFIG_ENTRY_ID,
+            entry.entry_id,
+            owner_entry_id=owner_entry_id,
+        )
+        is None
     ]
     ma_entry_options: list[selector.SelectOptionDict] = [
         {"value": entry.entry_id, "label": entry.title}
@@ -108,6 +179,12 @@ def _connection_schema(
 
     return vol.Schema(
         {
+            vol.Required(
+                CONF_PRODUCT_NAME,
+                default=values.get(CONF_PRODUCT_NAME, "RotaryKnob"),
+            ): selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            ),
             required(
                 CONF_S3_CONFIG_ENTRY_ID, s3_entry_options
             ): selector.SelectSelector(
@@ -268,6 +345,93 @@ def _registration_entry(
     ):
         return None
     return entry
+
+
+def _assignment_owner(
+    hass: HomeAssistant,
+    key: str,
+    value: str,
+    *,
+    owner_entry_id: str | None,
+) -> str | None:
+    """Return a different PassionWave entry already owning one processor."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.entry_id == owner_entry_id:
+            continue
+        configured = entry.options.get(key, entry.data.get(key))
+        if configured == value:
+            return entry.entry_id
+
+    if key != CONF_BRIDGE_REGISTRATION_ENTITY:
+        return None
+    state = hass.states.get(value)
+    registered_owner = str(state.state).strip() if state is not None else ""
+    if not registered_owner or registered_owner in {"unknown", "unavailable"}:
+        return None
+    entry = hass.config_entries.async_get_entry(registered_owner)
+    if (
+        entry is not None
+        and entry.domain == DOMAIN
+        and entry.entry_id != owner_entry_id
+    ):
+        return entry.entry_id
+    return None
+
+
+def _assignment_error(
+    hass: HomeAssistant,
+    data: dict[str, Any],
+    *,
+    owner_entry_id: str | None,
+) -> str | None:
+    """Reject cross-product assignments before any registration is written."""
+    if _assignment_owner(
+        hass,
+        CONF_S3_CONFIG_ENTRY_ID,
+        data[CONF_S3_CONFIG_ENTRY_ID],
+        owner_entry_id=owner_entry_id,
+    ):
+        return "s3_already_owned"
+    if _assignment_owner(
+        hass,
+        CONF_BRIDGE_REGISTRATION_ENTITY,
+        data[CONF_BRIDGE_REGISTRATION_ENTITY],
+        owner_entry_id=owner_entry_id,
+    ):
+        return "bridge_already_owned"
+    return None
+
+
+def _confirmation_labels(
+    hass: HomeAssistant,
+    data: dict[str, Any],
+    *,
+    owner_entry_id: str | None,
+) -> dict[str, str]:
+    """Build explicit processor identities for the final confirmation screen."""
+    schema = _connection_schema(hass, data, owner_entry_id=owner_entry_id)
+    labels: dict[str, str] = {}
+    display_title, bridge_title = processor_titles(data[CONF_PRODUCT_NAME])
+    for marker, field in schema.schema.items():
+        key = marker.schema
+        if key not in {CONF_S3_CONFIG_ENTRY_ID, CONF_BRIDGE_REGISTRATION_ENTITY}:
+            continue
+        selected = data[key]
+        option = next(
+            (
+                item
+                for item in field.config["options"]
+                if item["value"] == selected
+            ),
+            None,
+        )
+        is_display = key == CONF_S3_CONFIG_ENTRY_ID
+        assigned_title = display_title if is_display else bridge_title
+        endpoint = option["label"] if option else selected
+        labels["display" if is_display else "bridge"] = (
+            f"{assigned_title} ← {endpoint}"
+        )
+    return labels
 
 
 def _s3_config_entry_is_valid(hass: HomeAssistant, entry_id: str) -> bool:
@@ -439,10 +603,18 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     return self.async_abort(reason="pairing_complete")
 
         def choices(project_name: str) -> list[selector.SelectOptionDict]:
+            role = (
+                "DISPLAY / S3"
+                if project_name == S3_PROJECT_NAME
+                else "BRIDGE / ESP32"
+            )
             return [
                 {
                     "value": endpoint.host,
-                    "label": f"{endpoint.friendly_name} · {endpoint.host}",
+                    "label": (
+                        f"{role} — {endpoint.friendly_name} — "
+                        f"MAC {endpoint.mac_address[-8:].upper()} — {endpoint.host}"
+                    ),
                 }
                 for endpoint in self._discovered_endpoints.values()
                 if endpoint.project_name == project_name
@@ -486,16 +658,28 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Create one PassionWave entry per physical dual-MCU system."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            try:
+                user_input[CONF_PRODUCT_NAME] = normalized_product_name(
+                    user_input.get(CONF_PRODUCT_NAME, "RotaryKnob")
+                )
+            except ValueError:
+                errors["base"] = "invalid_product_name"
             registry = er.async_get(self.hass)
             registration = _registration_entry(
                 registry, user_input[CONF_BRIDGE_REGISTRATION_ENTITY]
             )
-            if not _s3_config_entry_is_valid(
+            if errors:
+                pass
+            elif not _s3_config_entry_is_valid(
                 self.hass, user_input[CONF_S3_CONFIG_ENTRY_ID]
             ):
                 errors["base"] = "invalid_s3_device"
             elif registration is None:
                 errors["base"] = "invalid_bridge_registration_entity"
+            elif assignment_error := _assignment_error(
+                self.hass, user_input, owner_entry_id=None
+            ):
+                errors["base"] = assignment_error
             else:
                 product_unique_id = s3_product_unique_id(
                     self.hass, user_input[CONF_S3_CONFIG_ENTRY_ID]
@@ -516,16 +700,37 @@ class PassionWaveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 s3_entry = self.hass.config_entries.async_get_entry(
                     user_input[CONF_S3_CONFIG_ENTRY_ID]
                 )
-                self._entry_title = (
-                    s3_entry.title if s3_entry else registration.entity_id
+                self._entry_title = logical_product_title(
+                    user_input[CONF_PRODUCT_NAME]
                 )
                 self._pending_data = user_input
-                return await self.async_step_lights()
+                return await self.async_step_confirm()
 
         return self.async_show_form(
             step_id="connection",
             data_schema=_connection_schema(self.hass, user_input),
             errors=errors,
+        )
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Require an explicit final check of both physical processors."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if assignment_error := _assignment_error(
+                self.hass, self._pending_data, owner_entry_id=None
+            ):
+                errors["base"] = assignment_error
+            else:
+                return await self.async_step_lights()
+        return self.async_show_form(
+            step_id="confirm",
+            data_schema=vol.Schema({}),
+            errors=errors,
+            description_placeholders=_confirmation_labels(
+                self.hass, self._pending_data, owner_entry_id=None
+            ),
         )
 
     async def async_step_lights(
@@ -587,6 +792,7 @@ class PassionWaveOptionsFlow(config_entries.OptionsFlow):
         self._pending_data: dict[str, Any] = {}
         self._catalogs: dict[str, list[dict[str, str]]] = {}
         self._library_error = False
+        self._avatar_initial: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -594,25 +800,66 @@ class PassionWaveOptionsFlow(config_entries.OptionsFlow):
         """Show the typed target selectors."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            try:
+                user_input[CONF_PRODUCT_NAME] = normalized_product_name(
+                    user_input.get(CONF_PRODUCT_NAME, "RotaryKnob")
+                )
+            except ValueError:
+                errors["base"] = "invalid_product_name"
             registration = _registration_entry(
                 er.async_get(self.hass),
                 user_input[CONF_BRIDGE_REGISTRATION_ENTITY],
             )
-            if not _s3_config_entry_is_valid(
+            if errors:
+                pass
+            elif not _s3_config_entry_is_valid(
                 self.hass, user_input[CONF_S3_CONFIG_ENTRY_ID]
             ):
                 errors["base"] = "invalid_s3_device"
             elif registration is None:
                 errors["base"] = "invalid_bridge_registration_entity"
+            elif assignment_error := _assignment_error(
+                self.hass, user_input, owner_entry_id=self._entry.entry_id
+            ):
+                errors["base"] = assignment_error
             else:
                 user_input[CONF_BRIDGE_REGISTRATION_UNIQUE_ID] = registration.unique_id
                 self._pending_data = user_input
-                return await self.async_step_lights()
+                return await self.async_step_confirm()
         defaults = {**self._entry.data, **self._entry.options}
         return self.async_show_form(
             step_id="init",
-            data_schema=_connection_schema(self.hass, user_input or defaults),
+            data_schema=_connection_schema(
+                self.hass,
+                user_input or defaults,
+                owner_entry_id=self._entry.entry_id,
+            ),
             errors=errors,
+        )
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirm that the edited entry still owns both selected processors."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if assignment_error := _assignment_error(
+                self.hass,
+                self._pending_data,
+                owner_entry_id=self._entry.entry_id,
+            ):
+                errors["base"] = assignment_error
+            else:
+                return await self.async_step_lights()
+        return self.async_show_form(
+            step_id="confirm",
+            data_schema=vol.Schema({}),
+            errors=errors,
+            description_placeholders=_confirmation_labels(
+                self.hass,
+                self._pending_data,
+                owner_entry_id=self._entry.entry_id,
+            ),
         )
 
     async def async_step_lights(
@@ -640,15 +887,51 @@ class PassionWaveOptionsFlow(config_entries.OptionsFlow):
         """Update the visible Music Assistant entries."""
         defaults = {**self._entry.data, **self._entry.options}
         if user_input is not None:
-            return self.async_create_entry(
-                title="",
-                data={
-                    **self._pending_data,
-                    **_normalize_visibility(user_input),
-                },
-            )
+            self._pending_data.update(_normalize_visibility(user_input))
+            return await self.async_step_avatar()
         return self.async_show_form(
             step_id="library",
             data_schema=_library_schema(self._catalogs, defaults),
             errors={"base": "library_unavailable"} if self._library_error else {},
         )
+
+    async def async_step_avatar(
+        self, user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Edit the live display state, never persist desired state in HA."""
+        s3_entry_id = self._pending_data.get(CONF_S3_CONFIG_ENTRY_ID) or self._entry.options.get(
+            CONF_S3_CONFIG_ENTRY_ID, self._entry.data.get(CONF_S3_CONFIG_ENTRY_ID)
+        )
+        values = {key: native_avatar_state(self.hass, s3_entry_id, key)[1]
+                  for key in (AVATAR_HAIR, MORNING_AVATAR)}
+        errors: dict[str, str] = {}
+        if not self._avatar_initial:
+            self._avatar_initial = values
+        if user_input is not None:
+            try:
+                for key, value in user_input.items():
+                    # If another user changed the S3 while this form was open,
+                    # submitting an untouched control must preserve that change.
+                    if key in values and value != self._avatar_initial.get(key):
+                        await async_set_avatar_setting(self.hass, s3_entry_id, key, value)
+                        self._avatar_initial[key] = value
+            except HomeAssistantError:
+                # A preceding field may already have been acknowledged. Read
+                # that actual state again instead of redisplaying stale values
+                # or treating the successful change as still pending on retry.
+                values = {key: native_avatar_state(self.hass, s3_entry_id, key)[1]
+                          for key in (AVATAR_HAIR, MORNING_AVATAR)}
+                self._avatar_initial = dict(values)
+                errors["base"] = "avatar_unavailable"
+            else:
+                return self.async_create_entry(title="", data=self._pending_data)
+        if any(value is None for value in values.values()):
+            errors["base"] = "avatar_unavailable"
+        fields: dict[Any, Any] = {}
+        for key in (AVATAR_HAIR, MORNING_AVATAR):
+            marker = vol.Optional(key, default=values[key]) if values[key] is not None else vol.Optional(key)
+            fields[marker] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=list(HAIR_OPTIONS)))
+                if key == AVATAR_HAIR else selector.BooleanSelector()
+            )
+        return self.async_show_form(step_id="avatar", data_schema=vol.Schema(fields), errors=errors)
